@@ -509,9 +509,10 @@ if input_method == "手动输入":
         st.session_state.original_data = None
         st.session_state.blank_count = 0
         st.session_state.reset_counter += 1
-        if 'validation_report' in st.session_state:
+        # 清除验证相关状态
+        if hasattr(st.session_state, 'validation_report'):
             del st.session_state.validation_report
-        if 'validation_passed' in st.session_state:
+        if hasattr(st.session_state, 'validation_passed'):
             del st.session_state.validation_passed
 
     def undo_data():
@@ -524,9 +525,10 @@ if input_method == "手动输入":
             st.session_state.original_data = None
             st.session_state.blank_count = 0
             st.session_state.reset_counter += 1
-            if 'validation_report' in st.session_state:
+            # 清除验证相关状态
+            if hasattr(st.session_state, 'validation_report'):
                 del st.session_state.validation_report
-            if 'validation_passed' in st.session_state:
+            if hasattr(st.session_state, 'validation_passed'):
                 del st.session_state.validation_passed
         else:
             st.session_state.reset_counter += 1
@@ -603,14 +605,22 @@ if input_method == "手动输入":
                 else:
                     st.write(line)
     
-    # 调试信息
+    # 调试信息 - 使用安全访问
     with st.expander("调试信息"):
         st.write(f"当前数据: {st.session_state.manual_data}")
-        st.write(f"原始数据长度: {len(st.session_state.original_data) if st.session_state.original_data else 0}")
-        st.write(f"有效数据长度: {len(st.session_state.processed_data) if st.session_state.processed_data else 0}")
-        st.write(f"空白数据数: {st.session_state.blank_count}")
-        st.write(f"历史记录长度: {len(st.session_state.data_history)}")
-        st.write(f"重置计数器: {st.session_state.reset_counter}")
+        
+        # 安全地访问各种状态变量
+        original_data_length = len(st.session_state.original_data) if st.session_state.original_data is not None else 0
+        processed_data_length = len(st.session_state.processed_data) if st.session_state.processed_data is not None else 0
+        blank_count = st.session_state.blank_count
+        history_length = len(st.session_state.data_history)
+        reset_counter = st.session_state.reset_counter
+        
+        st.write(f"原始数据长度: {original_data_length}")
+        st.write(f"有效数据长度: {processed_data_length}")
+        st.write(f"空白数据数: {blank_count}")
+        st.write(f"历史记录长度: {history_length}")
+        st.write(f"重置计数器: {reset_counter}")
 
     if st.session_state.data_loaded and st.session_state.processed_data is not None:
         data = st.session_state.processed_data
