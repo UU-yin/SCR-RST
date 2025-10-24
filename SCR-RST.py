@@ -444,7 +444,7 @@ elif method == "Q/Hampel法":
 
 # 数据输入方式选择
 input_method = st.radio("数据输入方式:", 
-                       ["手动输入", "两列数据输入", "文件上传", "示例数据"])  # 新增两列数据输入
+                       ["手动输入", "带编号数据输入", "文件上传", "示例数据"])  # 新增两列数据输入
 data = None
 
 if input_method == "手动输入":
@@ -621,8 +621,8 @@ if input_method == "手动输入":
     if st.session_state.data_loaded and st.session_state.processed_data is not None:
         data = st.session_state.processed_data
 
-elif input_method == "两列数据输入":
-    st.subheader("📝 两列数据输入")
+elif input_method == "带编号数据输入":
+    st.subheader("📝 带编号数据输入")
     
     # 初始化会话状态
     if 'two_column_data' not in st.session_state:
@@ -767,7 +767,7 @@ elif input_method == "两列数据输入":
             st.error("请输入数据")
     
     # 清除按钮
-    if st.button("清除两列数据", type="secondary", use_container_width=True):
+    if st.button("清除带编号数据", type="secondary", use_container_width=True):
         st.session_state.two_column_data = ""
         st.session_state.two_column_processed = False
         st.session_state.label_data_pairs = []
