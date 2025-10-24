@@ -44,3 +44,4 @@ urllib3==2.5.0
 watchdog==6.0.0
 python_version<3.12
 scipy>=1.7.0
+openpyxl>=3.0.0
