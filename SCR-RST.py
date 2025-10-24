@@ -1369,7 +1369,9 @@ if data is not None and len(data) > 0:
                 df_sorted = df_clean.sort_values('Z_Score', ascending=False)
                 
                 # 创建Z值柱状图
-                fig, ax = plt.subplots(figsize=(14, max(8, len(df_sorted) * 0.3)))  # 动态调整高度
+                # 动态调整高度，为图例留出更多空间
+                chart_height = max(10, len(df_sorted) * 0.4)  # 增加基础高度和每个数据点的高度
+                fig, ax = plt.subplots(figsize=(14, chart_height))                
                 
                 # 设置类别对应的高饱和度颜色
                 color_map = {
@@ -1403,7 +1405,7 @@ if data is not None and len(data) > 0:
                 
                 # 设置图形属性
                 ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
-                ax.set_ylabel('Original Data ID', fontsize=16, fontweight='bold')
+                ax.set_ylabel('Original Data ID', fontsize=14, fontweight='bold')
                 ax.set_title('Z-Score Distribution (Sorted)', fontsize=18, fontweight='bold', pad=40)
                 
                 # 添加图例
