@@ -195,10 +195,6 @@ class DataValidator:
 # 修复后的文件格式处理模块
 # =============================================
 
-# =============================================
-# 修复后的文件格式处理模块
-# =============================================
-
 class FileProcessor:
     """文件处理类"""
     
@@ -628,9 +624,9 @@ if input_method == "手动输入":
 elif input_method == "两列数据输入":
     st.subheader("📝 两列数据输入")
     
-    # 初始化两列数据相关的会话状态
+    # 初始化会话状态
     if 'two_column_data' not in st.session_state:
-        st.session_state.two_column_data = ""
+        st.session_state.two_column_data = "Sample_A, 54.4\nSample_B, \nSample_C, 54.6\nSample_D,"
     
     if 'two_column_processed' not in st.session_state:
         st.session_state.two_column_processed = False
@@ -638,30 +634,39 @@ elif input_method == "两列数据输入":
     if 'label_data_pairs' not in st.session_state:
         st.session_state.label_data_pairs = []
     
-    if 'two_column_validation_report' not in st.session_state:
-        st.session_state.two_column_validation_report = []
+    if 'valid_pairs' not in st.session_state:
+        st.session_state.valid_pairs = []
     
-    # 两列数据输入说明
+    if 'blank_data_pairs' not in st.session_state:
+        st.session_state.blank_data_pairs = []
+    
+    # 清晰的格式说明
     st.markdown("""
-    **输入格式说明：**
-    - 每行输入一个数据对，格式为：`标签, 数值`
-    - 标签可以是任意字符串（如样本编号、名称等）
-    - 数值必须是有效的数字
-    - 示例：
-        ```
-        Sample_A, 54.4
-        Sample_B, 54.6
-        Control_1, 54.2
-        ```
+    **📋 输入格式说明：**
+    
+    **推荐使用逗号分隔符**，每行格式：`标签, 数值`
+    
+    **示例：**
+    ```
+    Sample_A, 54.4     ← 正常数据
+    Sample_B,          ← 空白数据（逗号后为空）
+    Sample_C, 55.0     ← 正常数据  
+    Sample_D,          ← 空白数据
+    ```
+    
+    **空白数据处理：**
+    - 空白数据会自动识别并排除在统计分析之外
+    - 空白数据会在结果中保留标签信息
+    - 导出时会标注空白数据状态
     """)
     
-    # 两列数据输入框
+    # 数据输入框
     two_column_input = st.text_area(
-        "请输入标签和数值数据（每行一个数据对，用逗号分隔）:",
+        "请输入标签和数值数据:",
         value=st.session_state.two_column_data,
         height=200,
         key="two_column_input",
-        help="格式：标签, 数值"
+        help="每行格式: 标签, 数值。使用逗号分隔，空白数据请保留逗号但数值留空"
     )
     
     # 更新会话状态
@@ -672,66 +677,90 @@ elif input_method == "两列数据输入":
     if st.button("分析两列数据", type="primary", use_container_width=True):
         if two_column_input.strip():
             try:
-                # 解析两列数据
                 lines = two_column_input.strip().split('\n')
                 label_data_pairs = []
                 valid_pairs = []
+                blank_data_pairs = []
                 invalid_lines = []
                 
                 for i, line in enumerate(lines):
                     line = line.strip()
                     if line:
-                        parts = [part.strip() for part in line.split(',')]
-                        if len(parts) == 2:
-                            label, value_str = parts
-                            try:
-                                value = float(value_str)
-                                label_data_pairs.append((label, value))
-                                valid_pairs.append((label, value))
-                            except ValueError:
-                                invalid_lines.append(f"第{i+1}行: '{value_str}' 不是有效的数字")
-                        else:
-                            invalid_lines.append(f"第{i+1}行: 格式错误，应为'标签, 数值'")
+                        # 使用逗号分割
+                        parts = line.split(',')
+                        if len(parts) >= 1:
+                            label = parts[0].strip()
+                            if not label:
+                                invalid_lines.append(f"第{i+1}行: 标签不能为空")
+                                continue
+                                
+                            # 检查数值部分
+                            if len(parts) >= 2 and parts[1].strip():
+                                value_str = parts[1].strip()
+                                try:
+                                    value = float(value_str)
+                                    label_data_pairs.append((label, value))
+                                    valid_pairs.append((label, value))
+                                except ValueError:
+                                    invalid_lines.append(f"第{i+1}行: '{value_str}' 不是有效的数字")
+                            else:
+                                # 空白数据
+                                label_data_pairs.append((label, None))
+                                blank_data_pairs.append((label, None))
                 
+                # 错误处理
                 if invalid_lines:
                     st.error("❌ 数据格式错误：")
                     for error in invalid_lines:
                         st.write(f"  - {error}")
                 
+                # 成功处理
                 if valid_pairs:
-                    # 提取标签和数据
+                    # 提取有效数据
                     labels = [pair[0] for pair in valid_pairs]
                     values = np.array([pair[1] for pair in valid_pairs])
                     
                     # 数据验证
                     values_str = "\n".join([str(pair[1]) for pair in valid_pairs])
-                    is_valid, _, clean_data, blank_count, validation_report = DataValidator.comprehensive_validation(values_str)
+                    is_valid, _, clean_data, _, validation_report = DataValidator.comprehensive_validation(values_str)
                     
                     if is_valid:
-                        st.session_state.label_data_pairs = valid_pairs
+                        # 保存所有状态
+                        st.session_state.label_data_pairs = label_data_pairs
+                        st.session_state.valid_pairs = valid_pairs
+                        st.session_state.blank_data_pairs = blank_data_pairs
                         st.session_state.processed_data = clean_data
-                        st.session_state.original_labels = labels
+                        st.session_state.original_labels = [pair[0] for pair in label_data_pairs]
                         st.session_state.two_column_processed = True
                         st.session_state.two_column_validation_report = validation_report
                         
-                        st.success(f"✅ 成功解析 {len(valid_pairs)} 个数据对")
+                        st.success(f"✅ 数据解析成功！")
+                        st.info(f"📊 统计: {len(valid_pairs)} 个有效数据, {len(blank_data_pairs)} 个空白数据")
                         
-                        # 显示数据预览
-                        with st.expander("📋 查看数据预览", expanded=True):
-                            preview_df = pd.DataFrame({
-                                '原始标签': labels,
-                                '数值': values
-                            })
+                        # 数据预览
+                        with st.expander("📋 查看数据详情", expanded=True):
+                            preview_data = []
+                            for label, value in label_data_pairs:
+                                preview_data.append({
+                                    '标签': label,
+                                    '数值': f"{value:.4f}" if value is not None else "空白",
+                                    '状态': '有效数据' if value is not None else '空白数据'
+                                })
+                            preview_df = pd.DataFrame(preview_data)
                             st.dataframe(preview_df, use_container_width=True)
+                            
                     else:
                         st.session_state.two_column_processed = False
                         st.error("❌ 数据验证失败")
-                        with st.expander("📋 查看验证详情", expanded=True):
+                        with st.expander("查看验证详情", expanded=True):
                             for line in validation_report:
                                 if line.startswith("❌"):
                                     st.error(line)
                                 else:
                                     st.write(line)
+                else:
+                    st.error("❌ 没有找到有效数据，请提供至少一些有效数值数据")
+                    
             except Exception as e:
                 st.error(f"❌ 数据处理错误: {str(e)}")
         else:
@@ -742,11 +771,12 @@ elif input_method == "两列数据输入":
         st.session_state.two_column_data = ""
         st.session_state.two_column_processed = False
         st.session_state.label_data_pairs = []
-        st.session_state.two_column_validation_report = []
+        st.session_state.valid_pairs = []
+        st.session_state.blank_data_pairs = []
         st.rerun()
     
     # 如果数据已处理，设置数据变量
-    if st.session_state.two_column_processed and st.session_state.label_data_pairs:
+    if st.session_state.two_column_processed and st.session_state.valid_pairs:
         data = st.session_state.processed_data
         
 elif input_method == "文件上传":
@@ -1464,14 +1494,7 @@ if data is not None and len(data) > 0:
                 
                 st.write("**统计量摘要:**")
                 st.dataframe(stats_df, use_container_width=True)
-                
-                # 显示预览
-                st.write("**导出数据预览:**")
-                st.dataframe(result_df, use_container_width=True)
-                
-                st.write("**统计量摘要:**")
-                st.dataframe(stats_df, use_container_width=True)
-                
+                                
                 # 创建多格式导出选项
                 export_col1, export_col2, export_col3, export_col4 = st.columns(4)
                 
