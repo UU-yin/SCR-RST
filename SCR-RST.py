@@ -1570,7 +1570,7 @@ if data is not None and len(data) > 0:
                     excel_buffer.seek(0)
                     
                     st.download_button(
-                        label="?? 下载Excel",
+                        label="📥 下载Excel",
                         data=excel_buffer,
                         file_name=f"{method}_分析结果.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1607,7 +1607,7 @@ if data is not None and len(data) > 0:
                     
                     json_data = json.dumps(export_data, indent=2, ensure_ascii=False)
                     st.download_button(
-                        label="?? 下载JSON",
+                        label="📥 下载JSON",
                         data=json_data,
                         file_name=f"{method}_分析结果.json",
                         mime="application/json",
@@ -1618,7 +1618,7 @@ if data is not None and len(data) > 0:
                      # CSV导出                                               
                      csv_data = result_df.to_csv(index=False)                
                      st.download_button(                                     
-                         label="?? 下载CSV",                                 
+                         label="📥 下载CSV",                                 
                          data=csv_data,                                      
                          file_name=f"{method}_分析结果.csv",                 
                          mime="text/csv",                                    
@@ -1715,7 +1715,7 @@ Z比分数分类（仅有效数据）:
                     report += "无"
                 
                 st.download_button(
-                    label="?? 下载报告",
+                    label="📥 下载报告",
                     data=report,
                     file_name=f"{method}_分析报告.txt",
                     mime="text/plain",
@@ -1723,7 +1723,7 @@ Z比分数分类（仅有效数据）:
                 )
                 
                 # 图表下载功能保持不变
-                st.subheader("?? 下载图表")
+                st.subheader("📊 下载图表")
                 chart_col1, chart_col2 = st.columns(2)
                 
                 with chart_col1:
@@ -1731,7 +1731,7 @@ Z比分数分类（仅有效数据）:
                     fig.savefig(buffer_png, format="png", dpi=300, bbox_inches="tight")
                     buffer_png.seek(0)
                     st.download_button(
-                        label="?? 下载PNG图表",
+                        label="📥 下载PNG图表",
                         data=buffer_png,
                         file_name=f"z_score_chart_{method}.png",
                         mime="image/png"
@@ -1742,13 +1742,13 @@ Z比分数分类（仅有效数据）:
                     fig.savefig(buffer_pdf, format="pdf", bbox_inches="tight")
                     buffer_pdf.seek(0)
                     st.download_button(
-                        label="?? 下载PDF图表",
+                        label="📥 下载PDF图表",
                         data=buffer_pdf,
                         file_name=f"z_score_chart_{method}.pdf",
                         mime="application/pdf"
                     )
                 
-                st.info("?? 提示：导出的数据表格使用三位数字标签格式（001、002...），空白数据会保留标签但数据为空")
+                st.info("💡 提示：导出的数据表格使用三位数字标签格式（001、002...），空白数据会保留标签但数据为空")
                 
             except Exception as e:
                 st.error(f"❌ 统计分析过程中发生错误: {str(e)}")
@@ -1785,9 +1785,9 @@ with st.expander("💬 有问题或建议？点击这里联系我们", expanded=
     
     请通过以下方式联系我们：
     
-    📩 **xxx@163.com**
+    📩 **ypan1104@163.com**
     
-    **联系人**：x博士
+    **联系人**：印博士
        
     感谢您帮助我们变得更好！
     """)
