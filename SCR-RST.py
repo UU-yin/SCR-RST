@@ -1532,6 +1532,92 @@ if data is not None and len(data) > 0:
                 st.write("**统计量摘要:**")
                 st.dataframe(stats_df, use_container_width=True)
                                 
+                report = f"""                
+{method}分析报告
+================
+
+分析时间: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+数据概览:
+--------
+总数据点数: {total_data_count}
+实际可分析数据数: {actual_analyzable_count}
+空白数据数: {blank_data_count}
+
+数据表格:
+--------
+标签原始标号\t输入数据\tZ比分数
+"""
+                
+                # 添加数据行 - 确保数值格式
+                for i in range(len(result_df)):
+                    row = result_df.iloc[i]
+                    # 处理输入数据格式
+                    if pd.isna(row['输入数据']):
+                        input_data = ""
+                    else:
+                        input_data = f"{row['输入数据']:.2f}"  # 保留两位小数
+                    
+                    # 处理Z比分数格式
+                    if pd.isna(row['Z比分数']):
+                        z_score = ""
+                    else:
+                        z_score = f"{row['Z比分数']:.2f}"  # 保留两位小数
+                        
+                    report += f"{row['标签原始标号']}\t{input_data}\t{z_score}\n"
+                
+                report += f"""
+统计量摘要:
+----------
+"""
+                
+                for stat_name, value in stats_df.set_index('统计量名称')['数值'].items():
+                    report += f"{stat_name}: {value}\n"
+                
+                report += f"""
+分析详情:
+--------
+分析方法: {method}
+离群值数量: {len(results['outliers'])}
+正常值范围: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]
+"""
+                
+                if method == "四分位稳健统计法":
+                    report += f"""
+四分位统计量:
+-----------
+下四分位数(Q1): {results['q1']:.6f}
+上四分位数(Q3): {results['q3']:.6f}
+四分位距(IQR): {results['iqr']:.6f}
+标准化四分位距(NIQR): {results['niqr']:.6f}
+"""
+                
+                if 'iterations' in results:
+                    report += f"迭代次数: {results['iterations']}\n"
+                
+                # Z比分数分类统计
+                z_scores_abs = np.abs(results['Z_scores'])
+                satisfactory = np.sum(z_scores_abs <= 2)
+                questionable = np.sum((z_scores_abs > 2) & (z_scores_abs <= 3))
+                unsatisfactory = np.sum(z_scores_abs > 3)
+                
+                report += f"""
+Z比分数分类（仅有效数据）:
+-------------------------
+满意 (|Z| ≤ 2): {satisfactory} 个数据点
+可疑 (2 < |Z| ≤ 3): {questionable} 个数据点  
+不满意 (|Z| > 3): {unsatisfactory} 个数据点
+
+离群值列表:
+----------
+"""
+                
+                if len(results['outliers']) > 0:
+                    outliers_list = [f"{float(x):.2f}" for x in sorted(results['outliers'])]
+                    report += f"{', '.join(outliers_list)}"
+                else:
+                    report += "无" 
+
                 # 创建多格式导出选项
                 export_col1, export_col2, export_col3, export_col4 = st.columns(4)
                 
@@ -1625,102 +1711,16 @@ if data is not None and len(data) > 0:
                          help="下载CSV格式的分析结果表格（使用三位数字标签）"
                      )                                                       
                                                                              
-                with export_col4:                                           
-                     # 文本报告导出 - 确保数值格式正确                       
-                    report = f"""
-                
-{method}分析报告
-================
-
-分析时间: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-数据概览:
---------
-总数据点数: {total_data_count}
-实际可分析数据数: {actual_analyzable_count}
-空白数据数: {blank_data_count}
-
-数据表格:
---------
-标签原始标号\t输入数据\tZ比分数
-"""
-                
-                # 添加数据行 - 确保数值格式
-                for i in range(len(result_df)):
-                    row = result_df.iloc[i]
-                    # 处理输入数据格式
-                    if pd.isna(row['输入数据']):
-                        input_data = ""
-                    else:
-                        input_data = f"{row['输入数据']:.2f}"  # 保留两位小数
-                    
-                    # 处理Z比分数格式
-                    if pd.isna(row['Z比分数']):
-                        z_score = ""
-                    else:
-                        z_score = f"{row['Z比分数']:.2f}"  # 保留两位小数
-                        
-                    report += f"{row['标签原始标号']}\t{input_data}\t{z_score}\n"
-                
-                report += f"""
-统计量摘要:
-----------
-"""
-                
-                for stat_name, value in stats_df.set_index('统计量名称')['数值'].items():
-                    report += f"{stat_name}: {value}\n"
-                
-                report += f"""
-分析详情:
---------
-分析方法: {method}
-离群值数量: {len(results['outliers'])}
-正常值范围: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]
-"""
-                
-                if method == "四分位稳健统计法":
-                    report += f"""
-四分位统计量:
------------
-下四分位数(Q1): {results['q1']:.6f}
-上四分位数(Q3): {results['q3']:.6f}
-四分位距(IQR): {results['iqr']:.6f}
-标准化四分位距(NIQR): {results['niqr']:.6f}
-"""
-                
-                if 'iterations' in results:
-                    report += f"迭代次数: {results['iterations']}\n"
-                
-                # Z比分数分类统计
-                z_scores_abs = np.abs(results['Z_scores'])
-                satisfactory = np.sum(z_scores_abs <= 2)
-                questionable = np.sum((z_scores_abs > 2) & (z_scores_abs <= 3))
-                unsatisfactory = np.sum(z_scores_abs > 3)
-                
-                report += f"""
-Z比分数分类（仅有效数据）:
--------------------------
-满意 (|Z| ≤ 2): {satisfactory} 个数据点
-可疑 (2 < |Z| ≤ 3): {questionable} 个数据点  
-不满意 (|Z| > 3): {unsatisfactory} 个数据点
-
-离群值列表:
-----------
-"""
-                
-                if len(results['outliers']) > 0:
-                    outliers_list = [f"{float(x):.2f}" for x in sorted(results['outliers'])]
-                    report += f"{', '.join(outliers_list)}"
-                else:
-                    report += "无"
-                
-                st.download_button(
-                    label="📥 下载报告",
-                    data=report,
-                    file_name=f"{method}_分析报告.txt",
-                    mime="text/plain",
-                    help="下载文本格式的详细分析报告（使用三位数字标签）"
-                )
+                with export_col4:
+                    # 文本报告导出
+                    st.download_button(
+                        label="?? 下载报告",
+                        data=report,
+                        file_name=f"{method}_分析报告.txt",
+                        mime="text/plain",
+                        help="下载文本格式的详细分析报告（使用三位数字标签）"
+                    )                      
+               
                 
                 # 图表下载功能保持不变
                 st.subheader("📊 下载图表")
