@@ -674,7 +674,7 @@ elif input_method == "带编号数据输入":
         st.session_state.two_column_data = two_column_input
     
     # 分析按钮
-    if st.button("分析两列数据", type="primary", use_container_width=True):
+    if st.button("分析带编号数据", type="primary", use_container_width=True):
         if two_column_input.strip():
             try:
                 lines = two_column_input.strip().split('\n')
@@ -1301,7 +1301,7 @@ if data is not None and len(data) > 0:
                 st.subheader("数据可视化")
                 
                 # 创建数据框用于可视化
-                if input_method == "两列数据输入" and hasattr(st.session_state, 'label_data_pairs'):
+                if input_method == "带编号数据输入" and hasattr(st.session_state, 'label_data_pairs'):
                     # 使用两列数据的原始标签，但只保留有效数据的Z分数
                     valid_labels = []
                     valid_data = []
@@ -1454,7 +1454,7 @@ if data is not None and len(data) > 0:
                 # 创建结果DataFrame - 支持原始标签
                 result_data = []
                 
-                if input_method == "两列数据输入" and hasattr(st.session_state, 'label_data_pairs'):
+                if input_method == "带编号数据输入" and hasattr(st.session_state, 'label_data_pairs'):
                     # 两列数据输入：使用用户提供的原始标签
                     valid_data_count = 0
                     for label, value in st.session_state.label_data_pairs:
