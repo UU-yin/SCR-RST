@@ -448,7 +448,7 @@ elif method == "Q/Hampel法":
 
 # 数据输入方式选择
 input_method = st.radio("数据输入方式:", 
-                       ["手动输入", "文件上传", "示例数据"])
+                       ["手动输入", "文件上传", "示例数据", "两列数据输入"])  # 新增两列数据输入
 data = None
 
 if input_method == "手动输入":
@@ -625,6 +625,130 @@ if input_method == "手动输入":
     if st.session_state.data_loaded and st.session_state.processed_data is not None:
         data = st.session_state.processed_data
 
+elif input_method == "两列数据输入":
+    st.subheader("📝 两列数据输入")
+    
+    # 初始化两列数据相关的会话状态
+    if 'two_column_data' not in st.session_state:
+        st.session_state.two_column_data = ""
+    
+    if 'two_column_processed' not in st.session_state:
+        st.session_state.two_column_processed = False
+    
+    if 'label_data_pairs' not in st.session_state:
+        st.session_state.label_data_pairs = []
+    
+    if 'two_column_validation_report' not in st.session_state:
+        st.session_state.two_column_validation_report = []
+    
+    # 两列数据输入说明
+    st.markdown("""
+    **输入格式说明：**
+    - 每行输入一个数据对，格式为：`标签, 数值`
+    - 标签可以是任意字符串（如样本编号、名称等）
+    - 数值必须是有效的数字
+    - 示例：
+        ```
+        Sample_A, 54.4
+        Sample_B, 54.6
+        Control_1, 54.2
+        ```
+    """)
+    
+    # 两列数据输入框
+    two_column_input = st.text_area(
+        "请输入标签和数值数据（每行一个数据对，用逗号分隔）:",
+        value=st.session_state.two_column_data,
+        height=200,
+        key="two_column_input",
+        help="格式：标签, 数值"
+    )
+    
+    # 更新会话状态
+    if two_column_input != st.session_state.two_column_data:
+        st.session_state.two_column_data = two_column_input
+    
+    # 分析按钮
+    if st.button("分析两列数据", type="primary", use_container_width=True):
+        if two_column_input.strip():
+            try:
+                # 解析两列数据
+                lines = two_column_input.strip().split('\n')
+                label_data_pairs = []
+                valid_pairs = []
+                invalid_lines = []
+                
+                for i, line in enumerate(lines):
+                    line = line.strip()
+                    if line:
+                        parts = [part.strip() for part in line.split(',')]
+                        if len(parts) == 2:
+                            label, value_str = parts
+                            try:
+                                value = float(value_str)
+                                label_data_pairs.append((label, value))
+                                valid_pairs.append((label, value))
+                            except ValueError:
+                                invalid_lines.append(f"第{i+1}行: '{value_str}' 不是有效的数字")
+                        else:
+                            invalid_lines.append(f"第{i+1}行: 格式错误，应为'标签, 数值'")
+                
+                if invalid_lines:
+                    st.error("❌ 数据格式错误：")
+                    for error in invalid_lines:
+                        st.write(f"  - {error}")
+                
+                if valid_pairs:
+                    # 提取标签和数据
+                    labels = [pair[0] for pair in valid_pairs]
+                    values = np.array([pair[1] for pair in valid_pairs])
+                    
+                    # 数据验证
+                    values_str = "\n".join([str(pair[1]) for pair in valid_pairs])
+                    is_valid, _, clean_data, blank_count, validation_report = DataValidator.comprehensive_validation(values_str)
+                    
+                    if is_valid:
+                        st.session_state.label_data_pairs = valid_pairs
+                        st.session_state.processed_data = clean_data
+                        st.session_state.original_labels = labels
+                        st.session_state.two_column_processed = True
+                        st.session_state.two_column_validation_report = validation_report
+                        
+                        st.success(f"✅ 成功解析 {len(valid_pairs)} 个数据对")
+                        
+                        # 显示数据预览
+                        with st.expander("📋 查看数据预览", expanded=True):
+                            preview_df = pd.DataFrame({
+                                '原始标签': labels,
+                                '数值': values
+                            })
+                            st.dataframe(preview_df, use_container_width=True)
+                    else:
+                        st.session_state.two_column_processed = False
+                        st.error("❌ 数据验证失败")
+                        with st.expander("📋 查看验证详情", expanded=True):
+                            for line in validation_report:
+                                if line.startswith("❌"):
+                                    st.error(line)
+                                else:
+                                    st.write(line)
+            except Exception as e:
+                st.error(f"❌ 数据处理错误: {str(e)}")
+        else:
+            st.error("请输入数据")
+    
+    # 清除按钮
+    if st.button("清除两列数据", type="secondary", use_container_width=True):
+        st.session_state.two_column_data = ""
+        st.session_state.two_column_processed = False
+        st.session_state.label_data_pairs = []
+        st.session_state.two_column_validation_report = []
+        st.rerun()
+    
+    # 如果数据已处理，设置数据变量
+    if st.session_state.two_column_processed and st.session_state.label_data_pairs:
+        data = st.session_state.processed_data
+        
 elif input_method == "文件上传":
     st.subheader("📁 上传数据文件")
     
@@ -1143,14 +1267,37 @@ if data is not None and len(data) > 0:
                 with col3:
                     st.metric("不满意 (|Z| > 3)", f"{unsatisfactory} 个")
                 
-                # 可视化 - 使用新的Z值柱状图
+                # 可视化 - 使用原始标签的Z值柱状图
                 st.subheader("数据可视化")
                 
                 # 创建数据框用于可视化
-                df_clean = pd.DataFrame({
-                    'Original_Data': data,
-                    'Z_Score': results['Z_scores']
-                })
+                if input_method == "两列数据输入" and hasattr(st.session_state, 'original_labels'):
+                    # 使用两列数据的原始标签
+                    df_clean = pd.DataFrame({
+                        'Original_Label': st.session_state.original_labels,
+                        'Original_Data': data,
+                        'Z_Score': results['Z_scores']
+                    })
+                else:
+                    # 其他输入方式使用自动生成的标签
+                    df_clean = pd.DataFrame({
+                        'Original_Data': data,
+                        'Z_Score': results['Z_scores']
+                    })
+                    
+                    # 生成三位数字标签 - 仅对有效数据
+                    valid_labels = []
+                    valid_data_count = 0
+                    
+                    # 遍历原始数据，只为有效数据生成标签
+                    for i, value in enumerate(st.session_state.original_data):
+                        if value is not None:  # 有效数据
+                            label = f"{str(valid_data_count+1).zfill(3)}"  # 001, 002, ...
+                            valid_labels.append(label)
+                            valid_data_count += 1
+                    
+                    # 将标签添加到数据框
+                    df_clean['Original_Label'] = valid_labels
                 
                 # 根据Z值进行分类
                 def classify_data(row):
@@ -1162,20 +1309,6 @@ if data is not None and len(data) > 0:
                         return 'Unsatisfactory'
                 
                 df_clean['Category'] = df_clean.apply(classify_data, axis=1)
-                
-                # 生成三位数字标签 - 仅对有效数据
-                valid_labels = []
-                valid_data_count = 0
-                
-                # 遍历原始数据，只为有效数据生成标签
-                for i, value in enumerate(st.session_state.original_data):
-                    if value is not None:  # 有效数据
-                        label = f"{str(valid_data_count+1).zfill(3)}"  # 001, 002, ...
-                        valid_labels.append(label)
-                        valid_data_count += 1
-                
-                # 将标签添加到数据框
-                df_clean['Original_Label'] = valid_labels
                 
                 # 按照Z值从大到小排序
                 df_sorted = df_clean.sort_values('Z_Score', ascending=False)
@@ -1198,14 +1331,13 @@ if data is not None and len(data) > 0:
                 bars = ax.barh(y_positions, 
                                df_sorted['Z_Score'], 
                                color=colors, 
-                               alpha=0.6,  # 降低透明度使颜色更柔和
+                               alpha=0.6,
                                height=0.8,
-                               edgecolor='white',  # 使用白色边框使柱状图更清晰
+                               edgecolor='white',
                                linewidth=0.5)
                 
                 # 在柱状图上标注Z值
                 for i, (bar, z_value) in enumerate(zip(bars, df_sorted['Z_Score'])):
-                    # 使用黑色文字确保在较淡的背景上可读
                     text_color = 'black'
                     ax.text(bar.get_width() + 0.05 * (1 if bar.get_width() >= 0 else -1), 
                             bar.get_y() + bar.get_height()/2, 
@@ -1216,10 +1348,10 @@ if data is not None and len(data) > 0:
                 
                 # 设置图形属性
                 ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
-                ax.set_ylabel('Origin Data ID', fontsize=14, fontweight='bold')  # 修改y轴标签
+                ax.set_ylabel('Original Data ID', fontsize=14, fontweight='bold')
                 ax.set_title('Z-Score Distribution (Sorted)', fontsize=18, fontweight='bold', pad=40)
                 
-                # 添加图例 - 放在图表上方，标题下方
+                # 添加图例
                 from matplotlib.patches import Patch
                 legend_elements = [
                     Patch(facecolor=color_map['Satisfactory'], alpha=0.6, label='Satisfactory (|Z| ≤ 2)'),
@@ -1227,18 +1359,15 @@ if data is not None and len(data) > 0:
                     Patch(facecolor=color_map['Unsatisfactory'], alpha=0.6, label='Unsatisfactory (|Z| > 3)')
                 ]
                 
-                # 将图例放在图表上方，标题下方
-                legend = ax.legend(handles=legend_elements, title='Category', title_fontsize=12, fontsize=11, 
-                                  loc='upper center', bbox_to_anchor=(0.5, 1.00), ncol=3, frameon=True)
+                ax.legend(handles=legend_elements, title='Category', title_fontsize=12, fontsize=11, 
+                          loc='upper center', bbox_to_anchor=(0.5, 1.00), ncol=3, frameon=True)
                 
-                # 设置Y轴刻度 - 使用三位数字标签
+                # 设置Y轴刻度 - 使用原始标签
                 ax.set_yticks(y_positions)
-                ax.set_yticklabels(df_sorted['Original_Label'])  # 使用三位数字标签
+                ax.set_yticklabels(df_sorted['Original_Label'])
                 
-                # 添加零线参考线
+                # 添加参考线
                 ax.axvline(x=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
-                
-                # 添加阈值线
                 ax.axvline(x=-2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
                 ax.axvline(x=2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
                 ax.axvline(x=-3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
@@ -1250,70 +1379,91 @@ if data is not None and len(data) > 0:
                 # 反转Y轴，使最大的Z值在顶部
                 ax.invert_yaxis()
                 
-                # 设置背景色为白色，使高饱和度颜色更加突出
+                # 设置背景色
                 ax.set_facecolor('white')
                 
-                # 调整子图参数，为顶部图例和标题留出更多空间
-                plt.subplots_adjust(top=0.88)
-                
                 # 调整布局
+                plt.subplots_adjust(top=0.88)
                 plt.tight_layout()
                 
                 # 显示图表
                 st.pyplot(fig)               
 
                 # =============================================
-                # 修改后的导出结果模块 - 使用三位数字标签
+                # 修改后的导出结果模块 - 支持原始标签
                 # =============================================
                 
                 # 导出功能
                 st.subheader("💾 导出结果")
                 
-                # 创建结果DataFrame - 使用三位数字标签
+                # 创建结果DataFrame - 支持原始标签
                 result_data = []
-                valid_data_count = 0
                 
-                # 处理原始数据（包括空白值）
-                for i, value in enumerate(st.session_state.original_data):
-                    # 修改：使用三位数字标签，如001, 002, ..., 010, 011, ...
-                    original_label = f"{str(i+1).zfill(3)}"  # 001, 002, ..., 099, 100, ...
-                    
-                    if value is not None:  # 有效数据
+                if input_method == "两列数据输入" and hasattr(st.session_state, 'label_data_pairs'):
+                    # 两列数据输入：使用用户提供的原始标签
+                    valid_data_count = 0
+                    for label, value in st.session_state.label_data_pairs:
                         z_score = results['Z_scores'][valid_data_count] if valid_data_count < len(results['Z_scores']) else None
                         result_data.append({
-                            '标签原始标号': original_label,  # 修改列名以匹配新格式
-                            '输入数据': round(value, 2),  # 保留两位小数
-                            'Z比分数': round(z_score, 2) if z_score is not None else None  # 保留两位小数
+                            '标签原始标号': label,  # 使用用户提供的标签
+                            '输入数据': round(value, 2),
+                            'Z比分数': round(z_score, 2) if z_score is not None else None
                         })
                         valid_data_count += 1
-                    else:  # 空白数据
-                        result_data.append({
-                            '标签原始标号': original_label,  # 修改列名以匹配新格式
-                            '输入数据': None,  # 空白数据
-                            'Z比分数': None   # 空白数据没有Z分数
-                        })
+                    
+                    total_data_count = len(st.session_state.label_data_pairs)
+                    blank_data_count = 0  # 两列数据输入不支持空白数据
+                    actual_analyzable_count = len(data)
+                    
+                else:
+                    # 其他输入方式：使用自动生成的三位数字标签
+                    valid_data_count = 0
+                    for i, value in enumerate(st.session_state.original_data):
+                        original_label = f"{str(i+1).zfill(3)}"  # 001, 002, ...
+                        
+                        if value is not None:  # 有效数据
+                            z_score = results['Z_scores'][valid_data_count] if valid_data_count < len(results['Z_scores']) else None
+                            result_data.append({
+                                '标签原始标号': original_label,
+                                '输入数据': round(value, 2),
+                                'Z比分数': round(z_score, 2) if z_score is not None else None
+                            })
+                            valid_data_count += 1
+                        else:  # 空白数据
+                            result_data.append({
+                                '标签原始标号': original_label,
+                                '输入数据': None,
+                                'Z比分数': None
+                            })
+                    
+                    total_data_count = len(st.session_state.original_data)
+                    blank_data_count = st.session_state.blank_count
+                    actual_analyzable_count = len(data)
                 
                 result_df = pd.DataFrame(result_data)
                 
-                # 计算统计量 - 更新为新的命名
-                total_data_count = len(st.session_state.original_data)  # 总数据数
-                blank_data_count = st.session_state.blank_count  # 空白数据数
-                actual_analyzable_count = len(data)  # 实际可分析数据数
-                
+                # 计算统计量
                 stats_data = {
                     '统计量名称': ['总数据数', '实际可分析数据数', '空白数据数', '指定值', '能力评定标准差', '最小值', '最大值', '极差'],
                     '数值': [
-                        total_data_count,  # 总数据数
-                        actual_analyzable_count,  # 实际可分析数据数
-                        blank_data_count,  # 空白数据数
-                        round(results['robust_mean'], 2),  # 指定值（稳健平均值）
-                        round(results['robust_std'], 2),  # 能力评定标准差（稳健标准差）
-                        round(np.min(data), 2),  # 最小值
-                        round(np.max(data), 2),  # 最大值
-                        round(np.max(data) - np.min(data), 2)  # 极差
+                        total_data_count,
+                        actual_analyzable_count,
+                        blank_data_count,
+                        round(results['robust_mean'], 2),
+                        round(results['robust_std'], 2),
+                        round(np.min(data), 2),
+                        round(np.max(data), 2),
+                        round(np.max(data) - np.min(data), 2)
                     ]
                 }
                 stats_df = pd.DataFrame(stats_data)
+                
+                # 显示预览
+                st.write("**导出数据预览:**")
+                st.dataframe(result_df, use_container_width=True)
+                
+                st.write("**统计量摘要:**")
+                st.dataframe(stats_df, use_container_width=True)
                 
                 # 显示预览
                 st.write("**导出数据预览:**")
