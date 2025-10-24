@@ -1403,7 +1403,7 @@ if data is not None and len(data) > 0:
                 
                 # 设置图形属性
                 ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
-                ax.set_ylabel('Original Data ID', fontsize=14, fontweight='bold')
+                ax.set_ylabel('Original Data ID', fontsize=16, fontweight='bold')
                 ax.set_title('Z-Score Distribution (Sorted)', fontsize=18, fontweight='bold', pad=40)
                 
                 # 添加图例
