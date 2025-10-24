@@ -1714,14 +1714,13 @@ Z比分数分类（仅有效数据）:
                 with export_col4:
                     # 文本报告导出
                     st.download_button(
-                        label="?? 下载报告",
+                        label="📥 下载报告",
                         data=report,
                         file_name=f"{method}_分析报告.txt",
                         mime="text/plain",
                         help="下载文本格式的详细分析报告（使用三位数字标签）"
                     )                      
-               
-                
+                               
                 # 图表下载功能保持不变
                 st.subheader("📊 下载图表")
                 chart_col1, chart_col2 = st.columns(2)
