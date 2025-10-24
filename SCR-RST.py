@@ -1301,13 +1301,32 @@ if data is not None and len(data) > 0:
                 st.subheader("数据可视化")
                 
                 # 创建数据框用于可视化
-                if input_method == "两列数据输入" and hasattr(st.session_state, 'original_labels'):
-                    # 使用两列数据的原始标签
+                if input_method == "两列数据输入" and hasattr(st.session_state, 'label_data_pairs'):
+                    # 使用两列数据的原始标签，但只保留有效数据的Z分数
+                    valid_labels = []
+                    valid_data = []
+                    valid_z_scores = []
+                    
+                    # 确保Z_scores与有效数据正确对应
+                    if hasattr(st.session_state, 'valid_pairs') and st.session_state.valid_pairs:
+                        # 获取有效数据对应的标签和数值
+                        valid_labels = [pair[0] for pair in st.session_state.valid_pairs]
+                        valid_data = [pair[1] for pair in st.session_state.valid_pairs]
+                        
+                        # 确保Z_scores长度与有效数据匹配
+                        if len(results['Z_scores']) == len(valid_data):
+                            valid_z_scores = results['Z_scores']
+                        else:
+                            st.error(f"Z分数数量({len(results['Z_scores'])})与有效数据数量({len(valid_data)})不匹配")
+                            # 不返回，而是跳过可视化部分
+                            st.stop()
+                    
                     df_clean = pd.DataFrame({
-                        'Original_Label': st.session_state.original_labels,
-                        'Original_Data': data,
-                        'Z_Score': results['Z_scores']
+                        'Original_Label': valid_labels,
+                        'Original_Data': valid_data,
+                        'Z_Score': valid_z_scores
                     })
+                    
                 else:
                     # 其他输入方式使用自动生成的标签
                     df_clean = pd.DataFrame({
@@ -1329,6 +1348,12 @@ if data is not None and len(data) > 0:
                     # 将标签添加到数据框
                     df_clean['Original_Label'] = valid_labels
                 
+                # 检查数据框是否为空
+                if df_clean.empty:
+                    st.warning("没有有效数据可用于可视化")
+                    # 使用 st.stop() 而不是 return
+                    st.stop()
+                
                 # 根据Z值进行分类
                 def classify_data(row):
                     if abs(row['Z_Score']) <= 2:
@@ -1344,7 +1369,7 @@ if data is not None and len(data) > 0:
                 df_sorted = df_clean.sort_values('Z_Score', ascending=False)
                 
                 # 创建Z值柱状图
-                fig, ax = plt.subplots(figsize=(14, 16))
+                fig, ax = plt.subplots(figsize=(14, max(8, len(df_sorted) * 0.3)))  # 动态调整高度
                 
                 # 设置类别对应的高饱和度颜色
                 color_map = {
@@ -1417,7 +1442,7 @@ if data is not None and len(data) > 0:
                 plt.tight_layout()
                 
                 # 显示图表
-                st.pyplot(fig)               
+                st.pyplot(fig)              
 
                 # =============================================
                 # 修改后的导出结果模块 - 支持原始标签
@@ -1433,17 +1458,25 @@ if data is not None and len(data) > 0:
                     # 两列数据输入：使用用户提供的原始标签
                     valid_data_count = 0
                     for label, value in st.session_state.label_data_pairs:
-                        z_score = results['Z_scores'][valid_data_count] if valid_data_count < len(results['Z_scores']) else None
+                        # 检查是否有对应的Z分数（仅对有效数据）
+                        z_score = None
+                        if value is not None and valid_data_count < len(results['Z_scores']):
+                            z_score = results['Z_scores'][valid_data_count]
+                            valid_data_count += 1
+                        
+                        # 修改这里：对有效数据保留两位小数，空白数据保持None
+                        formatted_value = round(value, 2) if value is not None else None
+                        formatted_z_score = round(z_score, 2) if z_score is not None else None
+                        
                         result_data.append({
                             '标签原始标号': label,  # 使用用户提供的标签
-                            '输入数据': round(value, 2),
-                            'Z比分数': round(z_score, 2) if z_score is not None else None
+                            '输入数据': formatted_value,  # 保留两位小数
+                            'Z比分数': formatted_z_score
                         })
-                        valid_data_count += 1
                     
                     total_data_count = len(st.session_state.label_data_pairs)
-                    blank_data_count = 0  # 两列数据输入不支持空白数据
-                    actual_analyzable_count = len(data)
+                    blank_data_count = sum(1 for _, value in st.session_state.label_data_pairs if value is None)
+                    actual_analyzable_count = total_data_count - blank_data_count
                     
                 else:
                     # 其他输入方式：使用自动生成的三位数字标签
@@ -1453,10 +1486,14 @@ if data is not None and len(data) > 0:
                         
                         if value is not None:  # 有效数据
                             z_score = results['Z_scores'][valid_data_count] if valid_data_count < len(results['Z_scores']) else None
+                            # 修改这里：对有效数据保留两位小数
+                            formatted_value = round(value, 2)
+                            formatted_z_score = round(z_score, 2) if z_score is not None else None
+                            
                             result_data.append({
                                 '标签原始标号': original_label,
-                                '输入数据': round(value, 2),
-                                'Z比分数': round(z_score, 2) if z_score is not None else None
+                                '输入数据': formatted_value,  # 保留两位小数
+                                'Z比分数': formatted_z_score
                             })
                             valid_data_count += 1
                         else:  # 空白数据
@@ -1470,20 +1507,20 @@ if data is not None and len(data) > 0:
                     blank_data_count = st.session_state.blank_count
                     actual_analyzable_count = len(data)
                 
-                result_df = pd.DataFrame(result_data)
+                result_df = pd.DataFrame(result_data)                
                 
-                # 计算统计量
+                # 计算统计量                # 计算统计量 - 确保统计量也保留两位小数
                 stats_data = {
                     '统计量名称': ['总数据数', '实际可分析数据数', '空白数据数', '指定值', '能力评定标准差', '最小值', '最大值', '极差'],
                     '数值': [
                         total_data_count,
                         actual_analyzable_count,
                         blank_data_count,
-                        round(results['robust_mean'], 2),
-                        round(results['robust_std'], 2),
-                        round(np.min(data), 2),
-                        round(np.max(data), 2),
-                        round(np.max(data) - np.min(data), 2)
+                        round(results['robust_mean'], 2),  # 保留两位小数
+                        round(results['robust_std'], 2),   # 保留两位小数
+                        round(np.min(data), 2) if len(data) > 0 else 0,     # 保留两位小数
+                        round(np.max(data), 2) if len(data) > 0 else 0,     # 保留两位小数
+                        round(np.max(data) - np.min(data), 2) if len(data) > 0 else 0  # 保留两位小数
                     ]
                 }
                 stats_df = pd.DataFrame(stats_data)
@@ -1499,16 +1536,48 @@ if data is not None and len(data) > 0:
                 export_col1, export_col2, export_col3, export_col4 = st.columns(4)
                 
                 with export_col1:
-                    # CSV导出
-                    csv_data = result_df.to_csv(index=False)
+                    # Excel导出 - 确保数据格式正确
+                    excel_buffer = io.BytesIO()
+                    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                        # 数据表格工作表 - 应用格式
+                        result_df_formatted = result_df.copy()
+                        # 确保数值列格式正确
+                        if '输入数据' in result_df_formatted.columns:
+                            result_df_formatted['输入数据'] = result_df_formatted['输入数据'].apply(
+                                lambda x: f"{x:.2f}" if x is not None and pd.notna(x) else ""
+                            )
+                        if 'Z比分数' in result_df_formatted.columns:
+                            result_df_formatted['Z比分数'] = result_df_formatted['Z比分数'].apply(
+                                lambda x: f"{x:.2f}" if x is not None and pd.notna(x) else ""
+                            )
+                        
+                        result_df_formatted.to_excel(writer, sheet_name='分析数据', index=False)
+                        
+                        # 统计量工作表
+                        stats_df.to_excel(writer, sheet_name='统计摘要', index=False)
+                        
+                        # 详细信息工作表
+                        detail_data = {
+                            '项目': ['分析方法', '总数据点数', '实际可分析数据数', '空白数据数', 
+                                   '稳健平均值', '稳健标准差', '离群值数量', '正常值下限', '正常值上限'],
+                            '数值': [method, total_data_count, actual_analyzable_count, blank_data_count,
+                                   round(results['robust_mean'], 2), round(results['robust_std'], 2), 
+                                   len(results['outliers']), 
+                                   round(results['lower_limit'], 2), round(results['upper_limit'], 2)]
+                        }
+                        pd.DataFrame(detail_data).to_excel(writer, sheet_name='详细信息', index=False)
+                    
+                    excel_buffer.seek(0)
+                    
                     st.download_button(
-                        label="📥 下载CSV",
-                        data=csv_data,
-                        file_name=f"{method}_分析结果.csv",
-                        mime="text/csv",
-                        help="下载CSV格式的分析结果表格（使用三位数字标签）"
-                    )
+                        label="?? 下载Excel",
+                        data=excel_buffer,
+                        file_name=f"{method}_分析结果.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        help="下载Excel工作簿，包含分析数据和统计摘要（输入数据保留两位小数）"
+                    )                
                 
+                # 在JSON导出部分，确保数值也保留两位小数
                 with export_col2:
                     # JSON导出 - 修改为新的数据结构
                     export_data = {
@@ -1522,52 +1591,44 @@ if data is not None and len(data) > 0:
                                 "blank_data_points": blank_data_count
                             }
                         },
-                        "data_table": result_df.to_dict('records'),
-                        "statistics": stats_df.set_index('统计量名称')['数值'].to_dict()
+                        "data_table": [
+                            {
+                                '标签原始标号': row['标签原始标号'],
+                                '输入数据': round(row['输入数据'], 2) if row['输入数据'] is not None else None,
+                                'Z比分数': round(row['Z比分数'], 2) if row['Z比分数'] is not None else None
+                            }
+                            for row in result_df.to_dict('records')
+                        ],
+                        "statistics": {
+                            k: (round(v, 2) if isinstance(v, (int, float)) else v) 
+                            for k, v in stats_df.set_index('统计量名称')['数值'].to_dict().items()
+                        }
                     }
                     
                     json_data = json.dumps(export_data, indent=2, ensure_ascii=False)
                     st.download_button(
-                        label="📥 下载JSON",
+                        label="?? 下载JSON",
                         data=json_data,
                         file_name=f"{method}_分析结果.json",
                         mime="application/json",
-                        help="下载JSON格式的分析结果和数据（使用三位数字标签）"
-                    )
+                        help="下载JSON格式的分析结果和数据（输入数据保留两位小数）"
+                    )                
                 
-                with export_col3:
-                    # Excel导出 - 修改为新的工作表结构
-                    excel_buffer = io.BytesIO()
-                    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                        # 数据表格工作表
-                        result_df.to_excel(writer, sheet_name='分析数据', index=False)
-                        
-                        # 统计量工作表
-                        stats_df.to_excel(writer, sheet_name='统计摘要', index=False)
-                        
-                        # 详细信息工作表
-                        detail_data = {
-                            '项目': ['分析方法', '总数据点数', '实际可分析数据数', '空白数据数', 
-                                   '稳健平均值', '稳健标准差', '离群值数量', '正常值下限', '正常值上限'],
-                            '数值': [method, total_data_count, actual_analyzable_count, blank_data_count,
-                                   results['robust_mean'], results['robust_std'], len(results['outliers']), 
-                                   results['lower_limit'], results['upper_limit']]
-                        }
-                        pd.DataFrame(detail_data).to_excel(writer, sheet_name='详细信息', index=False)
-                    
-                    excel_buffer.seek(0)
-                    
-                    st.download_button(
-                        label="📥 下载Excel",
-                        data=excel_buffer,
-                        file_name=f"{method}_分析结果.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        help="下载Excel工作簿，包含分析数据和统计摘要（使用三位数字标签）"
-                    )
-                
-                with export_col4:
-                    # 文本报告导出 - 修改为新的格式
+                with export_col3:                                            
+                     # CSV导出                                               
+                     csv_data = result_df.to_csv(index=False)                
+                     st.download_button(                                     
+                         label="?? 下载CSV",                                 
+                         data=csv_data,                                      
+                         file_name=f"{method}_分析结果.csv",                 
+                         mime="text/csv",                                    
+                         help="下载CSV格式的分析结果表格（使用三位数字标签）"
+                     )                                                       
+                                                                             
+                with export_col4:                                           
+                     # 文本报告导出 - 确保数值格式正确                       
                     report = f"""
+                
 {method}分析报告
 ================
 
@@ -1581,32 +1642,44 @@ if data is not None and len(data) > 0:
 
 数据表格:
 --------
-标签原始标号	输入数据	Z比分数
+标签原始标号\t输入数据\tZ比分数
 """
-                    # 添加数据行
-                    for i in range(len(result_df)):
-                        row = result_df.iloc[i]
-                        input_data = "" if pd.isna(row['输入数据']) else f"{row['输入数据']}"
-                        z_score = "" if pd.isna(row['Z比分数']) else f"{row['Z比分数']}"
-                        report += f"{row['标签原始标号']}\t{input_data}\t{z_score}\n"
+                
+                # 添加数据行 - 确保数值格式
+                for i in range(len(result_df)):
+                    row = result_df.iloc[i]
+                    # 处理输入数据格式
+                    if pd.isna(row['输入数据']):
+                        input_data = ""
+                    else:
+                        input_data = f"{row['输入数据']:.2f}"  # 保留两位小数
                     
-                    report += f"""
+                    # 处理Z比分数格式
+                    if pd.isna(row['Z比分数']):
+                        z_score = ""
+                    else:
+                        z_score = f"{row['Z比分数']:.2f}"  # 保留两位小数
+                        
+                    report += f"{row['标签原始标号']}\t{input_data}\t{z_score}\n"
+                
+                report += f"""
 统计量摘要:
 ----------
 """
-                    for stat_name, value in stats_df.set_index('统计量名称')['数值'].items():
-                        report += f"{stat_name}: {value}\n"
-                    
-                    report += f"""
+                
+                for stat_name, value in stats_df.set_index('统计量名称')['数值'].items():
+                    report += f"{stat_name}: {value}\n"
+                
+                report += f"""
 分析详情:
 --------
 分析方法: {method}
 离群值数量: {len(results['outliers'])}
 正常值范围: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]
 """
-                    
-                    if method == "四分位稳健统计法":
-                        report += f"""
+                
+                if method == "四分位稳健统计法":
+                    report += f"""
 四分位统计量:
 -----------
 下四分位数(Q1): {results['q1']:.6f}
@@ -1614,17 +1687,17 @@ if data is not None and len(data) > 0:
 四分位距(IQR): {results['iqr']:.6f}
 标准化四分位距(NIQR): {results['niqr']:.6f}
 """
-                    
-                    if 'iterations' in results:
-                        report += f"迭代次数: {results['iterations']}\n"
-                    
-                    # Z比分数分类统计
-                    z_scores_abs = np.abs(results['Z_scores'])
-                    satisfactory = np.sum(z_scores_abs <= 2)
-                    questionable = np.sum((z_scores_abs > 2) & (z_scores_abs <= 3))
-                    unsatisfactory = np.sum(z_scores_abs > 3)
-                    
-                    report += f"""
+                
+                if 'iterations' in results:
+                    report += f"迭代次数: {results['iterations']}\n"
+                
+                # Z比分数分类统计
+                z_scores_abs = np.abs(results['Z_scores'])
+                satisfactory = np.sum(z_scores_abs <= 2)
+                questionable = np.sum((z_scores_abs > 2) & (z_scores_abs <= 3))
+                unsatisfactory = np.sum(z_scores_abs > 3)
+                
+                report += f"""
 Z比分数分类（仅有效数据）:
 -------------------------
 满意 (|Z| ≤ 2): {satisfactory} 个数据点
@@ -1634,22 +1707,23 @@ Z比分数分类（仅有效数据）:
 离群值列表:
 ----------
 """
-                    if len(results['outliers']) > 0:
-                        outliers_list = [f"{float(x):.2f}" for x in sorted(results['outliers'])]
-                        report += f"{', '.join(outliers_list)}"
-                    else:
-                        report += "无"
-                    
-                    st.download_button(
-                        label="📥 下载报告",
-                        data=report,
-                        file_name=f"{method}_分析报告.txt",
-                        mime="text/plain",
-                        help="下载文本格式的详细分析报告（使用三位数字标签）"
-                    )
+                
+                if len(results['outliers']) > 0:
+                    outliers_list = [f"{float(x):.2f}" for x in sorted(results['outliers'])]
+                    report += f"{', '.join(outliers_list)}"
+                else:
+                    report += "无"
+                
+                st.download_button(
+                    label="?? 下载报告",
+                    data=report,
+                    file_name=f"{method}_分析报告.txt",
+                    mime="text/plain",
+                    help="下载文本格式的详细分析报告（使用三位数字标签）"
+                )
                 
                 # 图表下载功能保持不变
-                st.subheader("📊 下载图表")
+                st.subheader("?? 下载图表")
                 chart_col1, chart_col2 = st.columns(2)
                 
                 with chart_col1:
@@ -1657,7 +1731,7 @@ Z比分数分类（仅有效数据）:
                     fig.savefig(buffer_png, format="png", dpi=300, bbox_inches="tight")
                     buffer_png.seek(0)
                     st.download_button(
-                        label="📥 下载PNG图表",
+                        label="?? 下载PNG图表",
                         data=buffer_png,
                         file_name=f"z_score_chart_{method}.png",
                         mime="image/png"
@@ -1668,13 +1742,13 @@ Z比分数分类（仅有效数据）:
                     fig.savefig(buffer_pdf, format="pdf", bbox_inches="tight")
                     buffer_pdf.seek(0)
                     st.download_button(
-                        label="📥 下载PDF图表",
+                        label="?? 下载PDF图表",
                         data=buffer_pdf,
                         file_name=f"z_score_chart_{method}.pdf",
                         mime="application/pdf"
                     )
                 
-                st.info("💡 提示：导出的数据表格使用三位数字标签格式（001、002...），空白数据会保留标签但数据为空") 
+                st.info("?? 提示：导出的数据表格使用三位数字标签格式（001、002...），空白数据会保留标签但数据为空")
                 
             except Exception as e:
                 st.error(f"❌ 统计分析过程中发生错误: {str(e)}")
