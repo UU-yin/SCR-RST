@@ -11,6 +11,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import io
 import re
+import json
 from scipy import stats
 
 # 设置页面
@@ -28,7 +29,7 @@ st.markdown("""
 """)
 
 # =============================================
-# 新增：数据验证和错误处理模块
+# 数据验证和错误处理模块（保持不变）
 # =============================================
 
 class DataValidator:
@@ -163,6 +164,191 @@ class DataValidator:
         
         return True, data_array, validation_report
 
+# =============================================
+# 新增：文件格式处理模块
+# =============================================
+
+class FileProcessor:
+    """文件处理类"""
+    
+    @staticmethod
+    def detect_file_format(uploaded_file):
+        """自动检测文件格式"""
+        filename = uploaded_file.name.lower()
+        
+        if filename.endswith(('.xlsx', '.xls')):
+            return 'excel'
+        elif filename.endswith('.csv'):
+            return 'csv'
+        elif filename.endswith('.json'):
+            return 'json'
+        elif filename.endswith('.txt'):
+            return 'txt'
+        else:
+            # 通过内容检测
+            content = uploaded_file.read(1024)  # 读取前1024字节
+            uploaded_file.seek(0)  # 重置文件指针
+            
+            try:
+                # 尝试解析为JSON
+                content_str = content.decode('utf-8')
+                json.loads(content_str)
+                return 'json'
+            except:
+                # 尝试解析为CSV
+                try:
+                    content_str = content.decode('utf-8')
+                    pd.read_csv(io.StringIO(content_str))
+                    return 'csv'
+                except:
+                    return 'txt'  # 默认为文本文件
+    
+    @staticmethod
+    def process_excel_file(uploaded_file):
+        """处理Excel文件"""
+        try:
+            # 读取Excel文件
+            excel_file = pd.ExcelFile(uploaded_file)
+            sheet_names = excel_file.sheet_names
+            
+            # 如果只有一个工作表，直接读取
+            if len(sheet_names) == 1:
+                df = pd.read_excel(uploaded_file, sheet_name=sheet_names[0])
+                return df, sheet_names[0], sheet_names
+            
+            # 多个工作表时让用户选择
+            selected_sheet = st.selectbox(
+                "选择要分析的工作表:",
+                sheet_names,
+                help="检测到多个工作表，请选择包含数据的工作表"
+            )
+            
+            if selected_sheet:
+                df = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
+                return df, selected_sheet, sheet_names
+            else:
+                return None, None, sheet_names
+                
+        except Exception as e:
+            st.error(f"Excel文件读取错误: {str(e)}")
+            return None, None, []
+    
+    @staticmethod
+    def process_csv_file(uploaded_file):
+        """处理CSV文件"""
+        try:
+            df = pd.read_csv(uploaded_file)
+            return df, "CSV数据", ["CSV数据"]
+        except Exception as e:
+            st.error(f"CSV文件读取错误: {str(e)}")
+            return None, None, []
+    
+    @staticmethod
+    def process_json_file(uploaded_file):
+        """处理JSON文件"""
+        try:
+            content = uploaded_file.read().decode('utf-8')
+            data = json.loads(content)
+            
+            # 处理不同类型的JSON结构
+            if isinstance(data, list):
+                # 如果是数组，直接转换为DataFrame
+                df = pd.DataFrame(data, columns=['数据'])
+                return df, "JSON数组", ["JSON数组"]
+            elif isinstance(data, dict):
+                # 如果是对象，让用户选择数据字段
+                st.info("检测到JSON对象格式，请选择包含数值数据的字段")
+                available_keys = list(data.keys())
+                selected_key = st.selectbox("选择数据字段:", available_keys)
+                
+                if selected_key and isinstance(data[selected_key], list):
+                    df = pd.DataFrame(data[selected_key], columns=[selected_key])
+                    return df, f"JSON字段: {selected_key}", available_keys
+                else:
+                    st.error("选择的字段不包含有效的数值数组")
+                    return None, None, available_keys
+            else:
+                st.error("JSON格式不支持，请提供数组或包含数组的对象")
+                return None, None, []
+                
+        except Exception as e:
+            st.error(f"JSON文件解析错误: {str(e)}")
+            return None, None, []
+    
+    @staticmethod
+    def process_txt_file(uploaded_file):
+        """处理文本文件"""
+        try:
+            content = uploaded_file.read().decode('utf-8')
+            # 将文本内容转换为字符串供验证器使用
+            return content, "文本数据", ["文本数据"]
+        except Exception as e:
+            st.error(f"文本文件读取错误: {str(e)}")
+            return None, None, []
+    
+    @staticmethod
+    def extract_data_from_dataframe(df, sheet_name):
+        """从DataFrame中提取数值数据"""
+        st.info(f"正在从 '{sheet_name}' 中提取数据")
+        
+        # 显示数据预览
+        st.write("**数据预览:**")
+        st.dataframe(df.head(), use_container_width=True)
+        
+        # 如果只有一列，直接使用
+        if len(df.columns) == 1:
+            data_column = df.iloc[:, 0]
+            st.write(f"使用唯一列: {df.columns[0]}")
+            return data_column.values
+        
+        # 多列时让用户选择
+        st.write("检测到多列数据，请选择包含数值数据的列:")
+        selected_column = st.selectbox("选择数据列:", df.columns.tolist())
+        
+        if selected_column:
+            data_column = df[selected_column]
+            # 尝试转换为数值类型
+            try:
+                numeric_data = pd.to_numeric(data_column, errors='coerce')
+                if numeric_data.isna().any():
+                    st.warning(f"列 '{selected_column}' 中包含非数值数据，已自动过滤")
+                    numeric_data = numeric_data.dropna()
+                return numeric_data.values
+            except Exception as e:
+                st.error(f"数据转换错误: {str(e)}")
+                return None
+        else:
+            return None
+    
+    @staticmethod
+    def export_to_json(data_array, analysis_results=None, method_name=""):
+        """导出数据为JSON格式"""
+        export_data = {
+            "metadata": {
+                "export_time": pd.Timestamp.now().isoformat(),
+                "data_points": len(data_array),
+                "analysis_method": method_name,
+                "software": "稳健统计分析系统"
+            },
+            "original_data": data_array.tolist()
+        }
+        
+        if analysis_results:
+            export_data.update({
+                "analysis_results": {
+                    "robust_mean": float(analysis_results.get('robust_mean', 0)),
+                    "robust_std": float(analysis_results.get('robust_std', 0)),
+                    "outliers": [float(x) for x in analysis_results.get('outliers', [])],
+                    "z_scores": [float(x) for x in analysis_results.get('Z_scores', [])],
+                    "normal_value_range": {
+                        "lower_limit": float(analysis_results.get('lower_limit', 0)),
+                        "upper_limit": float(analysis_results.get('upper_limit', 0))
+                    }
+                }
+            })
+        
+        return json.dumps(export_data, indent=2, ensure_ascii=False)
+
 # 侧边栏 - 参数设置和方法选择
 st.sidebar.header("⚙️ 分析设置")
 
@@ -196,7 +382,6 @@ if input_method == "手动输入":
     
     # 关键修复：确保历史记录正确初始化
     if 'data_history' not in st.session_state:
-        # 只保存初始状态，不重复保存
         st.session_state.data_history = []
     
     if 'data_loaded' not in st.session_state:
@@ -218,15 +403,11 @@ if input_method == "手动输入":
 
     # 更新session_state中的数据 - 关键修复
     if current_data != st.session_state.manual_data:
-        # 只有当数据真正变化且不是空字符串时才保存到历史记录
         if st.session_state.manual_data and current_data != st.session_state.manual_data:
-            # 保存当前状态到历史记录
             st.session_state.data_history.append(st.session_state.manual_data)
-            # 限制历史记录长度，避免内存问题
             if len(st.session_state.data_history) > 10:
                 st.session_state.data_history = st.session_state.data_history[-10:]
         
-        # 更新当前数据
         st.session_state.manual_data = current_data
 
     # 创建操作按钮
@@ -234,15 +415,13 @@ if input_method == "手动输入":
 
     def clear_data():
         """一键清除数据的回调函数"""
-        # 保存当前状态到历史记录（只有在有内容时）
         if st.session_state.manual_data and st.session_state.manual_data.strip():
             st.session_state.data_history.append(st.session_state.manual_data)
         
         st.session_state.manual_data = ""
         st.session_state.data_loaded = False
         st.session_state.processed_data = None
-        st.session_state.reset_counter += 1  # 改变计数器以重置文本区域
-        # 清除验证报告
+        st.session_state.reset_counter += 1
         if 'validation_report' in st.session_state:
             del st.session_state.validation_report
         if 'validation_passed' in st.session_state:
@@ -250,27 +429,22 @@ if input_method == "手动输入":
 
     def undo_data():
         """撤销操作的回调函数"""
-        # 关键修复：检查历史记录是否为空
         if st.session_state.data_history:
-            # 从历史记录中获取上一个状态
             previous_data = st.session_state.data_history.pop()
             st.session_state.manual_data = previous_data
             st.session_state.data_loaded = False
             st.session_state.processed_data = None
-            st.session_state.reset_counter += 1  # 改变计数器以重置文本区域
-            # 清除验证报告
+            st.session_state.reset_counter += 1
             if 'validation_report' in st.session_state:
                 del st.session_state.validation_report
             if 'validation_passed' in st.session_state:
                 del st.session_state.validation_passed
         else:
-            # 如果没有历史记录，至少重置计数器以刷新界面
             st.session_state.reset_counter += 1
 
     def analyze_data():
         """分析数据的回调函数"""
         try:
-            # 使用新的数据验证器
             is_valid, validated_data, validation_report = DataValidator.comprehensive_validation(
                 st.session_state.manual_data
             )
@@ -313,16 +487,13 @@ if input_method == "手动输入":
                   help="恢复到上一次的数据状态",
                   on_click=undo_data)
     
-    # =============================================
-    # 数据验证结果显示 - 移动到按钮下方
-    # =============================================
+    # 数据验证结果显示
     if hasattr(st.session_state, 'validation_report'):
         if st.session_state.validation_passed:
             st.success(f"✅ 数据验证通过！成功解析 {len(st.session_state.processed_data)} 个数据点")
         else:
             st.error("❌ 数据验证失败")
         
-        # 显示详细的验证报告
         with st.expander("📋 查看详细验证报告", expanded=not st.session_state.validation_passed):
             for line in st.session_state.validation_report:
                 if line.startswith("❌"):
@@ -334,100 +505,185 @@ if input_method == "手动输入":
                 else:
                     st.write(line)
     
-    # 调试信息 - 帮助诊断问题
+    # 调试信息
     with st.expander("调试信息"):
         st.write(f"当前数据: {st.session_state.manual_data}")
         st.write(f"历史记录长度: {len(st.session_state.data_history)}")
-        st.write(f"历史记录内容: {st.session_state.data_history}")
         st.write(f"重置计数器: {st.session_state.reset_counter}")
 
-    # 将处理后的数据传递给应用的其余部分
     if st.session_state.data_loaded and st.session_state.processed_data is not None:
         data = st.session_state.processed_data
 
 elif input_method == "文件上传":
     st.subheader("📁 上传数据文件")
     
-    # 首先放置文件上传器
-    uploaded_file = st.file_uploader("选择CSV或TXT文件", type=['csv', 'txt'])
+    # 扩展支持的文件类型
+    uploaded_file = st.file_uploader(
+        "选择数据文件 (支持 CSV、TXT、Excel、JSON)", 
+        type=['csv', 'txt', 'xlsx', 'xls', 'json'],
+        help="支持多种文件格式：CSV、文本文件、Excel工作簿、JSON数据文件"
+    )
     
-    # 然后在下方显示格式说明和示例
+    # 文件格式说明
     with st.expander("📝 查看文件格式说明和示例", expanded=False):
         st.markdown("""
-        **TXT文件格式要求：**
+        **支持的文件格式:**
+        
+        **📄 TXT文件**
         - 每行一个数值
         - 支持整数和小数
         - 空行会自动忽略
         
-        **CSV文件格式要求：**
+        **📊 CSV文件**  
         - 第一列包含数值数据
         - 可以有表头，也可以没有
+        
+        **📑 Excel文件 (xlsx, xls)**
+        - 支持多工作表
+        - 自动检测数据列
+        - 支持数值数据提取
+        
+        **📋 JSON文件**
+        - 支持数组格式: `[1.1, 2.2, 3.3]`
+        - 支持对象格式: `{"data": [1.1, 2.2, 3.3]}`
+        - 自动识别数据结构
         
         **示例文件内容：**
         ```
         54.4
-        54.6
+        54.6  
         54.2
         54.3
         53.9
         ```
         """)
         
-        # 提供示例文件下载
-        example_content = "54.4\n54.6\n54.2\n54.3\n53.9"
-        st.download_button(
-            label="下载示例TXT文件",
-            data=example_content,
-            file_name="example_data.txt",
-            mime="text/plain",
-            help="点击下载示例TXT文件，了解正确的数据格式"
-        )
+        # 提供多种示例文件下载
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            example_content = "54.4\n54.6\n54.2\n54.3\n53.9"
+            st.download_button(
+                label="下载TXT示例",
+                data=example_content,
+                file_name="example_data.txt",
+                mime="text/plain"
+            )
+        
+        with col2:
+            # 创建CSV示例
+            csv_data = "测量值\n54.4\n54.6\n54.2\n54.3\n53.9"
+            st.download_button(
+                label="下载CSV示例",
+                data=csv_data,
+                file_name="example_data.csv",
+                mime="text/csv"
+            )
+        
+        with col3:
+            # 创建JSON示例
+            json_data = [54.4, 54.6, 54.2, 54.3, 53.9]
+            st.download_button(
+                label="下载JSON示例",
+                data=json.dumps(json_data, indent=2),
+                file_name="example_data.json",
+                mime="application/json"
+            )
+        
+        with col4:
+            # 创建Excel示例
+            df_example = pd.DataFrame({'测量值': [54.4, 54.6, 54.2, 54.3, 53.9]})
+            excel_buffer = io.BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                df_example.to_excel(writer, index=False, sheet_name='测量数据')
+            excel_buffer.seek(0)
+            
+            st.download_button(
+                label="下载Excel示例",
+                data=excel_buffer,
+                file_name="example_data.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
     
     if uploaded_file is not None:
         try:
-            file_content = ""
-            if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
-                # 假设第一列是数据
-                data_values = df.iloc[:, 0].values
-                # 将数据转换为字符串格式进行验证
-                file_content = "\n".join([str(x) for x in data_values])
-            else:
-                # 文本文件，每行一个数字
-                file_content = uploaded_file.read().decode()
+            # 显示文件信息
+            file_size = uploaded_file.size / 1024  # KB
+            st.write(f"📄 **文件信息**: {uploaded_file.name} ({file_size:.1f} KB)")
             
-            # 使用数据验证器验证文件数据
-            is_valid, validated_data, validation_report = DataValidator.comprehensive_validation(file_content)
+            # 自动检测文件格式
+            file_format = FileProcessor.detect_file_format(uploaded_file)
+            st.write(f"🔍 **检测到的格式**: {file_format.upper()}")
             
-            if is_valid:
-                data = validated_data
-                st.success(f"✅ 文件验证通过！成功加载 {len(data)} 个数据点")
+            processed_data = None
+            validation_content = ""
+            
+            # 根据文件格式处理数据
+            if file_format == 'excel':
+                df, sheet_name, all_sheets = FileProcessor.process_excel_file(uploaded_file)
+                if df is not None:
+                    processed_data = FileProcessor.extract_data_from_dataframe(df, sheet_name)
+                    if processed_data is not None:
+                        validation_content = "\n".join([str(x) for x in processed_data])
+            
+            elif file_format == 'csv':
+                df, sheet_name, all_sheets = FileProcessor.process_csv_file(uploaded_file)
+                if df is not None:
+                    processed_data = FileProcessor.extract_data_from_dataframe(df, sheet_name)
+                    if processed_data is not None:
+                        validation_content = "\n".join([str(x) for x in processed_data])
+            
+            elif file_format == 'json':
+                df, sheet_name, all_sheets = FileProcessor.process_json_file(uploaded_file)
+                if df is not None:
+                    processed_data = FileProcessor.extract_data_from_dataframe(df, sheet_name)
+                    if processed_data is not None:
+                        validation_content = "\n".join([str(x) for x in processed_data])
+            
+            elif file_format == 'txt':
+                validation_content, sheet_name, all_sheets = FileProcessor.process_txt_file(uploaded_file)
+                if validation_content:
+                    # 使用验证器处理文本内容
+                    is_valid, processed_data, validation_report = DataValidator.comprehensive_validation(validation_content)
+                    if is_valid:
+                        st.session_state.validation_report = validation_report
+                        st.session_state.validation_passed = True
+            
+            # 数据验证和结果展示
+            if processed_data is not None and len(processed_data) > 0:
+                # 使用数据验证器验证数据
+                data_str = "\n".join([str(x) for x in processed_data])
+                is_valid, validated_data, validation_report = DataValidator.comprehensive_validation(data_str)
                 
-                # 显示验证报告
-                with st.expander("📋 查看文件验证报告", expanded=True):
-                    for line in validation_report:
-                        if line.startswith("❌"):
-                            st.error(line)
-                        elif line.startswith("⚠️"):
-                            st.warning(line)
-                        elif line.startswith("📊"):
-                            st.write("**" + line + "**")
-                        else:
-                            st.write(line)
-                
-                st.write("前10个数据:", data[:10])
-            else:
-                st.error("❌ 文件数据验证失败")
-                with st.expander("📋 查看验证详情", expanded=True):
-                    for line in validation_report:
-                        if line.startswith("❌"):
-                            st.error(line)
-                        else:
-                            st.write(line)
+                if is_valid:
+                    data = validated_data
+                    st.success(f"✅ 文件验证通过！成功加载 {len(data)} 个数据点")
+                    
+                    # 显示验证报告
+                    with st.expander("📋 查看文件验证报告", expanded=True):
+                        for line in validation_report:
+                            if line.startswith("❌"):
+                                st.error(line)
+                            elif line.startswith("⚠️"):
+                                st.warning(line)
+                            elif line.startswith("📊"):
+                                st.write("**" + line + "**")
+                            else:
+                                st.write(line)
+                    
+                    st.write("**前10个数据:**", data[:10])
+                else:
+                    st.error("❌ 文件数据验证失败")
+                    with st.expander("📋 查看验证详情", expanded=True):
+                        for line in validation_report:
+                            if line.startswith("❌"):
+                                st.error(line)
+                            else:
+                                st.write(line)
             
         except Exception as e:
-            st.error(f"❌ 文件读取错误: {e}")
-            st.info("💡 请确保文件格式正确：每行一个数值，且均为有效数字")
+            st.error(f"❌ 文件处理错误: {str(e)}")
+            st.info("💡 请确保文件格式正确且包含有效的数值数据")
 
 else:  # 示例数据
     st.subheader("🎯 示例数据分析")
@@ -443,22 +699,18 @@ else:  # 示例数据
     example_data_str = ", ".join([str(x) for x in example_data])
     is_valid, validated_data, validation_report = DataValidator.comprehensive_validation(example_data_str)
     
-    # 显示示例数据信息
     st.write(f"示例数据已加载，包含 {len(example_data)} 个测量值")
     
     if is_valid:
         st.success("✅ 示例数据验证通过")
     
-    # 添加一个可展开的区域显示所有原始数据值
     with st.expander("📋 查看所有示例数据值", expanded=False):
-        # 创建数据框显示所有数据
         df_example = pd.DataFrame({
             '数据编号': range(1, len(example_data) + 1),
             '数值': example_data
         })
         st.dataframe(df_example, use_container_width=True)
         
-        # 显示验证报告
         st.write("**数据验证报告:**")
         for line in validation_report:
             if line.startswith("❌"):
@@ -470,7 +722,6 @@ else:  # 示例数据
             else:
                 st.write(line)
         
-        # 同时显示基本统计信息
         st.write("**基本统计信息:**")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -482,10 +733,9 @@ else:  # 示例数据
         with col4:
             st.metric("最大值", f"{np.max(example_data):.4f}")
     
-    # 设置数据变量，以便后续分析
     data = example_data
 
-# 方法描述
+# 方法描述（保持不变）
 st.sidebar.header("📚 方法说明")
 if method == "迭代稳健统计法":
     st.sidebar.info("""
@@ -503,20 +753,15 @@ else:  # Q/Hampel法
     稳健平均值，具有较好的抗异常值干扰能力。
     """)
 
-# 统计方法实现
+# 统计方法实现（保持不变）
 def iterative_robust_algorithm(data, max_iterations=50, k=1.5):
-    """
-    迭代稳健统计法（原算法A）
-    """
+    """迭代稳健统计法"""
     n = len(data)
-    
-    # 初始值
     X_star = np.median(data)
     abs_deviations = np.abs(data - X_star)
     median_abs_deviation = np.median(abs_deviations)
     S_star = 1.483 * median_abs_deviation
     
-    # 迭代过程
     converged = False
     iteration = 0
     history = []
@@ -526,17 +771,14 @@ def iterative_robust_algorithm(data, max_iterations=50, k=1.5):
         prev_X_star = X_star
         prev_S_star = S_star
         
-        # 计算δ并修正数据点
         delta = k * S_star
         Xj_star = np.where(data < X_star - delta, X_star - delta, 
                           np.where(data > X_star + delta, X_star + delta, data))
         
-        # 重新计算
         X_star = np.mean(Xj_star)
         sum_squared_deviations = np.sum((Xj_star - X_star)**2)
         S_star = 1.134 * np.sqrt(sum_squared_deviations / (n-1))
         
-        # 记录历史
         history.append({
             'iteration': iteration,
             'X_star': X_star,
@@ -544,12 +786,10 @@ def iterative_robust_algorithm(data, max_iterations=50, k=1.5):
             'delta': delta
         })
         
-        # 检查收敛
         if (int(prev_X_star * 1000) == int(X_star * 1000) and 
             int(prev_S_star * 1000) == int(S_star * 1000)):
             converged = True
     
-    # 最终结果
     final_delta = k * S_star
     lower_limit = X_star - final_delta
     upper_limit = X_star + final_delta
@@ -573,42 +813,31 @@ def iterative_robust_algorithm(data, max_iterations=50, k=1.5):
     }
 
 def quartile_robust_algorithm(data):
-    """
-    四分位稳健统计法
-    """
-    # 数据排序
+    """四分位稳健统计法"""
     sorted_data = np.sort(data)
     n = len(sorted_data)
     
-    # 计算中位值
     if n % 2 == 1:
         median = sorted_data[n // 2]
     else:
         median = (sorted_data[n // 2 - 1] + sorted_data[n // 2]) / 2
     
-    # 计算四分位数
-    q1 = np.percentile(data, 25)  # 下四分位数
-    q3 = np.percentile(data, 75)  # 上四分位数
-    
-    # 计算四分位距和标准化四分位距
+    q1 = np.percentile(data, 25)
+    q3 = np.percentile(data, 75)
     iqr = q3 - q1
-    niqr = 0.7413 * iqr  # 标准化四分位距
+    niqr = 0.7413 * iqr
     
-    # 计算正常值范围（基于四分位数）
     lower_limit = q1 - 1.5 * iqr
     upper_limit = q3 + 1.5 * iqr
     
-    # 识别离群值
     outliers_mask = (data < lower_limit) | (data > upper_limit)
     outliers = data[outliers_mask]
     clean_data = data[~outliers_mask]
-    
-    # 计算Z比分数（使用中位值和NIQR）
     Z_scores = (data - median) / niqr
     
     return {
-        'robust_mean': median,      # 使用中位值作为稳健平均值
-        'robust_std': niqr,         # 使用NIQR作为稳健标准差
+        'robust_mean': median,
+        'robust_std': niqr,
         'clean_data': clean_data,
         'outliers': outliers,
         'Z_scores': Z_scores,
@@ -622,47 +851,32 @@ def quartile_robust_algorithm(data):
     }
 
 def q_hampel_robust_algorithm(data):
-    """
-    Q/Hampel稳健统计方法
-    """
-    # 简化版的Q/Hampel实现
-    # 注意：完整的Q/Hampel方法需要多个实验室数据，这里提供简化版本
-    
+    """Q/Hampel稳健统计方法"""
     n = len(data)
-    
-    # 计算中位值（作为Hampel方法的初始估计）
     median = np.median(data)
     
-    # 计算Q方法的稳健标准差（简化版）
-    # 基于成对绝对差的中位数
     pairs = []
     for i in range(n):
         for j in range(i+1, n):
             pairs.append(abs(data[i] - data[j]))
     
     if len(pairs) > 0:
-        q_std = np.median(pairs) / 1.0484  # 调整系数
+        q_std = np.median(pairs) / 1.0484
     else:
         q_std = np.std(data, ddof=1)
     
-    # Hampel方法的稳健平均值（迭代加权法简化版）
-    # 使用中位值作为初始估计
     current_mean = median
     max_iterations = 10
     tolerance = 1e-6
     
     for iteration in range(max_iterations):
-        # 计算残差
         residuals = data - current_mean
         mad = np.median(np.abs(residuals))
         
         if mad == 0:
             break
             
-        # 标准化残差
         standardized_residuals = residuals / (1.4826 * mad)
-        
-        # Hampel权重函数
         weights = np.ones_like(data)
         mask1 = np.abs(standardized_residuals) > 1.5
         mask2 = np.abs(standardized_residuals) > 3
@@ -672,30 +886,23 @@ def q_hampel_robust_algorithm(data):
         weights[mask2] = 0
         weights[mask3] = 0
         
-        # 更新均值
         new_mean = np.sum(weights * data) / np.sum(weights)
         
-        # 检查收敛
         if abs(new_mean - current_mean) < tolerance:
             break
             
         current_mean = new_mean
     
-    # 计算正常值范围
     lower_limit = current_mean - 3 * q_std
     upper_limit = current_mean + 3 * q_std
-    
-    # 识别离群值
     outliers_mask = (data < lower_limit) | (data > upper_limit)
     outliers = data[outliers_mask]
     clean_data = data[~outliers_mask]
-    
-    # 计算Z比分数
     Z_scores = (data - current_mean) / q_std
     
     return {
-        'robust_mean': current_mean,  # Hampel稳健平均值
-        'robust_std': q_std,          # Q方法稳健标准差
+        'robust_mean': current_mean,
+        'robust_std': q_std,
         'clean_data': clean_data,
         'outliers': outliers,
         'Z_scores': Z_scores,
@@ -711,10 +918,9 @@ if data is not None and len(data) > 0:
         st.markdown("---")
         st.subheader(f"📈 {method}分析结果")
         
-        # 新增：数据分布可视化
+        # 数据分布可视化
         st.subheader("输入数据正态分布分析")
         
-        # 创建两列布局，左侧显示统计信息，右侧显示分布图
         dist_col1, dist_col2 = st.columns([1, 2])
         
         with dist_col1:
@@ -726,12 +932,9 @@ if data is not None and len(data) > 0:
             st.write(f"最大值: {np.max(data):.4f}")
             st.write(f"中位数: {np.median(data):.4f}")
             
-            # 正态性检验 - 放在统计信息下方，图表上方
             from scipy.stats import shapiro
-            if len(data) >= 3 and len(data) <= 5000:  # Shapiro-Wilk检验的适用范围
+            if len(data) >= 3 and len(data) <= 5000:
                 stat, p_value = shapiro(data)
-                
-                # 在同一列中上下排列，使用颜色编码
                 st.write(f"正态性检验p值: {p_value:.4f}")
                 if p_value > 0.05:
                     st.write(":green[数据符合正态分布 (p > 0.05)]")
@@ -739,21 +942,16 @@ if data is not None and len(data) > 0:
                     st.write(":red[数据可能不符合正态分布 (p ≤ 0.05)]")
         
         with dist_col2:
-            # 创建数据分布图
             fig_dist, ax_dist = plt.subplots(figsize=(10, 6))
-            
-            # 绘制直方图
             n, bins, patches = ax_dist.hist(data, bins=15, alpha=0.7, color='skyblue', 
                                            edgecolor='black', density=True, label='Data Distribution')
             
-            # 绘制正态分布曲线
             from scipy.stats import norm
             xmin, xmax = ax_dist.get_xlim()
             x = np.linspace(xmin, xmax, 100)
             p = norm.pdf(x, np.mean(data), np.std(data, ddof=1))
             ax_dist.plot(x, p, 'k', linewidth=2, label='Normal Distribution Curve')
             
-            # 设置图形属性
             ax_dist.set_title('Normal‐Probability Benchmarking of Input Data', fontsize=14, fontweight='bold')
             ax_dist.set_xlabel('Data Value', fontsize=12)
             ax_dist.set_ylabel('Probability Density', fontsize=12)
@@ -770,22 +968,19 @@ if data is not None and len(data) > 0:
                     results = iterative_robust_algorithm(data, max_iterations=max_iter, k=k_value)
                 elif method == "四分位稳健统计法":
                     results = quartile_robust_algorithm(data)
-                else:  # Q/Hampel法
+                else:
                     results = q_hampel_robust_algorithm(data)
                 
-                # 创建两列布局
+                # 结果显示（保持不变）
                 col1, col2 = st.columns(2)
-                
                 with col1:
                     st.metric("稳健平均值", f"{results['robust_mean']:.6f}")
                     st.metric("稳健标准差", f"{results['robust_std']:.6f}")
-                    
                 with col2:
                     if 'iterations' in results:
                         st.metric("迭代次数", results['iterations'])
                     st.metric("离群值数量", len(results['outliers']))
                 
-                # 方法特定结果显示
                 if method == "四分位稳健统计法":
                     st.info("📊 **四分位统计量:**")
                     col3, col4, col5, col6 = st.columns(4)
@@ -798,21 +993,17 @@ if data is not None and len(data) > 0:
                     with col6:
                         st.metric("标准化四分位距(NIQR)", f"{results['niqr']:.6f}")
                 
-                # 详细结果
                 st.subheader("📋 详细结果")
-                
                 st.write(f"**正常值范围**: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]")
                 if 'converged' in results:
                     st.write(f"**收敛状态**: {'是' if results['converged'] else '否'}")
                 
                 if len(results['outliers']) > 0:
-                    # 将np.float64转换为Python原生float类型
                     outliers_list = [float(x) for x in sorted(results['outliers'])]
                     st.write(f"**离群值**: {outliers_list}")
                 else:
                     st.write("**离群值**: 无")
                 
-                # Z比分数统计
                 z_scores_abs = np.abs(results['Z_scores'])
                 satisfactory = np.sum(z_scores_abs <= 2)
                 questionable = np.sum((z_scores_abs > 2) & (z_scores_abs <= 3))
@@ -827,16 +1018,13 @@ if data is not None and len(data) > 0:
                 with col3:
                     st.metric("不满意 (|Z| > 3)", f"{unsatisfactory} 个")
                 
-                # 可视化 - 使用新的Z值柱状图
+                # 可视化（保持不变）
                 st.subheader("数据可视化")
-                
-                # 创建数据框用于可视化
                 df_clean = pd.DataFrame({
                     'Original_Data': data,
                     'Z_Score': results['Z_scores']
                 })
                 
-                # 根据Z值进行分类
                 def classify_data(row):
                     if abs(row['Z_Score']) <= 2:
                         return 'Satisfactory'
@@ -846,200 +1034,256 @@ if data is not None and len(data) > 0:
                         return 'Unsatisfactory'
                 
                 df_clean['Category'] = df_clean.apply(classify_data, axis=1)
-                
-                # 按照Z值从大到小排序
                 df_sorted = df_clean.sort_values('Z_Score', ascending=False)
                 
-                # 创建Z值柱状图
                 fig, ax = plt.subplots(figsize=(14, 16))
-                
-                # 设置类别对应的高饱和度颜色
                 color_map = {
-                    'Satisfactory': '#00FF00',    # 高饱和度绿色
-                    'Questionable': '#FFA500',    # 高饱和度橙色
-                    'Unsatisfactory': '#FF0000'    # 高饱和度红色
+                    'Satisfactory': '#00FF00',
+                    'Questionable': '#FFA500',
+                    'Unsatisfactory': '#FF0000'
                 }
-                
-                # 创建一个统一颜色的列表
                 colors = [color_map[cat] for cat in df_sorted['Category']]
                 
-                # 绘制所有数据点的柱状图，按Z值排序
                 y_positions = range(len(df_sorted))
-                bars = ax.barh(y_positions, 
-                               df_sorted['Z_Score'], 
-                               color=colors, 
-                               alpha=0.6,  # 降低透明度使颜色更柔和
-                               height=0.8,
-                               edgecolor='white',  # 使用白色边框使柱状图更清晰
-                               linewidth=0.5)
+                bars = ax.barh(y_positions, df_sorted['Z_Score'], color=colors, alpha=0.6, height=0.8,
+                              edgecolor='white', linewidth=0.5)
                 
-                # 在柱状图上标注Z值
                 for i, (bar, z_value) in enumerate(zip(bars, df_sorted['Z_Score'])):
-                    # 使用黑色文字确保在较淡的背景上可读
                     text_color = 'black'
                     ax.text(bar.get_width() + 0.05 * (1 if bar.get_width() >= 0 else -1), 
-                            bar.get_y() + bar.get_height()/2, 
-                            f'{z_value:.2f}', 
-                            ha='left' if bar.get_width() >= 0 else 'right', 
-                            va='center', fontsize=9, fontweight='bold',
-                            color=text_color)
+                            bar.get_y() + bar.get_height()/2, f'{z_value:.2f}', 
+                            ha='left' if bar.get_width() >= 0 else 'right', va='center', 
+                            fontsize=9, fontweight='bold', color=text_color)
                 
-                # 设置图形属性
                 ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
                 ax.set_ylabel('Original Data ID', fontsize=14, fontweight='bold')
                 ax.set_title('Z-Score Distribution (Sorted)', fontsize=18, fontweight='bold', pad=40)
                 
-                # 添加图例 - 放在图表上方，标题下方
                 from matplotlib.patches import Patch
                 legend_elements = [
                     Patch(facecolor=color_map['Satisfactory'], alpha=0.6, label='Satisfactory (|Z| ≤ 2)'),
                     Patch(facecolor=color_map['Questionable'], alpha=0.6, label='Questionable (2 < |Z| ≤ 3)'),
                     Patch(facecolor=color_map['Unsatisfactory'], alpha=0.6, label='Unsatisfactory (|Z| > 3)')
                 ]
+                ax.legend(handles=legend_elements, title='Category', title_fontsize=12, fontsize=11, 
+                         loc='upper center', bbox_to_anchor=(0.5, 1.00), ncol=3, frameon=True)
                 
-                # 将图例放在图表上方，标题下方
-                legend = ax.legend(handles=legend_elements, title='Category', title_fontsize=12, fontsize=11, 
-                                  loc='upper center', bbox_to_anchor=(0.5, 1.00), ncol=3, frameon=True)
-                
-                # 设置Y轴刻度 - 使用原始数据编号作为标签
                 ax.set_yticks(y_positions)
                 ax.set_yticklabels([f"{idx}" for idx in df_sorted.index])
-                
-                # 添加零线参考线
                 ax.axvline(x=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
-                
-                # 添加阈值线
                 ax.axvline(x=-2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
                 ax.axvline(x=2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
                 ax.axvline(x=-3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
                 ax.axvline(x=3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
-                
-                # 添加网格
                 ax.grid(axis='x', alpha=0.3, linestyle='--')
-                
-                # 反转Y轴，使最大的Z值在顶部
                 ax.invert_yaxis()
-                
-                # 设置背景色为白色，使高饱和度颜色更加突出
                 ax.set_facecolor('white')
-                
-                # 调整子图参数，为顶部图例和标题留出更多空间
                 plt.subplots_adjust(top=0.88)
-                
-                # 调整布局
                 plt.tight_layout()
-                
-                # 显示图表
                 st.pyplot(fig)
                 
-                # 添加下载柱状图功能
-                st.subheader("💾 下载图表")
-
-                # 创建两列布局放置下载按钮
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    # 将图表保存为PNG格式并提供下载
-                    from io import BytesIO
-                    buffer_png = BytesIO()
-                    fig.savefig(buffer_png, format="png", dpi=300, bbox_inches="tight")
-                    buffer_png.seek(0)
-                
-                    st.download_button(
-                        label="📥 下载PNG格式图表",
-                        data=buffer_png,
-                        file_name=f"z_score_chart_{method}.png",
-                        mime="image/png",
-                        help="下载高分辨率PNG格式的Z值分布图"
-                    )
-
-                with col2:
-                    # 将图表保存为PDF格式并提供下载
-                    buffer_pdf = BytesIO()
-                    fig.savefig(buffer_pdf, format="pdf", bbox_inches="tight")
-                    buffer_pdf.seek(0)
-                
-                    st.download_button(
-                        label="📥 下载PDF格式图表",
-                        data=buffer_pdf,
-                        file_name=f"z_score_chart_{method}.pdf",
-                        mime="application/pdf",
-                        help="下载PDF格式的Z值分布图，适合打印和报告"
-                    )
-
-                # 添加提示信息
-                st.info("💡 提示：PNG格式适合在演示文稿和网页中使用，PDF格式适合打印和学术报告。")
-                
-                # 导出功能
-                st.subheader("💾 导出结果")
-                
-                # 创建结果DataFrame
-                result_df = pd.DataFrame({
-                    '原始数据': data,
-                    'Z比分数': results['Z_scores'],
-                    '分类': np.where(np.abs(results['Z_scores']) <= 2, '满意',
-                                   np.where(np.abs(results['Z_scores']) <= 3, '可疑', '不满意'))
-                })
-                
-                # 下载CSV
-                csv = result_df.to_csv(index=False)
-                st.download_button(
-                    label="下载完整结果CSV",
-                    data=csv,
-                    file_name=f"{method}_分析结果.csv",
-                    mime="text/csv"
-                )
-                
-                # 下载报告
-                report = f"""
-{method}分析报告
-================
-
-分析时间: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
-数据点数: {len(data)}
-使用方法: {method}
-
-关键结果:
---------
-稳健平均值: {results['robust_mean']:.6f}
-稳健标准差: {results['robust_std']:.6f}
-正常值范围: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]
-离群值数量: {len(results['outliers'])}
-
-"""
-                
-                if method == "四分位稳健统计法":
-                    report += f"""
-四分位统计量:
------------
-下四分位数(Q1): {results['q1']:.6f}
-上四分位数(Q3): {results['q3']:.6f}
-四分位距(IQR): {results['iqr']:.6f}
-标准化四分位距(NIQR): {results['niqr']:.6f}
-
-"""
-                
-                if 'iterations' in results:
-                    report += f"迭代次数: {results['iterations']}\n"
-                
-                report += f"""
-数据质量分类:
------------
-满意 (|Z| ≤ 2): {satisfactory} 个数据点
-可疑 (2 < |Z| ≤ 3): {questionable} 个数据点  
-不满意 (|Z| > 3): {unsatisfactory} 个数据点
-
+                # =============================================                                                
+                # 修改后的导出结果模块                                                                         
+                # =============================================                                                
+                                                                                                               
+                # 导出功能                                                                                     
+                st.subheader("💾 导出结果")                                                                    
+                                                                                                               
+                # 创建结果DataFrame - 按照新要求的三列表格                                                     
+                result_df = pd.DataFrame({                                                                     
+                    '原始标签': [f"S{str(i+1).zfill(2)}" for i in range(len(data))],  # S001, S002, ..., S0XX  
+                    '输入数据': np.round(data, 2),  # 保留两位小数                                             
+                    'Z比分数': np.round(results['Z_scores'], 2)  # 保留两位小数                                
+                })                                                                                             
+                                                                                                               
+                # 计算统计量                                                                                   
+                stats_data = {                                                                                 
+                    '统计量名称': ['结果数', '指定值', '能力评定标准差', '最小值', '最大值', '极差'],          
+                    '数值': [                                                                                  
+                        len(data),  # 结果数                                                                   
+                        round(results['robust_mean'], 2),  # 指定值（稳健平均值）                              
+                        round(results['robust_std'], 2),  # 能力评定标准差（稳健标准差）                       
+                        round(np.min(data), 2),  # 最小值                                                      
+                        round(np.max(data), 2),  # 最大值                                                      
+                        round(np.max(data) - np.min(data), 2)  # 极差                                          
+                    ]                                                                                          
+                }                                                                                              
+                stats_df = pd.DataFrame(stats_data)                                                            
+                                                                                                               
+                # 显示预览                                                                                     
+                st.write("**导出数据预览:**")                                                                  
+                st.dataframe(result_df, use_container_width=True)                                              
+                                                                                                               
+                st.write("**统计量摘要:**")                                                                    
+                st.dataframe(stats_df, use_container_width=True)                                               
+                                                                                                               
+                # 创建多格式导出选项                                                                           
+                export_col1, export_col2, export_col3, export_col4 = st.columns(4)                             
+                                                                                                               
+                with export_col1:                                                                              
+                    # CSV导出                                                                                  
+                    csv_data = result_df.to_csv(index=False)                                                   
+                    st.download_button(                                                                        
+                        label="📥 下载CSV",                                                                    
+                        data=csv_data,                                                                         
+                        file_name=f"{method}_分析结果.csv",                                                    
+                        mime="text/csv",                                                                       
+                        help="下载CSV格式的分析结果表格"                                                       
+                    )                                                                                          
+                                                                                                               
+                with export_col2:                                                                              
+                    # JSON导出 - 修改为新的数据结构                                                            
+                    export_data = {                                                                            
+                        "metadata": {                                                                          
+                            "export_time": pd.Timestamp.now().isoformat(),                                     
+                            "analysis_method": method,                                                         
+                            "software": "稳健统计分析系统"                                                     
+                        },                                                                                     
+                        "data_table": result_df.to_dict('records'),                                            
+                        "statistics": stats_df.set_index('统计量名称')['数值'].to_dict()                       
+                    }                                                                                          
+                                                                                                               
+                    json_data = json.dumps(export_data, indent=2, ensure_ascii=False)                          
+                    st.download_button(                                                                        
+                        label="📥 下载JSON",                                                                   
+                        data=json_data,                                                                        
+                        file_name=f"{method}_分析结果.json",                                                   
+                        mime="application/json",                                                               
+                        help="下载JSON格式的分析结果和数据"                                                    
+                    )                                                                                          
+                                                                                                               
+                with export_col3:                                                                              
+                    # Excel导出 - 修改为新的工作表结构                                                         
+                    excel_buffer = io.BytesIO()                                                                
+                    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:                            
+                        # 数据表格工作表                                                                       
+                        result_df.to_excel(writer, sheet_name='分析数据', index=False)                         
+                                                                                                               
+                        # 统计量工作表                                                                         
+                        stats_df.to_excel(writer, sheet_name='统计摘要', index=False)                          
+                                                                                                               
+                        # 详细信息工作表                                                                       
+                        detail_data = {                                                                        
+                            '项目': ['分析方法', '数据点数', '稳健平均值', '稳健标准差',                       
+                                   '离群值数量', '正常值下限', '正常值上限'],                                  
+                            '数值': [method, len(data), results['robust_mean'], results['robust_std'],         
+                                   len(results['outliers']), results['lower_limit'], results['upper_limit']]   
+                        }                                                                                      
+                        pd.DataFrame(detail_data).to_excel(writer, sheet_name='详细信息', index=False)         
+                                                                                                               
+                    excel_buffer.seek(0)                                                                       
+                                                                                                               
+                    st.download_button(                                                                        
+                        label="📥 下载Excel",                                                                  
+                        data=excel_buffer,                                                                     
+                        file_name=f"{method}_分析结果.xlsx",                                                   
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",              
+                        help="下载Excel工作簿，包含分析数据和统计摘要"                                         
+                    )                                                                                          
+                                                                                                               
+                with export_col4:                                                                              
+                    # 文本报告导出 - 修改为新的格式                                                            
+                    report = f"""                                                                              
+{method}分析报告                                                                                               
+================                                                                                               
+                                                                                                               
+分析时间: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}                                                   
+                                                                                                               
+数据表格:                                                                                                      
+--------                                                                                                       
+实验室代码 输入数据 Z值                                                                                   
+"""                                                                                                            
+                # 添加数据行                                                                                   
+                for i in range(len(result_df)):                                                                
+                    row = result_df.iloc[i]                                                                    
+                    report += f"{row['原始标签']}\t{row['输入数据']}\t{row['Z比分数']}\n"                      
+                                                                                                               
+                report += f"""                                                                                 
+统计量摘要:                                                                                                    
+----------                                                                                                     
+"""                                                                                                            
+                for stat_name, value in stats_df.set_index('统计量名称')['数值'].items():                      
+                    report += f"{stat_name}: {value}\n"                                                        
+                                                                                                               
+                report += f"""                                                                                 
+分析详情:                                                                                                      
+--------                                                                                                       
+分析方法: {method}                                                                                             
+数据点数: {len(data)}                                                                                          
+离群值数量: {len(results['outliers'])}                                                                         
+正常值范围: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]                                       
+"""                                                                                                            
+                                                                                                               
+                if method == "四分位稳健统计法":                                                               
+                    report += f"""                                                                             
+四分位统计量:                                                                                                  
+-----------                                                                                                    
+下四分位数(Q1): {results['q1']:.6f}                                                                            
+上四分位数(Q3): {results['q3']:.6f}                                                                            
+四分位距(IQR): {results['iqr']:.6f}                                                                            
+标准化四分位距(NIQR): {results['niqr']:.6f}                                                                    
+"""                                                                                                            
+                                                                                                               
+                if 'iterations' in results:                                                                    
+                    report += f"迭代次数: {results['iterations']}\n"                                           
+                                                                                                               
+                # Z比分数分类统计                                                                              
+                z_scores_abs = np.abs(results['Z_scores'])                                                     
+                satisfactory = np.sum(z_scores_abs <= 2)                                                       
+                questionable = np.sum((z_scores_abs > 2) & (z_scores_abs <= 3))                                
+                unsatisfactory = np.sum(z_scores_abs > 3)                                                      
+                                                                                                               
+                report += f"""                                                                                 
+Z比分数分类:                                                                                                   
+-----------                                                                                                    
+满意 (|Z| ≤ 2): {satisfactory} 个数据点                                                                       
+可疑 (2 < |Z| ≤ 3): {questionable} 个数据点                                                                   
+不满意 (|Z| > 3): {unsatisfactory} 个数据点                                                                    
+                                                                                                               
 离群值列表:
 ----------
-{', '.join([str(float(x)) for x in results['outliers']])}
 """
+                if len(results['outliers']) > 0:
+                    outliers_list = [f"{float(x):.2f}" for x in sorted(results['outliers'])]
+                    report += f"{', '.join(outliers_list)}"
+                else:
+                    report += "无"
                 
                 st.download_button(
-                    label="下载分析报告",
+                    label="📥 下载报告",
                     data=report,
                     file_name=f"{method}_分析报告.txt",
-                    mime="text/plain"
+                    mime="text/plain",
+                    help="下载文本格式的详细分析报告"
                 )
+
+                # 图表下载功能保持不变
+                st.subheader("📊 下载图表")
+                chart_col1, chart_col2 = st.columns(2)
+                
+                with chart_col1:
+                    buffer_png = io.BytesIO()
+                    fig.savefig(buffer_png, format="png", dpi=300, bbox_inches="tight")
+                    buffer_png.seek(0)
+                    st.download_button(
+                        label="📥 下载PNG图表",
+                        data=buffer_png,
+                        file_name=f"z_score_chart_{method}.png",
+                        mime="image/png"
+                    )
+                
+                with chart_col2:
+                    buffer_pdf = io.BytesIO()
+                    fig.savefig(buffer_pdf, format="pdf", bbox_inches="tight")
+                    buffer_pdf.seek(0)
+                    st.download_button(
+                        label="📥 下载PDF图表",
+                        data=buffer_pdf,
+                        file_name=f"z_score_chart_{method}.pdf",
+                        mime="application/pdf"
+                    )
+                
+                st.info("?? 提示：导出的数据表格包含原始标签(S0XX格式)、输入数据(两位小数)和Z比分数(两位小数)")
                 
             except Exception as e:
                 st.error(f"❌ 统计分析过程中发生错误: {str(e)}")
@@ -1061,11 +1305,9 @@ st.markdown("""
 - **Q/Hampel法**: 结合Q方法稳健标准差和Hampel方法稳健平均值
 """)
 
-# 在页面底部添加简化的反馈功能
+# 用户反馈
 st.markdown("---")
 st.subheader("💬 用户反馈")
-
-# 使用扩展器形式
 with st.expander("💬 有问题或建议？点击这里联系我们", expanded=False):
     st.markdown("""
     **技术支持与反馈**
