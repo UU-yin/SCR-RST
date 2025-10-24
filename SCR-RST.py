@@ -811,22 +811,25 @@ else:  # 示例数据
         54.5, 55.9, 53.2, 54.6
     ])
     
-    # 对示例数据进行验证
+    # 对示例数据进行验证 - 使用新的方法签名
     example_data_str = ", ".join([str(x) for x in example_data])
-    is_valid, validated_data, validation_report = DataValidator.comprehensive_validation(example_data_str)
+    is_valid, original_data, clean_data, blank_count, validation_report = DataValidator.comprehensive_validation(example_data_str)
     
     st.write(f"示例数据已加载，包含 {len(example_data)} 个测量值")
     
     if is_valid:
         st.success("✅ 示例数据验证通过")
     
+    # 添加一个可展开的区域显示所有原始数据值
     with st.expander("📋 查看所有示例数据值", expanded=False):
+        # 创建数据框显示所有数据
         df_example = pd.DataFrame({
             '数据编号': range(1, len(example_data) + 1),
             '数值': example_data
         })
         st.dataframe(df_example, use_container_width=True)
         
+        # 显示验证报告
         st.write("**数据验证报告:**")
         for line in validation_report:
             if line.startswith("❌"):
@@ -838,6 +841,7 @@ else:  # 示例数据
             else:
                 st.write(line)
         
+        # 同时显示基本统计信息
         st.write("**基本统计信息:**")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -849,7 +853,12 @@ else:  # 示例数据
         with col4:
             st.metric("最大值", f"{np.max(example_data):.4f}")
     
+    # 设置数据变量，以便后续分析
     data = example_data
+    
+    # 为示例数据设置必要的会话状态变量，以便导出模块正常工作
+    st.session_state.original_data = example_data.tolist()  # 转换为列表格式
+    st.session_state.blank_count = 0  # 示例数据没有空白
 
 # 方法描述（保持不变）
 st.sidebar.header("📚 方法说明")
@@ -1207,7 +1216,7 @@ if data is not None and len(data) > 0:
                 
                 # 设置图形属性
                 ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
-                ax.set_ylabel('原始标签', fontsize=14, fontweight='bold')  # 修改y轴标签
+                ax.set_ylabel('Origin Data ID', fontsize=14, fontweight='bold')  # 修改y轴标签
                 ax.set_title('Z-Score Distribution (Sorted)', fontsize=18, fontweight='bold', pad=40)
                 
                 # 添加图例 - 放在图表上方，标题下方
