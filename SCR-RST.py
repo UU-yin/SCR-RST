@@ -242,6 +242,11 @@ if input_method == "手动输入":
         st.session_state.data_loaded = False
         st.session_state.processed_data = None
         st.session_state.reset_counter += 1  # 改变计数器以重置文本区域
+        # 清除验证报告
+        if 'validation_report' in st.session_state:
+            del st.session_state.validation_report
+        if 'validation_passed' in st.session_state:
+            del st.session_state.validation_passed
 
     def undo_data():
         """撤销操作的回调函数"""
@@ -253,6 +258,11 @@ if input_method == "手动输入":
             st.session_state.data_loaded = False
             st.session_state.processed_data = None
             st.session_state.reset_counter += 1  # 改变计数器以重置文本区域
+            # 清除验证报告
+            if 'validation_report' in st.session_state:
+                del st.session_state.validation_report
+            if 'validation_passed' in st.session_state:
+                del st.session_state.validation_passed
         else:
             # 如果没有历史记录，至少重置计数器以刷新界面
             st.session_state.reset_counter += 1
@@ -269,31 +279,18 @@ if input_method == "手动输入":
                 st.session_state.processed_data = validated_data
                 st.session_state.data_loaded = True
                 st.session_state.validation_report = validation_report
-                st.success(f"✅ 数据验证通过！成功解析 {len(validated_data)} 个数据点")
-                
-                # 显示详细的验证报告
-                with st.expander("📋 查看详细验证报告", expanded=True):
-                    for line in validation_report:
-                        if line.startswith("❌"):
-                            st.error(line)
-                        elif line.startswith("⚠️"):
-                            st.warning(line)
-                        elif line.startswith("📊"):
-                            st.write("**" + line + "**")
-                        else:
-                            st.write(line)
+                st.session_state.validation_passed = True
             else:
-                st.error("❌ 数据验证失败")
-                with st.expander("📋 查看验证详情", expanded=True):
-                    for line in validation_report:
-                        if line.startswith("❌"):
-                            st.error(line)
-                        else:
-                            st.write(line)
+                st.session_state.validation_report = validation_report
+                st.session_state.validation_passed = False
+                st.session_state.data_loaded = False
+                st.session_state.processed_data = None
                 
         except Exception as e:
-            st.error(f"❌ 分析过程中发生错误: {str(e)}")
-            st.info("💡 建议检查数据格式，确保所有输入都是有效的数字")
+            st.session_state.validation_passed = False
+            st.session_state.validation_report = [f"❌ 分析过程中发生错误: {str(e)}"]
+            st.session_state.data_loaded = False
+            st.session_state.processed_data = None
 
     with col1:
         st.button("分析数据", 
@@ -315,6 +312,27 @@ if input_method == "手动输入":
                   disabled=undo_disabled,
                   help="恢复到上一次的数据状态",
                   on_click=undo_data)
+    
+    # =============================================
+    # 数据验证结果显示 - 移动到按钮下方
+    # =============================================
+    if hasattr(st.session_state, 'validation_report'):
+        if st.session_state.validation_passed:
+            st.success(f"✅ 数据验证通过！成功解析 {len(st.session_state.processed_data)} 个数据点")
+        else:
+            st.error("❌ 数据验证失败")
+        
+        # 显示详细的验证报告
+        with st.expander("📋 查看详细验证报告", expanded=not st.session_state.validation_passed):
+            for line in st.session_state.validation_report:
+                if line.startswith("❌"):
+                    st.error(line)
+                elif line.startswith("⚠️"):
+                    st.warning(line)
+                elif line.startswith("📊"):
+                    st.write("**" + line + "**")
+                else:
+                    st.write(line)
     
     # 调试信息 - 帮助诊断问题
     with st.expander("调试信息"):
