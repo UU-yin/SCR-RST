@@ -1714,9 +1714,9 @@ if data is not None and len(data) > 0:
                         color=text_color)
 
             # 设置图形属性 - 包含计算方案信息
-            ax.set_xlabel('Z比分', fontsize=14, fontweight='bold')
-            ax.set_ylabel('原始数据标签', fontsize=14, fontweight='bold')
-            ax.set_title(f'Z比分分布图（排序） {scheme_info}', fontsize=18, fontweight='bold', pad=40)
+            ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
+            ax.set_ylabel('Original Data ID', fontsize=14, fontweight='bold')
+            ax.set_title(f'Z-Score Distribution (Sorted) {scheme_info}', fontsize=18, fontweight='bold', pad=40)
 
             # 添加图例
             from matplotlib.patches import Patch
