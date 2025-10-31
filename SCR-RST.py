@@ -1505,9 +1505,9 @@ if data is not None and len(data) > 0:
             p = norm.pdf(x, np.mean(data), np.std(data, ddof=1))
             ax_dist.plot(x, p, 'k', linewidth=2, label='正态分布曲线')
             
-            ax_dist.set_title('输入数据的正态概率基准分析', fontsize=14, fontweight='bold')
-            ax_dist.set_xlabel('数据值', fontsize=12)
-            ax_dist.set_ylabel('概率密度', fontsize=12)
+            ax_dist.set_title('Normal-Probability Benchimarking of Input Data', fontsize=14, fontweight='bold')
+            ax_dist.set_xlabel('Data Value', fontsize=12)
+            ax_dist.set_ylabel('Probability Density', fontsize=12)
             ax_dist.legend()
             ax_dist.grid(alpha=0.3)
             
@@ -1716,7 +1716,7 @@ if data is not None and len(data) > 0:
             # 设置图形属性 - 包含计算方案信息
             ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
             ax.set_ylabel('Original Data ID', fontsize=14, fontweight='bold')
-            ax.set_title(f'Z-Score Distribution (Sorted) {scheme_info}', fontsize=18, fontweight='bold', pad=40)
+            ax.set_title(f'Z-Score Distribution (Sorted)', fontsize=18, fontweight='bold', pad=40)
 
             # 添加图例
             from matplotlib.patches import Patch
