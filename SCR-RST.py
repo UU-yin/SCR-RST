@@ -195,6 +195,9 @@ class DataValidator:
         if outliers_info:
             validation_report.append(f"⚠️ {outliers_info[0]}")
             if len(outliers) > 0:
+                # 确保 outliers 是列表格式
+                if hasattr(outliers, 'tolist'):
+                    outliers = outliers.tolist()
                 validation_report.append(f"   异常值: {', '.join([f'{x:.4f}' for x in sorted(outliers)])}")
         else:
             validation_report.append("✅ 未发现明显异常值")
@@ -244,13 +247,19 @@ class DataValidator:
         if len(data_array) < 3:
             return [], ["数据点不足，无法进行异常值检测"]
         
+        # 确保 data_array 是 numpy 数组
+        if not isinstance(data_array, np.ndarray):
+            data_array = np.array(data_array)
+        
         q1 = np.percentile(data_array, 25)
         q3 = np.percentile(data_array, 75)
         iqr = q3 - q1
         lower_bound = q1 - 1.5 * iqr
         upper_bound = q3 + 1.5 * iqr
         
-        outliers = data_array[(data_array < lower_bound) | (data_array > upper_bound)]
+        # 使用布尔掩码获取异常值，然后转换为普通列表
+        outlier_mask = (data_array < lower_bound) | (data_array > upper_bound)
+        outliers = data_array[outlier_mask].tolist()  # 转换为普通列表
         
         if len(outliers) > 0:
             return outliers, [f"检测到 {len(outliers)} 个潜在异常值（基于IQR方法）"]
