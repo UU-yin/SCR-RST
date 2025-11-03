@@ -27,6 +27,14 @@ class DataValidator:
         验证数值字符串格式，支持空白数据
         返回: (is_valid, original_data, clean_data, blank_count, error_message, decimal_info)
         """
+        
+        # 添加输入验证
+        if data_string is None:
+            return False, [], [], 0, "输入数据为None", {}
+
+        if not isinstance(data_string, str):
+            return False, [], [], 0, f"输入数据类型错误: {type(data_string)}，应为字符串", {}
+        
         if not data_string or data_string.strip() == "":
             return False, [], [], 0, "输入数据不能为空", {}
         
@@ -191,16 +199,25 @@ class DataValidator:
             validation_report.append("📏 使用的小数位数: 0位（整数格式）")
         
         # 8. 异常值检测
-        outliers, outliers_info = DataValidator.detect_potential_outliers(clean_data)
-        if outliers_info:
-            validation_report.append(f"⚠️ {outliers_info[0]}")
-            if len(outliers) > 0:
-                # 确保 outliers 是列表格式
-                if hasattr(outliers, 'tolist'):
-                    outliers = outliers.tolist()
-                validation_report.append(f"   异常值: {', '.join([f'{x:.4f}' for x in sorted(outliers)])}")
-        else:
-            validation_report.append("✅ 未发现明显异常值")
+        try:
+            outliers, outliers_info = DataValidator.detect_potential_outliers(clean_data)
+            if outliers_info:
+                validation_report.append(f"⚠️ {outliers_info[0]}")
+                if len(outliers) > 0:
+                    # 确保 outliers 是列表且包含数值
+                    if hasattr(outliers, '__iter__') and not isinstance(outliers, str):
+                        # 安全地格式化异常值
+                        try:
+                            formatted_outliers = [f'{float(x):.4f}' for x in outliers]
+                            validation_report.append(f"   异常值: {', '.join(formatted_outliers)}")
+                        except (ValueError, TypeError):
+                            validation_report.append("   异常值: [格式错误]")
+                    else:
+                        validation_report.append("   异常值: [无法显示]")
+            else:
+                validation_report.append("✅ 未发现明显异常值")
+        except Exception as e:
+            validation_report.append(f"⚠️ 异常值检测失败: {str(e)}")
         
         # 9. 数据统计信息（包含空白数据信息）
         validation_report.extend([
@@ -243,28 +260,39 @@ class DataValidator:
 
     @staticmethod
     def detect_potential_outliers(data_array):
-        """检测潜在异常值"""
-        if len(data_array) < 3:
-            return [], ["数据点不足，无法进行异常值检测"]
-        
-        # 确保 data_array 是 numpy 数组
-        if not isinstance(data_array, np.ndarray):
-            data_array = np.array(data_array)
-        
-        q1 = np.percentile(data_array, 25)
-        q3 = np.percentile(data_array, 75)
-        iqr = q3 - q1
-        lower_bound = q1 - 1.5 * iqr
-        upper_bound = q3 + 1.5 * iqr
-        
-        # 使用布尔掩码获取异常值，然后转换为普通列表
-        outlier_mask = (data_array < lower_bound) | (data_array > upper_bound)
-        outliers = data_array[outlier_mask].tolist()  # 转换为普通列表
-        
-        if len(outliers) > 0:
-            return outliers, [f"检测到 {len(outliers)} 个潜在异常值（基于IQR方法）"]
-        else:
-            return [], ["未发现明显异常值"]
+        """检测潜在异常值 - 完全重写版本"""
+        try:
+            if len(data_array) < 3:
+                return [], ["数据点不足，无法进行异常值检测"]
+            
+            # 确保数据是numpy数组并处理可能的类型问题
+            if not isinstance(data_array, np.ndarray):
+                data_array = np.array(data_array)
+            
+            # 确保数据类型是数值型
+            if not np.issubdtype(data_array.dtype, np.number):
+                return [], ["数据包含非数值类型，无法进行异常值检测"]
+            
+            q1 = np.percentile(data_array, 25)
+            q3 = np.percentile(data_array, 75)
+            iqr = q3 - q1
+            lower_bound = q1 - 1.5 * iqr
+            upper_bound = q3 + 1.5 * iqr
+            
+            # 使用更安全的方法获取异常值
+            outliers_list = []
+            for value in data_array:
+                if value < lower_bound or value > upper_bound:
+                    outliers_list.append(float(value))  # 明确转换为Python浮点数
+            
+            if len(outliers_list) > 0:
+                return outliers_list, [f"检测到 {len(outliers_list)} 个潜在异常值（基于IQR方法）"]
+            else:
+                return [], ["未发现明显异常值"]
+                
+        except Exception as e:
+            # 如果出现任何错误，返回空列表和错误信息
+            return [], [f"异常值检测过程中发生错误: {str(e)}"]
         
 # =============================================
 # 两列数据输入验证函数
@@ -1324,6 +1352,23 @@ def iterative_robust_algorithm(data, max_iterations=50, k=1.5, scheme="strict"):
     outliers = data[outliers_mask]
     clean_data = data[~outliers_mask]
     
+    # === 添加异常值安全处理 ===
+    # 确保 outliers 和 clean_data 是标准Python类型
+    if hasattr(outliers, 'tolist'):
+        outliers = outliers.tolist()
+    elif hasattr(outliers, '__iter__') and not isinstance(outliers, (str, dict)):
+        outliers = list(outliers)
+    else:
+        outliers = []
+    
+    if hasattr(clean_data, 'tolist'):
+        clean_data = clean_data.tolist()
+    elif hasattr(clean_data, '__iter__') and not isinstance(clean_data, (str, dict)):
+        clean_data = list(clean_data)
+    else:
+        clean_data = []
+    # === 结束安全处理 ===    
+    
     return {
         'robust_mean': robust_mean,
         'robust_std': robust_std,
@@ -1364,6 +1409,22 @@ def quartile_robust_algorithm(data, scheme="strict"):
     outliers_mask = (data < lower_limit) | (data > upper_limit)
     outliers = data[outliers_mask]
     clean_data = data[~outliers_mask]
+    
+    # === 添加异常值安全处理 ===
+    if hasattr(outliers, 'tolist'):
+        outliers = outliers.tolist()
+    elif hasattr(outliers, '__iter__') and not isinstance(outliers, (str, dict)):
+        outliers = list(outliers)
+    else:
+        outliers = []
+    
+    if hasattr(clean_data, 'tolist'):
+        clean_data = clean_data.tolist()
+    elif hasattr(clean_data, '__iter__') and not isinstance(clean_data, (str, dict)):
+        clean_data = list(clean_data)
+    else:
+        clean_data = []
+    # === 结束安全处理 ===    
     
     # 根据选择的方案进行格式化
     if scheme == "presentation":
@@ -1461,6 +1522,22 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
     outliers_mask = (data < lower_limit) | (data > upper_limit)
     outliers = data[outliers_mask]
     clean_data = data[~outliers_mask]
+    
+    # === 添加异常值安全处理 ===
+    if hasattr(outliers, 'tolist'):
+        outliers = outliers.tolist()
+    elif hasattr(outliers, '__iter__') and not isinstance(outliers, (str, dict)):
+        outliers = list(outliers)
+    else:
+        outliers = []
+    
+    if hasattr(clean_data, 'tolist'):
+        clean_data = clean_data.tolist()
+    elif hasattr(clean_data, '__iter__') and not isinstance(clean_data, (str, dict)):
+        clean_data = list(clean_data)
+    else:
+        clean_data = []
+    # === 结束安全处理 ===    
     
     # 根据选择的方案进行格式化
     if scheme == "presentation":
@@ -1634,8 +1711,18 @@ if data is not None and len(data) > 0:
         
         # 离群值显示
         if len(results['outliers']) > 0:
-            outliers_list = [float(x) for x in sorted(results['outliers'])]
-            st.write(f"**离群值**: {outliers_list}")
+            # 确保 outliers 是列表且可以迭代
+            outliers_list = results['outliers']
+            if hasattr(outliers_list, '__iter__') and not isinstance(outliers_list, str):
+                try:
+                    # 转换为浮点数列表并排序
+                    outliers_list = [float(x) for x in outliers_list]
+                    outliers_list = sorted(outliers_list)
+                    st.write(f"**离群值**: {outliers_list}")
+                except (ValueError, TypeError):
+                    st.write("**离群值**: [无法显示]")
+            else:
+                st.write("**离群值**: 无")
         else:
             st.write("**离群值**: 无")
         
