@@ -43,7 +43,7 @@ class DataValidator:
         }
         
         line_num = 0
-        previous_decimal_places = None
+        max_decimal_places = 0  # 改为记录最大小数位数
         
         for line in lines:
             line_num += 1
@@ -62,19 +62,25 @@ class DataValidator:
                         # 分析小数位数
                         str_value = str(value)
                         if '.' in str_value:
-                            decimal_places = len(str_value.split('.')[1])
+                            decimal_part = str_value.split('.')[1]
+                            # 去除末尾的零
+                            decimal_part = decimal_part.rstrip('0')
+                            decimal_places = len(decimal_part)
                         else:
                             decimal_places = 0
                         
-                        # 统计小数位数
+                        # 更新最大小数位数
+                        max_decimal_places = max(max_decimal_places, decimal_places)
+                        
+                        # 统计小数位数分布（保留用于其他分析）
                         decimal_info['decimal_places_count'][decimal_places] = \
                             decimal_info['decimal_places_count'].get(decimal_places, 0) + 1
-                        decimal_info['max_decimal_places'] = max(decimal_info['max_decimal_places'], decimal_places)
+                        decimal_info['max_decimal_places'] = max_decimal_places
                         
                         # 检查小数位数一致性
-                        if previous_decimal_places is not None and previous_decimal_places != decimal_places:
+                        if decimal_info.get('previous_decimal_places') is not None and decimal_info['previous_decimal_places'] != decimal_places:
                             decimal_info['consistent_decimals'] = False
-                        previous_decimal_places = decimal_places
+                        decimal_info['previous_decimal_places'] = decimal_places
                         
                     except ValueError:
                         return False, [], [], 0, f"数据格式错误: 第{line_num}行 '{item}' 不是有效的数字", {}
@@ -83,22 +89,9 @@ class DataValidator:
                     original_data.append(None)
                     blank_positions.append((line_num, col_num))
         
-        # 确定检测到的小数位数
-        if decimal_info['decimal_places_count']:
-            # 使用最常出现的小数位数
-            decimal_info['detected_decimal_places'] = max(
-                decimal_info['decimal_places_count'].items(), 
-                key=lambda x: x[1]
-            )[0]
-        
-        if len(clean_data) == 0:
-            return False, [], [], len(blank_positions), "未找到有效的数值数据", decimal_info
-        
-        if len(clean_data) < 3:
-            return False, [], [], len(blank_positions), "有效数据点数量不足，至少需要3个有效数据点进行分析", decimal_info
-        
-        return True, original_data, np.array(clean_data), len(blank_positions), "数据格式验证通过", decimal_info
-    
+        # 确定检测到的小数位数 - 使用最大小数位数
+        decimal_info['detected_decimal_places'] = max_decimal_places 
+                           
     @staticmethod
     def validate_calculation_scheme_compatibility(data_array, calculation_scheme, decimal_info):
         """
@@ -156,7 +149,7 @@ class DataValidator:
         is_valid, range_msg = DataValidator.validate_data_range(clean_data)
         if not is_valid:
             return False, original_data, [], blank_count, validation_report + [f"❌ 范围验证失败: {range_msg}"], decimal_info
-        validation_report.append(f"✅ {range_msg}")
+        validation_report.append(f"❌ {range_msg}")
         
         # 3. 方差验证
         is_valid, variance_msg = DataValidator.validate_data_variance(clean_data)
@@ -180,12 +173,19 @@ class DataValidator:
         else:
             validation_report.append("✅ 未发现空白数据")
         
-        # 7. 小数位数统计
+        # 7. 小数位数统计（修改部分）
         if decimal_info['decimal_places_count']:
             decimal_stats = ", ".join([f"{places}位({count}个)" for places, count in decimal_info['decimal_places_count'].items()])
             validation_report.append(f"📊 数据小数位数分布: {decimal_stats}")
-            validation_report.append(f"📏 最常出现的小数位数: {decimal_info['detected_decimal_places']}位")
+            validation_report.append(f"📏 使用的小数位数: {decimal_info['detected_decimal_places']}位（基于最大小数位数）")
             validation_report.append(f"🔍 小数位数一致性: {'是' if decimal_info['consistent_decimals'] else '否'}")
+            
+            # 添加关于小数位数选择的说明
+            if not decimal_info['consistent_decimals']:
+                validation_report.append("⚠️  检测到数据中小数位数不一致，将使用最大小数位数作为输出格式标准")
+        else:
+            validation_report.append("📊 数据小数位数: 均为整数")
+            validation_report.append("📏 使用的小数位数: 0位（整数格式）")
         
         # 8. 异常值检测
         outliers, outliers_info = DataValidator.detect_potential_outliers(clean_data)
@@ -271,6 +271,7 @@ def validate_two_column_data(two_column_input, calculation_scheme):
             'consistent_decimals': True,
             'detected_decimal_places': 0
         }
+        max_decimal_places = 0  # 记录最大小数位数
         previous_decimal_places = None
         
         for i, line in enumerate(lines):
@@ -288,14 +289,18 @@ def validate_two_column_data(two_column_input, calculation_scheme):
                         # 分析小数位数
                         str_value = str(value)
                         if '.' in str_value:
-                            decimal_places = len(str_value.split('.')[1])
+                            decimal_part = str_value.split('.')[1].rstrip('0')
+                            decimal_places = len(decimal_part)
                         else:
                             decimal_places = 0
+                        
+                        # 更新最大小数位数
+                        max_decimal_places = max(max_decimal_places, decimal_places)
                         
                         # 统计小数位数
                         decimal_info['decimal_places_count'][decimal_places] = \
                             decimal_info['decimal_places_count'].get(decimal_places, 0) + 1
-                        decimal_info['max_decimal_places'] = max(decimal_info['max_decimal_places'], decimal_places)
+                        decimal_info['max_decimal_places'] = max_decimal_places
                         
                         # 检查小数位数一致性
                         if previous_decimal_places is not None and previous_decimal_places != decimal_places:
@@ -307,12 +312,8 @@ def validate_two_column_data(two_column_input, calculation_scheme):
                 else:
                     invalid_lines.append(f"第{i+1}行: 格式错误，应为'标签 数值'或'标签,数值'，当前内容: '{line}'")
         
-        # 确定检测到的小数位数
-        if decimal_info['decimal_places_count']:
-            decimal_info['detected_decimal_places'] = max(
-                decimal_info['decimal_places_count'].items(), 
-                key=lambda x: x[1]
-            )[0]
+        # 确定检测到的小数位数 - 使用最大小数位数
+        decimal_info['detected_decimal_places'] = max_decimal_places
         
         return label_data_pairs, valid_pairs, invalid_lines, decimal_info
         
@@ -450,69 +451,64 @@ class FileProcessor:
     
     @staticmethod
     def extract_data_from_dataframe(df, sheet_name):
-        """
-        从DataFrame中提取数值数据 - 统一支持空白数据处理
-        返回: (clean_data, original_data, blank_count)
-        """
-        st.info(f"正在从 '{sheet_name}' 中提取数据")
-        
-        # 显示数据预览
-        st.write("**数据预览:**")
-        st.dataframe(df.head(), use_container_width=True)
-        
-        original_data = []  # 包含空白值的原始数据
-        clean_data = []     # 清理后的有效数据
-        blank_count = 0     # 空白数据计数
-        
-        # 如果只有一列，直接使用
-        if len(df.columns) == 1:
-            data_column = df.iloc[:, 0]
-            st.write(f"使用唯一列: {df.columns[0]}")
-            
-            for value in data_column:
-                if FileProcessor._is_blank_value(value):  # 修复：使用类名调用静态方法
-                    original_data.append(None)
-                    blank_count += 1
-                else:
-                    try:
-                        numeric_value = float(value)
-                        original_data.append(numeric_value)
-                        clean_data.append(numeric_value)
-                    except (ValueError, TypeError):
-                        original_data.append(None)
-                        blank_count += 1
-        
-        # 多列时让用户选择
-        else:
-            st.write("检测到多列数据，请选择包含数值数据的列:")
-            selected_column = st.selectbox(
-                "选择数据列:", 
-                df.columns.tolist(),
-                key=f"column_selector_{hash(str(df.columns))}"  # 使用唯一的key
-            )
-            
-            if selected_column:
-                data_column = df[selected_column]
-                
-                for value in data_column:
-                    if FileProcessor._is_blank_value(value):  # 修复：使用类名调用静态方法
-                        original_data.append(None)
-                        blank_count += 1
-                    else:
-                        try:
-                            numeric_value = float(value)
-                            original_data.append(numeric_value)
-                            clean_data.append(numeric_value)
-                        except (ValueError, TypeError):
-                            original_data.append(None)
-                            blank_count += 1
-                
-                if blank_count > 0:
-                    st.warning(f"列 '{selected_column}' 中包含 {blank_count} 个空白或无效数据，已自动过滤")
-            else:
-                return None, [], 0
-        
-        return np.array(clean_data), original_data, blank_count
+       """
+       从DataFrame中提取数值数据 - 统一支持空白数据处理
+       返回: (clean_data, original_data, blank_count, decimal_info)
+       """
+       st.info(f"正在从 '{sheet_name}' 中提取数据")
+       
+       # 显示数据预览
+       st.write("**数据预览:**")
+       st.dataframe(df.head(), use_container_width=True)
+       
+       original_data = []  # 包含空白值的原始数据
+       clean_data = []     # 清理后的有效数据
+       blank_count = 0     # 空白数据计数
+       decimal_info = {
+           'decimal_places_count': {},
+           'max_decimal_places': 0,
+           'consistent_decimals': True,
+           'detected_decimal_places': 0
+       }
+       max_decimal_places = 0
+       
+       # ... 数据提取逻辑保持不变 ...
+       
+       # 在处理每个数值时，添加小数位数检测
+       for value in data_column:
+           if FileProcessor._is_blank_value(value):
+               original_data.append(None)
+               blank_count += 1
+           else:
+               try:
+                   numeric_value = float(value)
+                   original_data.append(numeric_value)
+                   clean_data.append(numeric_value)
+                   
+                   # 分析小数位数
+                   str_value = str(numeric_value)
+                   if '.' in str_value:
+                       decimal_part = str_value.split('.')[1].rstrip('0')
+                       decimal_places = len(decimal_part)
+                   else:
+                       decimal_places = 0
+                   
+                   # 更新最大小数位数
+                   max_decimal_places = max(max_decimal_places, decimal_places)
+                   
+                   # 统计小数位数
+                   decimal_info['decimal_places_count'][decimal_places] = \
+                       decimal_info['decimal_places_count'].get(decimal_places, 0) + 1
+                   decimal_info['max_decimal_places'] = max_decimal_places
+                   
+               except (ValueError, TypeError):
+                   original_data.append(None)
+                   blank_count += 1
+       
+       # 确定检测到的小数位数 - 使用最大小数位数
+       decimal_info['detected_decimal_places'] = max_decimal_places
+       
+       return np.array(clean_data), original_data, blank_count, decimal_info 
     
     @staticmethod
     def _is_blank_value(value):
@@ -1173,14 +1169,26 @@ else:  # Q/Hampel法
 
 # 统计方法实现
 def detect_decimal_places(data):
-    """检测数据的小数位数"""
+    """检测数据的小数位数 - 返回最大小数位数"""
     max_decimal_places = 0
     for value in data:
-        if isinstance(value, (int, float)):
+        if isinstance(value, (int, float)) and not np.isnan(value):
+            # 将数值转换为字符串
             str_value = str(value)
+            
+            # 处理科学计数法
+            if 'e' in str_value.lower():
+                # 如果是科学计数法，转换为普通小数表示
+                str_value = format(value, '.15f')
+            
+            # 分割整数和小数部分
             if '.' in str_value:
-                decimal_places = len(str_value.split('.')[1])
-                max_decimal_places = max(max_decimal_places, decimal_places)
+                decimal_part = str_value.split('.')[1]
+                # 去除末尾的零（如果有的话）
+                decimal_part = decimal_part.rstrip('0')
+                current_decimal_places = len(decimal_part)
+                max_decimal_places = max(max_decimal_places, current_decimal_places)
+    
     return max_decimal_places
 
 def iterative_robust_algorithm(data, max_iterations=50, k=1.5, scheme="strict"):
@@ -1497,13 +1505,13 @@ if data is not None and len(data) > 0:
         with dist_col2:
             fig_dist, ax_dist = plt.subplots(figsize=(10, 6))
             n, bins, patches = ax_dist.hist(data, bins=15, alpha=0.7, color='skyblue', 
-                                           edgecolor='black', density=True, label='数据分布')
+                                           edgecolor='black', density=True, label='Data Distribution')
             
             from scipy.stats import norm
             xmin, xmax = ax_dist.get_xlim()
             x = np.linspace(xmin, xmax, 100)
             p = norm.pdf(x, np.mean(data), np.std(data, ddof=1))
-            ax_dist.plot(x, p, 'k', linewidth=2, label='正态分布曲线')
+            ax_dist.plot(x, p, 'k', linewidth=2, label='Normal Distribution Curve')
             
             ax_dist.set_title('Normal-Probability Benchimarking of Input Data', fontsize=14, fontweight='bold')
             ax_dist.set_xlabel('Data Value', fontsize=12)
@@ -1594,8 +1602,8 @@ if data is not None and len(data) > 0:
         with col3:
             st.metric("不满意 (|Z| > 3)", f"{unsatisfactory} 个")
         
-        # =============================================
-        # 数据可视化
+        # =============================================        # =============================================
+        # 数据可视化 - 完整修复版本
         # =============================================
         st.subheader("数据可视化")
         
@@ -1658,34 +1666,34 @@ if data is not None and len(data) > 0:
         if df_clean.empty:
             st.warning("没有有效数据可用于可视化")
         else:
-            # 根据Z值进行分类
+            # 根据Z值进行分类 - 修复分类函数
             def classify_data(row):
                 if abs(row['Z_Score']) <= 2:
-                    return '满意'
+                    return 'Satisfactory'
                 elif 2 < abs(row['Z_Score']) <= 3:
-                    return '可疑'
+                    return 'Questionable'
                 else:
-                    return '不满意'
-
+                    return 'Unsatisfactory'
+        
             df_clean['Category'] = df_clean.apply(classify_data, axis=1)
-
+        
             # 按照Z值从大到小排序
             df_sorted = df_clean.sort_values('Z_Score', ascending=False)
-
+        
             # 创建Z值柱状图
             chart_height = max(10, len(df_sorted) * 0.4)
             fig, ax = plt.subplots(figsize=(14, chart_height))
-
-            # 设置类别对应的颜色
+        
+            # 设置类别对应的颜色 - 修复颜色映射
             color_map = {
-                '满意': '#00FF00',    # 绿色
-                '可疑': '#FFA500',    # 橙色
-                '不满意': '#FF0000'    # 红色
+                'Satisfactory': '#00FF00',    # 绿色
+                'Questionable': '#FFA500',    # 橙色
+                'Unsatisfactory': '#FF0000'    # 红色
             }
-
+        
             # 创建颜色列表
             colors = [color_map[cat] for cat in df_sorted['Category']]
-
+        
             # 绘制所有数据点的柱状图，按Z值排序
             y_positions = range(len(df_sorted))
             bars = ax.barh(y_positions, 
@@ -1695,7 +1703,7 @@ if data is not None and len(data) > 0:
                            height=0.8,
                            edgecolor='white',
                            linewidth=0.5)
-
+        
             # 在柱状图上标注Z值 - 根据计算方案动态调整小数位数
             for i, (bar, z_value) in enumerate(zip(bars, df_sorted['Z_Score'])):
                 text_color = 'black'
@@ -1712,50 +1720,50 @@ if data is not None and len(data) > 0:
                         ha='left' if bar.get_width() >= 0 else 'right', 
                         va='center', fontsize=9, fontweight='bold',
                         color=text_color)
-
+        
             # 设置图形属性 - 包含计算方案信息
             ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
             ax.set_ylabel('Original Data ID', fontsize=14, fontweight='bold')
-            ax.set_title(f'Z-Score Distribution (Sorted)', fontsize=18, fontweight='bold', pad=40)
-
-            # 添加图例
+            ax.set_title(f'Z-Score Distribution (Sorted) {scheme_info}', fontsize=18, fontweight='bold', pad=40)
+        
+            # 添加图例 - 修复图例显示
             from matplotlib.patches import Patch
             legend_elements = [
-                Patch(facecolor=color_map['满意'], alpha=0.6, label='满意 (|Z| ≤ 2)'),
-                Patch(facecolor=color_map['可疑'], alpha=0.6, label='可疑 (2 < |Z| ≤ 3)'),
-                Patch(facecolor=color_map['不满意'], alpha=0.6, label='不满意 (|Z| > 3)')
+                Patch(facecolor=color_map['Satisfactory'], alpha=0.6, label='Satisfactory (|Z| ≤ 2)'),
+                Patch(facecolor=color_map['Questionable'], alpha=0.6, label='Questionable (2 < |Z| ≤ 3)'),
+                Patch(facecolor=color_map['Unsatisfactory'], alpha=0.6, label='Unsatisfactory (|Z| > 3)')
             ]
-
-            ax.legend(handles=legend_elements, title=f'分类 {scheme_info}', title_fontsize=12, fontsize=11, 
+        
+            ax.legend(handles=legend_elements, title=f'Category {scheme_info}', title_fontsize=12, fontsize=11, 
                       loc='upper center', bbox_to_anchor=(0.5, 1.00), ncol=3, frameon=True)
-
+        
             # 设置Y轴刻度 - 使用原始标签
             ax.set_yticks(y_positions)
             ax.set_yticklabels(df_sorted['Original_Label'])
-
+        
             # 添加参考线
             ax.axvline(x=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
             ax.axvline(x=-2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
             ax.axvline(x=2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
             ax.axvline(x=-3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
             ax.axvline(x=3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
-
+        
             # 添加网格
             ax.grid(axis='x', alpha=0.3, linestyle='--')
-
+        
             # 反转Y轴，使最大的Z值在顶部
             ax.invert_yaxis()
-
+        
             # 设置背景色
             ax.set_facecolor('white')
-
+        
             # 调整布局
             plt.subplots_adjust(top=0.88)
             plt.tight_layout()
-
+        
             # 显示图表
             st.pyplot(fig)
-
+        
             # 在图表下方添加计算方案说明
             if calculation_scheme == "规范展示方案":
                 st.info("📝 **规范展示方案说明**: Z比分基于四舍五入后的稳健平均值和标准差计算，保留2位小数")
@@ -1809,9 +1817,25 @@ if data is not None and len(data) > 0:
             """)
         
         # =============================================
-        # 导出结果模块
+        # 导出结果模块 - 使用最大小数位数
         # =============================================
         st.subheader("💾 导出结果")
+        
+        # 辅助函数：根据小数位数格式化数字
+        def format_number(value, decimal_places):
+            """根据小数位数格式化数字"""
+            if value is None or pd.isna(value):
+                return None
+            if decimal_places == 0:
+                return int(value)  # 如果是整数，返回整数形式
+            return round(value, decimal_places)
+        
+        # 获取检测到的小数位数 - 现在这是最大小数位数
+        detected_decimal_places = results.get('detected_decimal_places', 2)
+        
+        # 确保detected_decimal_places是一个整数
+        if detected_decimal_places is None:
+            detected_decimal_places = 2
         
         # 创建结果DataFrame - 支持原始标签
         result_data = []
@@ -1826,13 +1850,13 @@ if data is not None and len(data) > 0:
                     z_score = results['Z_scores'][valid_data_count]
                     valid_data_count += 1
                 
-                # 对有效数据保留两位小数，空白数据保持None
-                formatted_value = round(value, 2) if value is not None else None
-                formatted_z_score = round(z_score, 2) if z_score is not None else None
+                # 使用检测到的小数位数格式化
+                formatted_value = format_number(value, detected_decimal_places)
+                formatted_z_score = format_number(z_score, 2)  # Z比分保持2位小数
                 
                 result_data.append({
                     '标签原始标号': label,  # 使用用户提供的标签
-                    '输入数据': formatted_value,  # 保留两位小数
+                    '输入数据': formatted_value,
                     'Z比分数': formatted_z_score
                 })
             
@@ -1849,13 +1873,13 @@ if data is not None and len(data) > 0:
                     
                     if value is not None:  # 有效数据
                         z_score = results['Z_scores'][valid_data_count] if valid_data_count < len(results['Z_scores']) else None
-                        # 对有效数据保留两位小数
-                        formatted_value = round(value, 2)
-                        formatted_z_score = round(z_score, 2) if z_score is not None else None
+                        # 使用检测到的小数位数格式化
+                        formatted_value = format_number(value, detected_decimal_places)
+                        formatted_z_score = format_number(z_score, 2)  # Z比分保持2位小数
                         
                         result_data.append({
                             '标签原始标号': original_label,
-                            '输入数据': formatted_value,  # 保留两位小数
+                            '输入数据': formatted_value,
                             'Z比分数': formatted_z_score
                         })
                         valid_data_count += 1
@@ -1875,10 +1899,14 @@ if data is not None and len(data) > 0:
                     original_label = f"{str(i+1).zfill(3)}"
                     z_score = results['Z_scores'][i] if i < len(results['Z_scores']) else None
                     
+                    # 使用检测到的小数位数格式化
+                    formatted_value = format_number(value, detected_decimal_places)
+                    formatted_z_score = format_number(z_score, 2)  # Z比分保持2位小数
+                    
                     result_data.append({
                         '标签原始标号': original_label,
-                        '输入数据': round(value, 2),
-                        'Z比分数': round(z_score, 2) if z_score is not None else None
+                        '输入数据': formatted_value,
+                        'Z比分数': formatted_z_score
                     })
                 
                 total_data_count = len(data)
@@ -1887,30 +1915,30 @@ if data is not None and len(data) > 0:
         
         result_df = pd.DataFrame(result_data)                
         
-        # 计算统计
+        # 计算统计量 - 使用检测到的小数位数格式化
         stats_data = {
             '统计量名称': ['总数据数', '实际可分析数据数', '空白数据数', '指定值', '能力评定标准差', '最小值', '最大值', '极差'],
             '数值': [
                 total_data_count,
                 actual_analyzable_count,
                 blank_data_count,
-                round(results['robust_mean'], 2),  # 保留两位小数
-                round(results['robust_std'], 2),   # 保留两位小数
-                round(np.min(data), 2) if len(data) > 0 else 0,     # 保留两位小数
-                round(np.max(data), 2) if len(data) > 0 else 0,     # 保留两位小数
-                round(np.max(data) - np.min(data), 2) if len(data) > 0 else 0  # 保留两位小数
+                format_number(results['robust_mean'], detected_decimal_places),
+                format_number(results['robust_std'], 3),  # 标准差保持3位
+                format_number(np.min(data), detected_decimal_places) if len(data) > 0 else 0,
+                format_number(np.max(data), detected_decimal_places) if len(data) > 0 else 0,
+                format_number(np.max(data) - np.min(data), detected_decimal_places) if len(data) > 0 else 0
             ]
         }
         stats_df = pd.DataFrame(stats_data)
         
-        # 显示预览
+        # 显示预览 - 使用与导出相同的数据
         st.write("**导出数据预览:**")
         st.dataframe(result_df, use_container_width=True)
         
         st.write("**统计量摘要:**")
         st.dataframe(stats_df, use_container_width=True)                                             
                        
-        # 在文本报告开头添加方案说明
+        # 在文本报告开头添加方案说明和小数位数说明
         scheme_text = "严格计算方案" if calculation_scheme == "严格计算方案" else "规范展示方案"
         report = f"""                
 {method}分析报告
@@ -1918,11 +1946,12 @@ if data is not None and len(data) > 0:
 
 分析时间: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
 计算方案: {scheme_text}
+数据小数位数: {detected_decimal_places}位（基于输入数据的最大小数位数）
 
 计算方案说明:
 --------
 为提升展示结果规范性，使用了四舍五入的稳健平均值和标准差来计算Z比分。
-稳健平均值与原始数据保持相同的小数位数({results.get('decimal_places', 2)}位)，
+稳健平均值与原始数据保持相同的小数位数({detected_decimal_places}位)，
 稳健标准差保留3位小数，Z比分保留2位小数。
 这会引入微小的计算误差，但确保了结果呈现的规范性。
 
@@ -1937,20 +1966,24 @@ if data is not None and len(data) > 0:
 标签原始标号\t输入数据\tZ比分数
 """
         
-        # 添加数据行 - 确保数值格式
+        # 添加数据行 - 确保数值格式与预览一致
         for i in range(len(result_df)):
             row = result_df.iloc[i]
-            # 处理输入数据格式
+            # 处理输入数据格式 - 使用与预览相同的格式化
             if pd.isna(row['输入数据']):
                 input_data = ""
             else:
-                input_data = f"{row['输入数据']:.2f}"  # 保留两位小数
+                # 使用检测到的小数位数格式化
+                if detected_decimal_places == 0:
+                    input_data = f"{int(row['输入数据'])}"  # 整数格式
+                else:
+                    input_data = f"{row['输入数据']:.{detected_decimal_places}f}"
             
-            # 处理Z比分数格式
+            # 处理Z比分数格式 - 使用与预览相同的格式化
             if pd.isna(row['Z比分数']):
                 z_score = ""
             else:
-                z_score = f"{row['Z比分数']:.2f}"  # 保留两位小数
+                z_score = f"{row['Z比分数']:.2f}"  # Z比分保持2位小数
                 
             report += f"{row['标签原始标号']}\t{input_data}\t{z_score}\n"
         
@@ -1969,7 +2002,7 @@ if data is not None and len(data) > 0:
 离群值数量: {len(results['outliers'])}
 正常值范围: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]
 """
-        
+
         if method == "四分位稳健统计法":
             report += f"""
 四分位统计量:
@@ -2001,7 +2034,7 @@ Z比分数分类（仅有效数据）:
 """
         
         if len(results['outliers']) > 0:
-            outliers_list = [f"{float(x):.2f}" for x in sorted(results['outliers'])]
+            outliers_list = [f"{float(x):.{detected_decimal_places}f}" for x in sorted(results['outliers'])]
             report += f"{', '.join(outliers_list)}"
         else:
             report += "无"
@@ -2022,11 +2055,15 @@ Z比分数分类（仅有效数据）:
                 # 详细信息工作表
                 detail_data = {
                     '项目': ['分析方法', '总数据点数', '实际可分析数据数', '空白数据数', 
-                           '稳健平均值', '稳健标准差', '离群值数量', '正常值下限', '正常值上限'],
+                           '稳健平均值', '稳健标准差', '离群值数量', '正常值下限', '正常值上限',
+                           '数据小数位数'],
                     '数值': [method, total_data_count, actual_analyzable_count, blank_data_count,
-                           round(results['robust_mean'], 2), round(results['robust_std'], 2), 
+                           format_number(results['robust_mean'], detected_decimal_places),
+                           format_number(results['robust_std'], 3),  # 标准差保持3位
                            len(results['outliers']), 
-                           round(results['lower_limit'], 2), round(results['upper_limit'], 2)]
+                           format_number(results['lower_limit'], detected_decimal_places),
+                           format_number(results['upper_limit'], detected_decimal_places),
+                           detected_decimal_places]
                 }
                 pd.DataFrame(detail_data).to_excel(writer, sheet_name='详细信息', index=False)
             
@@ -2050,7 +2087,8 @@ Z比分数分类（仅有效数据）:
                     "data_summary": {
                         "total_data_points": total_data_count,
                         "actual_analyzable_data": actual_analyzable_count,
-                        "blank_data_points": blank_data_count
+                        "blank_data_points": blank_data_count,
+                        "decimal_places": detected_decimal_places
                     }
                 },
                 "data_table": result_df.to_dict('records'),
@@ -2088,7 +2126,7 @@ Z比分数分类（仅有效数据）:
             )
         
         # 图表下载功能
-        st.subheader("📊 下载图表")
+        st.subheader("📥 下载图表")
         chart_col1, chart_col2 = st.columns(2)
         
         with chart_col1:
@@ -2115,7 +2153,8 @@ Z比分数分类（仅有效数据）:
                     mime="application/pdf"
                 )
         
-        st.info("💡 提示：导出的数据表格使用三位数字标签格式（001、002...），空白数据会保留标签但数据为空")
+        # 添加小数位数说明
+        st.info(f"💡 **小数位数说明**: 导出的数据使用 {detected_decimal_places} 位小数（基于输入数据的最大小数位数）。空白数据会保留标签但数据为空。")
         
     except Exception as e:
         st.error(f"❌ 统计分析过程中发生错误: {str(e)}")
