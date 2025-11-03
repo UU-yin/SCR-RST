@@ -451,101 +451,86 @@ class FileProcessor:
     
     @staticmethod
     def extract_data_from_dataframe(df, sheet_name):
-       """
-       从DataFrame中提取数值数据 - 统一支持空白数据处理
-       返回: (clean_data, original_data, blank_count, decimal_info)
-       """
-       st.info(f"正在从 '{sheet_name}' 中提取数据")
-       
-       # 显示数据预览
-       st.write("**数据预览:**")
-       st.dataframe(df.head(), use_container_width=True)
-       
-       original_data = []  # 包含空白值的原始数据
-       clean_data = []     # 清理后的有效数据
-       blank_count = 0     # 空白数据计数
-       decimal_info = {
-           'decimal_places_count': {},
-           'max_decimal_places': 0,
-           'consistent_decimals': True,
-           'detected_decimal_places': 0
-       }
-       max_decimal_places = 0
-       
-       # ... 数据提取逻辑保持不变 ...
-       
-       # 在处理每个数值时，添加小数位数检测
-       for value in data_column:
-           if FileProcessor._is_blank_value(value):
-               original_data.append(None)
-               blank_count += 1
-           else:
-               try:
-                   numeric_value = float(value)
-                   original_data.append(numeric_value)
-                   clean_data.append(numeric_value)
-                   
-                   # 分析小数位数
-                   str_value = str(numeric_value)
-                   if '.' in str_value:
-                       decimal_part = str_value.split('.')[1].rstrip('0')
-                       decimal_places = len(decimal_part)
-                   else:
-                       decimal_places = 0
-                   
-                   # 更新最大小数位数
-                   max_decimal_places = max(max_decimal_places, decimal_places)
-                   
-                   # 统计小数位数
-                   decimal_info['decimal_places_count'][decimal_places] = \
-                       decimal_info['decimal_places_count'].get(decimal_places, 0) + 1
-                   decimal_info['max_decimal_places'] = max_decimal_places
-                   
-               except (ValueError, TypeError):
-                   original_data.append(None)
-                   blank_count += 1
-       
-       # 确定检测到的小数位数 - 使用最大小数位数
-       decimal_info['detected_decimal_places'] = max_decimal_places
-       
-       return np.array(clean_data), original_data, blank_count, decimal_info 
-    
-    @staticmethod
-    def _is_blank_value(value):
-        """判断是否为空白值"""
-        return (pd.isna(value) or 
-                value == "" or 
-                value is None or 
-                (isinstance(value, str) and value.strip() == ""))
-    
-    @staticmethod
-    def export_to_json(data_array, analysis_results=None, method_name=""):
-        """导出数据为JSON格式"""
-        export_data = {
-            "metadata": {
-                "export_time": pd.Timestamp.now().isoformat(),
-                "data_points": len(data_array),
-                "analysis_method": method_name,
-                "software": "稳健统计分析系统"
-            },
-            "original_data": data_array.tolist()
+        """
+        从DataFrame中提取数值数据 - 统一支持空白数据处理
+        返回: (clean_data, original_data, blank_count, decimal_info)
+        """
+        st.info(f"正在从 '{sheet_name}' 中提取数据")
+        
+        # 显示数据预览
+        st.write("**数据预览:**")
+        st.dataframe(df.head(), use_container_width=True)
+        
+        original_data = []  # 包含空白值的原始数据
+        clean_data = []     # 清理后的有效数据
+        blank_count = 0     # 空白数据计数
+        decimal_info = {
+            'decimal_places_count': {},
+            'max_decimal_places': 0,
+            'consistent_decimals': True,
+            'detected_decimal_places': 0
         }
+        max_decimal_places = 0
         
-        if analysis_results:
-            export_data.update({
-                "analysis_results": {
-                    "robust_mean": float(analysis_results.get('robust_mean', 0)),
-                    "robust_std": float(analysis_results.get('robust_std', 0)),
-                    "outliers": [float(x) for x in analysis_results.get('outliers', [])],
-                    "z_scores": [float(x) for x in analysis_results.get('Z_scores', [])],
-                    "normal_value_range": {
-                        "lower_limit": float(analysis_results.get('lower_limit', 0)),
-                        "upper_limit": float(analysis_results.get('upper_limit', 0))
-                    }
-                }
-            })
+        # 数据提取逻辑 - 修复缺失的部分
+        # 如果只有一列，直接使用
+        if len(df.columns) == 1:
+            data_column = df.iloc[:, 0]
+            st.write(f"使用唯一列: {df.columns[0]}")
+            
+        # 多列时让用户选择
+        else:
+            st.write("检测到多列数据，请选择包含数值数据的列:")
+            selected_column = st.selectbox(
+                "选择数据列:", 
+                df.columns.tolist(),
+                key=f"column_selector_{hash(str(df.columns))}"  # 使用唯一的key
+            )
+            
+            if selected_column:
+                data_column = df[selected_column]
+            else:
+                return None, [], 0, decimal_info
         
-        return json.dumps(export_data, indent=2, ensure_ascii=False)
+        # 在处理每个数值时，添加小数位数检测
+        for value in data_column:
+            if FileProcessor._is_blank_value(value):
+                original_data.append(None)
+                blank_count += 1
+            else:
+                try:
+                    numeric_value = float(value)
+                    original_data.append(numeric_value)
+                    clean_data.append(numeric_value)
+                    
+                    # 分析小数位数
+                    str_value = str(numeric_value)
+                    if '.' in str_value:
+                        decimal_part = str_value.split('.')[1].rstrip('0')
+                        decimal_places = len(decimal_part)
+                    else:
+                        decimal_places = 0
+                    
+                    # 更新最大小数位数
+                    max_decimal_places = max(max_decimal_places, decimal_places)
+                    
+                    # 统计小数位数
+                    decimal_info['decimal_places_count'][decimal_places] = \
+                        decimal_info['decimal_places_count'].get(decimal_places, 0) + 1
+                    decimal_info['max_decimal_places'] = max_decimal_places
+                    
+                except (ValueError, TypeError):
+                    original_data.append(None)
+                    blank_count += 1
+        
+        # 确定检测到的小数位数 - 使用最大小数位数
+        decimal_info['detected_decimal_places'] = max_decimal_places
+        
+        # 显示处理结果
+        if blank_count > 0:
+            st.warning(f"检测到 {blank_count} 个空白或无效数据，已自动过滤")
+        
+        return np.array(clean_data), original_data, blank_count, decimal_info
 
 # =============================================
 # 主程序开始
