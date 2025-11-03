@@ -13,6 +13,18 @@ import io
 import re
 import json
 from scipy import stats
+import matplotlib as mpl
+import matplotlib.font_manager as fm
+
+# 设置中文字体
+def set_chinese_font():
+    """设置中文字体支持"""
+    try:
+        # 使用支持中文的字体
+        plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial Unicode MS', 'SimHei']
+        plt.rcParams['axes.unicode_minus'] = False
+    except:
+        pass
 
 # =============================================
 # 修改后的数据验证和错误处理模块
@@ -1349,32 +1361,42 @@ def iterative_robust_algorithm(data, max_iterations=50, k=1.5, scheme="strict"):
         robust_std = S_star
     
     outliers_mask = (data < lower_limit) | (data > upper_limit)
-    outliers = data[outliers_mask]
-    clean_data = data[~outliers_mask]
+    # 彻底的类型安全处理
+    outliers_list = []
+    clean_data_list = []
     
-    # === 添加异常值安全处理 ===
-    # 确保 outliers 和 clean_data 是标准Python类型
-    if hasattr(outliers, 'tolist'):
-        outliers = outliers.tolist()
-    elif hasattr(outliers, '__iter__') and not isinstance(outliers, (str, dict)):
-        outliers = list(outliers)
+    # 确保数据是可迭代的
+    if hasattr(data, '__iter__') and not isinstance(data, (str, dict)):
+        data_iter = data
     else:
-        outliers = []
+        data_iter = [data]
     
-    if hasattr(clean_data, 'tolist'):
-        clean_data = clean_data.tolist()
-    elif hasattr(clean_data, '__iter__') and not isinstance(clean_data, (str, dict)):
-        clean_data = list(clean_data)
+    # 确保掩码是可迭代的
+    if hasattr(outliers_mask, '__iter__') and not isinstance(outliers_mask, (str, dict)):
+        mask_iter = outliers_mask
     else:
-        clean_data = []
-    # === 结束安全处理 ===    
+        mask_iter = [outliers_mask]
     
+    # 安全地分离异常值和正常数据
+    for i, value in enumerate(data_iter):
+        if i < len(mask_iter) and mask_iter[i]:
+            try:
+                outliers_list.append(float(value))
+            except (ValueError, TypeError):
+                continue
+        else:
+            try:
+                clean_data_list.append(float(value))
+            except (ValueError, TypeError):
+                continue
+    
+    # 确保返回标准Python类型
     return {
-        'robust_mean': robust_mean,
-        'robust_std': robust_std,
-        'clean_data': clean_data,
-        'outliers': outliers,
-        'Z_scores': Z_scores,
+        'robust_mean': float(robust_mean) if not np.isnan(robust_mean) else 0.0,
+        'robust_std': float(robust_std) if not np.isnan(robust_std) else 0.0,
+        'clean_data': clean_data_list,
+        'outliers': outliers_list,
+        'Z_scores': z_scores_list,  # 确保这也是列表
         'iterations': iteration,
         'converged': converged,
         'lower_limit': lower_limit,
@@ -1407,25 +1429,35 @@ def quartile_robust_algorithm(data, scheme="strict"):
     upper_limit = q3 + 1.5 * iqr
     
     outliers_mask = (data < lower_limit) | (data > upper_limit)
-    outliers = data[outliers_mask]
-    clean_data = data[~outliers_mask]
+    # 彻底的类型安全处理
+    outliers_list = []
+    clean_data_list = []
     
-    # === 添加异常值安全处理 ===
-    if hasattr(outliers, 'tolist'):
-        outliers = outliers.tolist()
-    elif hasattr(outliers, '__iter__') and not isinstance(outliers, (str, dict)):
-        outliers = list(outliers)
+    # 确保数据是可迭代的
+    if hasattr(data, '__iter__') and not isinstance(data, (str, dict)):
+        data_iter = data
     else:
-        outliers = []
+        data_iter = [data]
     
-    if hasattr(clean_data, 'tolist'):
-        clean_data = clean_data.tolist()
-    elif hasattr(clean_data, '__iter__') and not isinstance(clean_data, (str, dict)):
-        clean_data = list(clean_data)
+    # 确保掩码是可迭代的
+    if hasattr(outliers_mask, '__iter__') and not isinstance(outliers_mask, (str, dict)):
+        mask_iter = outliers_mask
     else:
-        clean_data = []
-    # === 结束安全处理 ===    
+        mask_iter = [outliers_mask]
     
+    # 安全地分离异常值和正常数据
+    for i, value in enumerate(data_iter):
+        if i < len(mask_iter) and mask_iter[i]:
+            try:
+                outliers_list.append(float(value))
+            except (ValueError, TypeError):
+                continue
+        else:
+            try:
+                clean_data_list.append(float(value))
+            except (ValueError, TypeError):
+                continue
+      
     # 根据选择的方案进行格式化
     if scheme == "presentation":
         # 规范展示方案
@@ -1457,12 +1489,13 @@ def quartile_robust_algorithm(data, scheme="strict"):
         robust_mean = median
         robust_std = niqr
     
+    # 确保返回标准Python类型
     return {
-        'robust_mean': robust_mean,
-        'robust_std': robust_std,
-        'clean_data': clean_data,
-        'outliers': outliers,
-        'Z_scores': Z_scores,
+        'robust_mean': float(robust_mean) if not np.isnan(robust_mean) else 0.0,
+        'robust_std': float(robust_std) if not np.isnan(robust_std) else 0.0,
+        'clean_data': clean_data_list,
+        'outliers': outliers_list,
+        'Z_scores': z_scores_list,  # 确保这也是列表
         'q1': q1,
         'q3': q3,
         'iqr': iqr,
@@ -1520,24 +1553,34 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
     lower_limit = current_mean - 3 * q_std
     upper_limit = current_mean + 3 * q_std
     outliers_mask = (data < lower_limit) | (data > upper_limit)
-    outliers = data[outliers_mask]
-    clean_data = data[~outliers_mask]
+    # 彻底的类型安全处理
+    outliers_list = []
+    clean_data_list = []
     
-    # === 添加异常值安全处理 ===
-    if hasattr(outliers, 'tolist'):
-        outliers = outliers.tolist()
-    elif hasattr(outliers, '__iter__') and not isinstance(outliers, (str, dict)):
-        outliers = list(outliers)
+    # 确保数据是可迭代的
+    if hasattr(data, '__iter__') and not isinstance(data, (str, dict)):
+        data_iter = data
     else:
-        outliers = []
+        data_iter = [data]
     
-    if hasattr(clean_data, 'tolist'):
-        clean_data = clean_data.tolist()
-    elif hasattr(clean_data, '__iter__') and not isinstance(clean_data, (str, dict)):
-        clean_data = list(clean_data)
+    # 确保掩码是可迭代的
+    if hasattr(outliers_mask, '__iter__') and not isinstance(outliers_mask, (str, dict)):
+        mask_iter = outliers_mask
     else:
-        clean_data = []
-    # === 结束安全处理 ===    
+        mask_iter = [outliers_mask]
+    
+    # 安全地分离异常值和正常数据
+    for i, value in enumerate(data_iter):
+        if i < len(mask_iter) and mask_iter[i]:
+            try:
+                outliers_list.append(float(value))
+            except (ValueError, TypeError):
+                continue
+        else:
+            try:
+                clean_data_list.append(float(value))
+            except (ValueError, TypeError):
+                continue 
     
     # 根据选择的方案进行格式化
     if scheme == "presentation":
@@ -1570,12 +1613,13 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         robust_mean = current_mean
         robust_std = q_std
     
+    # 确保返回标准Python类型
     return {
-        'robust_mean': robust_mean,
-        'robust_std': robust_std,
-        'clean_data': clean_data,
-        'outliers': outliers,
-        'Z_scores': Z_scores,
+        'robust_mean': float(robust_mean) if not np.isnan(robust_mean) else 0.0,
+        'robust_std': float(robust_std) if not np.isnan(robust_std) else 0.0,
+        'clean_data': clean_data_list,
+        'outliers': outliers_list,
+        'Z_scores': z_scores_list,  # 确保这也是列表 
         'method_name': 'Q/Hampel法',
         'lower_limit': lower_limit,
         'upper_limit': upper_limit,
@@ -1587,6 +1631,37 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
 # 执行分析
 if data is not None and len(data) > 0:
     try:
+        # 数据预处理和检查
+        if not isinstance(data, np.ndarray):
+            data = np.array(data)
+        
+        # 确保数据是数值类型
+        if not np.issubdtype(data.dtype, np.number):
+            st.error("❌ 数据包含非数值类型，请检查数据格式")
+            st.stop()
+        
+        # =============================================
+        # 添加调试信息：执行分析前
+        # =============================================
+        with st.expander("🔍 调试信息 - 分析前数据状态", expanded=False):
+            st.write("**数据基本信息:**")
+            st.write(f"数据长度 = {len(data)}")
+            st.write(f"数据类型 = {type(data)}")
+            if hasattr(data, 'dtype'):
+                st.write(f"数据dtype = {data.dtype}")
+            if hasattr(data, 'shape'):
+                st.write(f"- 数据形状: {data.shape}")  
+            
+            st.write("**数据样本:**")
+            st.write(f"- 前5个值: {data[:5].tolist() if hasattr(data, 'tolist') else data[:5]}")
+            st.write(f"- 后5个值: {data[-5:].tolist() if hasattr(data, 'tolist') else data[-5:]}")
+            
+            st.write("**数据统计:**")
+            st.write(f"- 最小值: {np.min(data):.4f}")
+            st.write(f"- 最大值: {np.max(data):.4f}")
+            st.write(f"- 平均值: {np.mean(data):.4f}")
+            st.write(f"- 标准差: {np.std(data, ddof=1):.4f}")
+        
         st.markdown("---")
         st.subheader(f"📈 {method}分析结果")
         
@@ -1741,173 +1816,272 @@ if data is not None and len(data) > 0:
         with col3:
             st.metric("不满意 (|Z| > 3)", f"{unsatisfactory} 个")
         
-        # =============================================        # =============================================
-        # 数据可视化 - 完整修复版本
+        # =============================================
+        # 数据可视化 - 完全修复版本
         # =============================================
         st.subheader("数据可视化")
         
         # 添加计算方案信息到图表
         scheme_info = "（规范展示方案）" if calculation_scheme == "规范展示方案" else "（严格计算方案）"
         
-        # 创建数据框用于可视化
-        if input_method == "带编号数据输入" and hasattr(st.session_state, 'label_data_pairs'):
-            # 使用两列数据的原始标签
-            valid_labels = []
-            valid_data = []
-            valid_z_scores = []
-            
-            # 确保Z_scores与有效数据正确对应
-            if hasattr(st.session_state, 'valid_pairs') and st.session_state.valid_pairs:
-                # 获取有效数据对应的标签和数值
-                valid_labels = [pair[0] for pair in st.session_state.valid_pairs]
-                valid_data = [pair[1] for pair in st.session_state.valid_pairs]
+        # 创建数据框用于可视化 - 添加全面的类型安全
+        try:
+            if input_method == "带编号数据输入" and hasattr(st.session_state, 'label_data_pairs'):
+                # 使用两列数据的原始标签
+                valid_labels = []
+                valid_data = []
+                valid_z_scores = []
                 
-                # 确保Z_scores长度与有效数据匹配
-                if len(results['Z_scores']) == len(valid_data):
-                    valid_z_scores = results['Z_scores']
-                else:
-                    st.error(f"Z分数数量({len(results['Z_scores'])})与有效数据数量({len(valid_data)})不匹配")
-                    # 使用前n个Z分数
-                    valid_z_scores = results['Z_scores'][:len(valid_data)]
-            
-            df_clean = pd.DataFrame({
-                'Original_Label': valid_labels,
-                'Original_Data': valid_data,
-                'Z_Score': valid_z_scores
-            })
-            
-        else:
-            # 其他输入方式使用自动生成的标签
-            df_clean = pd.DataFrame({
-                'Original_Data': data,
-                'Z_Score': results['Z_scores']
-            })
-            
-            # 生成三位数字标签 - 仅对有效数据
-            valid_labels = []
-            valid_data_count = 0
-            
-            # 遍历原始数据，只为有效数据生成标签
-            if hasattr(st.session_state, 'original_data'):
-                for i, value in enumerate(st.session_state.original_data):
-                    if value is not None:  # 有效数据
-                        label = f"{str(valid_data_count+1).zfill(3)}"  # 001, 002, ...
-                        valid_labels.append(label)
-                        valid_data_count += 1
+                # 确保Z_scores与有效数据正确对应
+                if hasattr(st.session_state, 'valid_pairs') and st.session_state.valid_pairs:
+                    # 获取有效数据对应的标签和数值
+                    valid_labels = [pair[0] for pair in st.session_state.valid_pairs]
+                    valid_data = [float(pair[1]) for pair in st.session_state.valid_pairs]  # 确保转换为float
+                    
+                    # 确保Z_scores长度与有效数据匹配
+                    if hasattr(results['Z_scores'], 'tolist'):
+                        z_scores_list = results['Z_scores'].tolist()
+                    else:
+                        z_scores_list = list(results['Z_scores']) if hasattr(results['Z_scores'], '__iter__') else []
+                    
+                    if len(z_scores_list) == len(valid_data):
+                        valid_z_scores = z_scores_list
+                    else:
+                        st.error(f"Z分数数量({len(z_scores_list)})与有效数据数量({len(valid_data)})不匹配")
+                        # 使用前n个Z分数或填充
+                        valid_z_scores = z_scores_list[:len(valid_data)] + [0] * max(0, len(valid_data) - len(z_scores_list))
+                
+                df_clean = pd.DataFrame({
+                    'Original_Label': valid_labels,
+                    'Original_Data': valid_data,
+                    'Z_Score': valid_z_scores
+                })
+                
             else:
-                # 如果没有原始数据，使用简单编号
-                valid_labels = [f"{str(i+1).zfill(3)}" for i in range(len(data))]
-            
-            # 将标签添加到数据框
-            df_clean['Original_Label'] = valid_labels
-        
-        # 检查数据框是否为空
-        if df_clean.empty:
-            st.warning("没有有效数据可用于可视化")
-        else:
-            # 根据Z值进行分类 - 修复分类函数
-            def classify_data(row):
-                if abs(row['Z_Score']) <= 2:
-                    return 'Satisfactory'
-                elif 2 < abs(row['Z_Score']) <= 3:
-                    return 'Questionable'
+                # 其他输入方式使用自动生成的标签
+                # 确保数据是安全的Python类型
+                safe_data = []
+                if hasattr(data, 'tolist'):
+                    safe_data = data.tolist()
+                elif hasattr(data, '__iter__') and not isinstance(data, (str, dict)):
+                    safe_data = list(data)
                 else:
-                    return 'Unsatisfactory'
-        
-            df_clean['Category'] = df_clean.apply(classify_data, axis=1)
-        
-            # 按照Z值从大到小排序
-            df_sorted = df_clean.sort_values('Z_Score', ascending=False)
-        
-            # 创建Z值柱状图
-            chart_height = max(10, len(df_sorted) * 0.4)
-            fig, ax = plt.subplots(figsize=(14, chart_height))
-        
-            # 设置类别对应的颜色 - 修复颜色映射
-            color_map = {
-                'Satisfactory': '#00FF00',    # 绿色
-                'Questionable': '#FFA500',    # 橙色
-                'Unsatisfactory': '#FF0000'    # 红色
-            }
-        
-            # 创建颜色列表
-            colors = [color_map[cat] for cat in df_sorted['Category']]
-        
-            # 绘制所有数据点的柱状图，按Z值排序
-            y_positions = range(len(df_sorted))
-            bars = ax.barh(y_positions, 
-                           df_sorted['Z_Score'], 
-                           color=colors, 
-                           alpha=0.6,
-                           height=0.8,
-                           edgecolor='white',
-                           linewidth=0.5)
-        
-            # 在柱状图上标注Z值 - 根据计算方案动态调整小数位数
-            for i, (bar, z_value) in enumerate(zip(bars, df_sorted['Z_Score'])):
-                text_color = 'black'
+                    safe_data = [data] if data is not None else []
                 
-                # 根据计算方案决定Z比分显示的小数位数
+                safe_z_scores = []
+                if hasattr(results['Z_scores'], 'tolist'):
+                    safe_z_scores = results['Z_scores'].tolist()
+                elif hasattr(results['Z_scores'], '__iter__') and not isinstance(results['Z_scores'], (str, dict)):
+                    safe_z_scores = list(results['Z_scores'])
+                else:
+                    safe_z_scores = [results['Z_scores']] if results['Z_scores'] is not None else []
+                
+                df_clean = pd.DataFrame({
+                    'Original_Data': safe_data,
+                    'Z_Score': safe_z_scores
+                })
+                
+                # 生成三位数字标签 - 仅对有效数据
+                valid_labels = []
+                if hasattr(st.session_state, 'original_data'):
+                    valid_count = 0
+                    for i, value in enumerate(st.session_state.original_data):
+                        if value is not None:  # 有效数据
+                            label = f"{str(valid_count+1).zfill(3)}"  # 001, 002, ...
+                            valid_labels.append(label)
+                            valid_count += 1
+                else:
+                    # 如果没有原始数据，使用简单编号
+                    valid_labels = [f"{str(i+1).zfill(3)}" for i in range(len(safe_data))]
+                
+                # 将标签添加到数据框
+                df_clean['Original_Label'] = valid_labels[:len(df_clean)]  # 确保长度匹配
+        
+            # 检查数据框是否为空
+            if df_clean.empty:
+                st.warning("没有有效数据可用于可视化")
+                # 跳过图表创建
+                chart_created = False
+            else:
+                chart_created = True
+        
+        except Exception as e:
+            st.error(f"创建数据框时发生错误: {str(e)}")
+            chart_created = False
+            
+        # =============================================
+        # 添加调试信息：图表创建前
+        # =============================================
+        with st.expander("🔍 调试信息 - 图表创建前数据状态", expanded=False):
+            if chart_created:
+                st.write("**数据框信息:**")
+                st.write(f"- 形状: {df_clean.shape}")
+                st.write(f"- 列名: {df_clean.columns.tolist()}")
+                st.write("**Z分数信息:**")
+                st.write(f"- 类型: {type(results['Z_scores'])}")
+                if hasattr(results['Z_scores'], 'shape'):
+                    st.write(f"Z_scores 形状 = {results['Z_scores'].shape}")
+                st.write(f"Z_scores 范围 = [{np.min(results['Z_scores']):.4f}, {np.max(results['Z_scores']):.4f}]")
+                
+                st.write("df_clean 数据预览:")
+                st.dataframe(df_clean.head(10), width='stretch')
+            else:
+                st.write("图表创建失败，无法显示调试信息")
+        
+        # 只有在成功创建数据框时才继续创建图表
+        if chart_created:
+            try:
+                set_chinese_font()
+                # === 添加调试信息2：创建图表前 ===
+                st.write(f"🔍 调试信息: df_clean 形状 = {df_clean.shape}")
+                st.write(f"🔍 调试信息: Z_scores 类型 = {type(results['Z_scores'])}")
+                if hasattr(results['Z_scores'], 'shape'):
+                    st.write(f"🔍 调试信息: Z_scores 形状 = {results['Z_scores'].shape}")
+                st.write(f"🔍 调试信息: df_clean 列名 = {df_clean.columns.tolist()}")
+                st.write(f"🔍 调试信息: df_clean 前3行:")
+                st.write(df_clean.head(3))
+                # === 结束调试信息2 ===
+                
+                # 根据Z值进行分类 - 修复分类函数
+                def classify_data(row):
+                    try:
+                        z_score = float(row['Z_Score'])
+                        if abs(z_score) <= 2:
+                            return 'Satisfactory'
+                        elif 2 < abs(z_score) <= 3:
+                            return 'Questionable'
+                        else:
+                            return 'Unsatisfactory'
+                    except (ValueError, TypeError):
+                        return 'Unknown'
+            
+                df_clean['Category'] = df_clean.apply(classify_data, axis=1)
+            
+                # 按照Z值从大到小排序 - 安全排序
+                try:
+                    df_sorted = df_clean.sort_values('Z_Score', ascending=False)
+                except:
+                    # 如果排序失败，使用原始顺序
+                    df_sorted = df_clean.copy()
+                    st.warning("数据排序失败，使用原始顺序")
+            
+                # 创建Z值柱状图
+                chart_height = max(10, len(df_sorted) * 0.4)
+                fig, ax = plt.subplots(figsize=(14, chart_height))
+            
+                # 设置类别对应的颜色
+                color_map = {
+                    'Satisfactory': '#00FF00',    # 绿色
+                    'Questionable': '#FFA500',    # 橙色
+                    'Unsatisfactory': '#FF0000',   # 红色
+                    'Unknown': '#808080'          # 灰色（未知类别）
+                }
+            
+                # 创建颜色列表
+                colors = []
+                for cat in df_sorted['Category']:
+                    colors.append(color_map.get(cat, '#808080'))  # 默认灰色
+            
+                # 绘制所有数据点的柱状图，按Z值排序
+                y_positions = range(len(df_sorted))
+                
+                # 安全获取Z分数
+                z_scores_to_plot = []
+                for z in df_sorted['Z_Score']:
+                    try:
+                        z_scores_to_plot.append(float(z))
+                    except (ValueError, TypeError):
+                        z_scores_to_plot.append(0.0)  # 默认值
+            
+                bars = ax.barh(y_positions, 
+                               z_scores_to_plot, 
+                               color=colors, 
+                               alpha=0.6,
+                               height=0.8,
+                               edgecolor='white',
+                               linewidth=0.5)
+            
+                # 在柱状图上标注Z值 - 根据计算方案动态调整小数位数
+                for i, (bar, z_value) in enumerate(zip(bars, df_sorted['Z_Score'])):
+                    try:
+                        text_color = 'black'
+                        
+                        # 根据计算方案决定Z比分显示的小数位数
+                        if calculation_scheme == "规范展示方案":
+                            z_display = f'{float(z_value):.2f}'  # 规范展示方案显示2位小数
+                        else:
+                            z_display = f'{float(z_value):.4f}'  # 严格计算方案显示4位小数
+                        
+                        ax.text(bar.get_width() + 0.05 * (1 if bar.get_width() >= 0 else -1), 
+                                bar.get_y() + bar.get_height()/2, 
+                                z_display, 
+                                ha='left' if bar.get_width() >= 0 else 'right', 
+                                va='center', fontsize=9, fontweight='bold',
+                                color=text_color)
+                    except:
+                        continue  # 如果标注失败，跳过这个数据点
+            
+                # 设置图形属性 - 包含计算方案信息
+                ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
+                ax.set_ylabel('Original Data ID', fontsize=14, fontweight='bold')
+                ax.set_title(f'Z-Score Distribution (Sorted) {scheme_info}', fontsize=18, fontweight='bold', pad=40)
+            
+                # 添加图例
+                from matplotlib.patches import Patch
+                legend_elements = [
+                    Patch(facecolor=color_map['Satisfactory'], alpha=0.6, label='Satisfactory (|Z| ≤ 2)'),
+                    Patch(facecolor=color_map['Questionable'], alpha=0.6, label='Questionable (2 < |Z| ≤ 3)'),
+                    Patch(facecolor=color_map['Unsatisfactory'], alpha=0.6, label='Unsatisfactory (|Z| > 3)')
+                ]
+            
+                ax.legend(handles=legend_elements, title=f'Category {scheme_info}', title_fontsize=12, fontsize=11, 
+                          loc='upper center', bbox_to_anchor=(0.5, 1.00), ncol=3, frameon=True)
+            
+                # 设置Y轴刻度 - 使用原始标签
+                ax.set_yticks(y_positions)
+                
+                # 安全获取标签
+                y_labels = []
+                for label in df_sorted['Original_Label']:
+                    try:
+                        y_labels.append(str(label))
+                    except:
+                        y_labels.append("")
+                
+                ax.set_yticklabels(y_labels)
+            
+                # 添加参考线
+                ax.axvline(x=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
+                ax.axvline(x=-2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
+                ax.axvline(x=2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
+                ax.axvline(x=-3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
+                ax.axvline(x=3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
+            
+                # 添加网格
+                ax.grid(axis='x', alpha=0.3, linestyle='--')
+            
+                # 反转Y轴，使最大的Z值在顶部
+                ax.invert_yaxis()
+            
+                # 设置背景色
+                ax.set_facecolor('white')
+            
+                # 调整布局
+                plt.subplots_adjust(top=0.88)
+                plt.tight_layout()
+            
+                # 显示图表
+                st.pyplot(fig)
+                
+                # 在图表下方添加计算方案说明
                 if calculation_scheme == "规范展示方案":
-                    z_display = f'{z_value:.2f}'  # 规范展示方案显示2位小数
+                    st.info("📝 **规范展示方案说明**: Z比分基于四舍五入后的稳健平均值和标准差计算，保留2位小数")
                 else:
-                    z_display = f'{z_value:.4f}'  # 严格计算方案显示4位小数
-                
-                ax.text(bar.get_width() + 0.05 * (1 if bar.get_width() >= 0 else -1), 
-                        bar.get_y() + bar.get_height()/2, 
-                        z_display, 
-                        ha='left' if bar.get_width() >= 0 else 'right', 
-                        va='center', fontsize=9, fontweight='bold',
-                        color=text_color)
-        
-            # 设置图形属性 - 包含计算方案信息
-            ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
-            ax.set_ylabel('Original Data ID', fontsize=14, fontweight='bold')
-            ax.set_title(f'Z-Score Distribution (Sorted) {scheme_info}', fontsize=18, fontweight='bold', pad=40)
-        
-            # 添加图例 - 修复图例显示
-            from matplotlib.patches import Patch
-            legend_elements = [
-                Patch(facecolor=color_map['Satisfactory'], alpha=0.6, label='Satisfactory (|Z| ≤ 2)'),
-                Patch(facecolor=color_map['Questionable'], alpha=0.6, label='Questionable (2 < |Z| ≤ 3)'),
-                Patch(facecolor=color_map['Unsatisfactory'], alpha=0.6, label='Unsatisfactory (|Z| > 3)')
-            ]
-        
-            ax.legend(handles=legend_elements, title=f'Category {scheme_info}', title_fontsize=12, fontsize=11, 
-                      loc='upper center', bbox_to_anchor=(0.5, 1.00), ncol=3, frameon=True)
-        
-            # 设置Y轴刻度 - 使用原始标签
-            ax.set_yticks(y_positions)
-            ax.set_yticklabels(df_sorted['Original_Label'])
-        
-            # 添加参考线
-            ax.axvline(x=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
-            ax.axvline(x=-2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
-            ax.axvline(x=2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
-            ax.axvline(x=-3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
-            ax.axvline(x=3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
-        
-            # 添加网格
-            ax.grid(axis='x', alpha=0.3, linestyle='--')
-        
-            # 反转Y轴，使最大的Z值在顶部
-            ax.invert_yaxis()
-        
-            # 设置背景色
-            ax.set_facecolor('white')
-        
-            # 调整布局
-            plt.subplots_adjust(top=0.88)
-            plt.tight_layout()
-        
-            # 显示图表
-            st.pyplot(fig)
-        
-            # 在图表下方添加计算方案说明
-            if calculation_scheme == "规范展示方案":
-                st.info("📝 **规范展示方案说明**: Z比分基于四舍五入后的稳健平均值和标准差计算，保留2位小数")
-            else:
-                st.info("📝 **严格计算方案说明**: Z比分基于完整精度的稳健平均值和标准差计算，保留4位小数")
+                    st.info("📝 **严格计算方案说明**: Z比分基于完整精度的稳健平均值和标准差计算，保留4位小数")
+                    
+            except Exception as e:
+                st.error(f"创建图表时发生错误: {str(e)}")
+                st.info("这可能是因为数据格式问题，请检查输入数据的有效性")
         
         # =============================================
         # 方案比较功能
