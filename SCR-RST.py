@@ -1590,6 +1590,26 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         'calculation_scheme': scheme
     }
 
+# =============================================
+# Z比分格式化函数
+# =============================================
+
+def format_z_scores(z_scores):
+    """将Z比分统一格式化为两位小数"""
+    if z_scores is None:
+        return None
+    
+    formatted_scores = []
+    for score in z_scores:
+        try:
+            # 确保是数值类型，然后格式化为两位小数
+            formatted_score = round(float(score), 2)
+            formatted_scores.append(formatted_score)
+        except (ValueError, TypeError):
+            formatted_scores.append(0.0)  # 如果转换失败，返回默认值
+    
+    return formatted_scores
+
 # 执行分析
 if data is not None and len(data) > 0:
     try:
@@ -1680,6 +1700,9 @@ if data is not None and len(data) > 0:
                 results = quartile_robust_algorithm(data, scheme=scheme_param)
             else:  # Q/Hampel法
                 results = q_hampel_robust_algorithm(data, scheme=scheme_param)
+
+            # === 新增：统一格式化Z比分为两位小数 ===
+            results['Z_scores'] = format_z_scores(results['Z_scores'])
         
         # =============================================
         # 显示计算方案说明
@@ -2054,6 +2077,16 @@ if data is not None and len(data) > 0:
                 return int(value)  # 如果是整数，返回整数形式
             return round(value, decimal_places)
         
+        # 格式化Z比分函数
+        def format_z_score(z_score):
+            """将单个Z比分格式化为两位小数"""
+            if z_score is None or pd.isna(z_score):
+                return None
+            try:
+                return round(float(z_score), 2)
+            except (ValueError, TypeError):
+                return None
+        
         # 获取检测到的小数位数 - 现在这是最大小数位数
         detected_decimal_places = results.get('decimal_places', 2)
         
@@ -2154,6 +2187,13 @@ if data is not None and len(data) > 0:
             ]
         }
         stats_df = pd.DataFrame(stats_data)
+        
+        # 创建用于显示的DataFrame（确保Z比分显示两位小数）
+        display_df = result_df.copy()
+        display_df['Z比分数'] = display_df['Z比分数'].apply(
+            lambda x: f"{x:.2f}" if x is not None and not pd.isna(x) else ""
+)
+
         
         # 显示预览 - 使用与导出相同的数据
         st.write("**导出数据预览:**")
