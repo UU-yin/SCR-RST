@@ -90,7 +90,10 @@ class DataValidator:
                     blank_positions.append((line_num, col_num))
         
         # 确定检测到的小数位数 - 使用最大小数位数
-        decimal_info['detected_decimal_places'] = max_decimal_places 
+        decimal_info['detected_decimal_places'] = max_decimal_places
+        
+        blank_count = len(blank_positions)
+        return True, original_data, clean_data, blank_count, "数据格式验证通过", decimal_info
                            
     @staticmethod
     def validate_calculation_scheme_compatibility(data_array, calculation_scheme, decimal_info):
@@ -149,7 +152,7 @@ class DataValidator:
         is_valid, range_msg = DataValidator.validate_data_range(clean_data)
         if not is_valid:
             return False, original_data, [], blank_count, validation_report + [f"❌ 范围验证失败: {range_msg}"], decimal_info
-        validation_report.append(f"❌ {range_msg}")
+        validation_report.append(f"✅ {range_msg}")
         
         # 3. 方差验证
         is_valid, variance_msg = DataValidator.validate_data_variance(clean_data)
@@ -326,6 +329,17 @@ def validate_two_column_data(two_column_input, calculation_scheme):
 
 class FileProcessor:
     """文件处理类"""
+
+    @staticmethod
+    def _is_blank_value(value):
+        """检查值是否为空白值"""
+        if value is None:
+            return True
+        if pd.isna(value):
+            return True
+        if isinstance(value, str) and value.strip() == "":
+            return True
+        return False
     
     @staticmethod
     def detect_file_format(uploaded_file):
@@ -1017,30 +1031,71 @@ elif input_method == "文件上传":
             processed_data = None
             original_data = []
             blank_count = 0
-            validation_content = ""
             
-            # 处理任何文件格式
-            df, sheet_name, all_sheets = FileProcessor.process_excel_file(uploaded_file)  # 或 process_csv_file, process_json_file
-            
-            if processed_data is not None:
-                # 使用数据验证器验证（包含计算方案）
-                is_valid, validated_original_data, validated_clean_data, validated_blank_count, validation_report, decimal_info = \
-                    DataValidator.comprehensive_validation(
-                        "\n".join([str(x) if x is not None else "" for x in original_data]),
-                        calculation_scheme
-                    )
+            # 根据文件格式调用相应的处理方法
+            if file_format == 'excel':
+                df, sheet_name, all_sheets = FileProcessor.process_excel_file(uploaded_file)
+            elif file_format == 'csv':
+                df, sheet_name, all_sheets = FileProcessor.process_csv_file(uploaded_file)
+            elif file_format == 'json':
+                df, sheet_name, all_sheets = FileProcessor.process_json_file(uploaded_file)
+            else:  # txt
+                content, sheet_name, all_sheets = FileProcessor.process_txt_file(uploaded_file)
+                # 对于文本文件，直接使用验证器处理
+                if content is not None:
+                    is_valid, original_data, clean_data, blank_count, validation_report, decimal_info = \
+                        DataValidator.comprehensive_validation(content, calculation_scheme)
                     
-                                    
-                # 保存小数位数信息
-                st.session_state.decimal_info = decimal_info
+                    if is_valid:
+                        processed_data = np.array(clean_data)
+                        st.session_state.file_processed_data = processed_data
+                        st.session_state.file_original_data = original_data
+                        st.session_state.file_blank_count = blank_count
+                        st.session_state.file_validation_report = validation_report
+                        st.session_state.file_validation_passed = True
+                        st.session_state.decimal_info = decimal_info
+            
+            # 处理非文本文件（Excel、CSV、JSON）
+            if file_format != 'txt' and df is not None:
+                # 从DataFrame提取数据
+                clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(df, sheet_name)
+                
+                if clean_data is not None and len(clean_data) > 0:
+                    processed_data = clean_data
+                    # 构建验证报告
+                    validation_report = [
+                        "✅ 文件格式验证通过",
+                        f"✅ 成功从 '{sheet_name}' 提取数据",
+                        f"📊 总数据点数: {len(original_data)}",
+                        f"📈 有效数据数: {len(clean_data)}",
+                        f"⚠️ 空白数据数: {blank_count}" if blank_count > 0 else "✅ 未发现空白数据",
+                        f"📏 检测到的小数位数: {decimal_info['detected_decimal_places']}位"
+                    ]
+                    
+                    # 计算方案兼容性验证
+                    scheme_messages = DataValidator.validate_calculation_scheme_compatibility(
+                        clean_data, calculation_scheme, decimal_info
+                    )
+                    validation_report.extend(scheme_messages)
+                    
+                    # 推荐计算方案
+                    recommended_scheme, recommendation_reason = DataValidator.get_recommended_scheme(decimal_info)
+                    validation_report.append(f"💡 推荐计算方案: {recommended_scheme} - {recommendation_reason}")
+                    
+                    st.session_state.file_processed_data = processed_data
+                    st.session_state.file_original_data = original_data
+                    st.session_state.file_blank_count = blank_count
+                    st.session_state.file_validation_report = validation_report
+                    st.session_state.file_validation_passed = True
+                    st.session_state.decimal_info = decimal_info
             
             # 数据验证和结果展示
-            if processed_data is not None and len(processed_data) > 0:
-                st.session_state.file_processed_data = processed_data
+            if st.session_state.file_processed_data is not None and len(st.session_state.file_processed_data) > 0:
+                processed_data = st.session_state.file_processed_data
                 
                 st.success(f"✅ 文件验证通过！成功加载 {len(processed_data)} 个有效数据点")
-                if blank_count > 0:
-                    st.warning(f"⚠️ 检测到 {blank_count} 个空白数据点，这些数据将被忽略")
+                if st.session_state.file_blank_count > 0:
+                    st.warning(f"⚠️ 检测到 {st.session_state.file_blank_count} 个空白数据点，这些数据将被忽略")
                 
                 # 显示验证报告
                 with st.expander("📋 查看文件验证报告", expanded=True):
@@ -1058,18 +1113,18 @@ elif input_method == "文件上传":
                 
                 # 设置数据变量，以便后续分析
                 data = processed_data
-                st.session_state.original_data = original_data
-                st.session_state.blank_count = blank_count
                 
             else:
                 st.error("❌ 文件数据验证失败或没有有效数据")
-                if hasattr(st.session_state, 'file_validation_report'):
+                if hasattr(st.session_state, 'file_validation_report') and st.session_state.file_validation_report:
                     with st.expander("📋 查看验证详情", expanded=True):
                         for line in st.session_state.file_validation_report:
                             if line.startswith("❌"):
                                 st.error(line)
                             else:
                                 st.write(line)
+                else:
+                    st.error("无法从文件中提取有效数据，请检查文件格式和内容")
             
         except Exception as e:
             st.error(f"❌ 文件处理错误: {str(e)}")
@@ -1085,9 +1140,10 @@ else:  # 示例数据
         54.5, 55.9, 53.2, 54.6
     ])
     
-    # 对示例数据进行验证 - 使用新的方法签名
+    # 对示例数据进行验证 - 使用新的方法签名，包含计算方案
     example_data_str = ", ".join([str(x) for x in example_data])
-    is_valid, original_data, clean_data, blank_count, validation_report = DataValidator.comprehensive_validation(example_data_str)
+    is_valid, original_data, clean_data, blank_count, validation_report, decimal_info = \
+        DataValidator.comprehensive_validation(example_data_str, calculation_scheme)
     
     st.write(f"示例数据已加载，包含 {len(example_data)} 个测量值")
     
@@ -1133,6 +1189,8 @@ else:  # 示例数据
     # 为示例数据设置必要的会话状态变量，以便导出模块正常工作
     st.session_state.original_data = example_data.tolist()  # 转换为列表格式
     st.session_state.blank_count = 0  # 示例数据没有空白
+    # 保存小数位数信息
+    st.session_state.decimal_info = decimal_info
 
 # 方法描述（保持不变）
 st.sidebar.header("📚 方法说明")
