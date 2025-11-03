@@ -1958,7 +1958,7 @@ if data is not None and len(data) > 0:
                 # 设置图形属性 - 包含计算方案信息
                 ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
                 ax.set_ylabel('Original Data ID', fontsize=14, fontweight='bold')
-                ax.set_title(f'Z-Score Distribution (Sorted) {scheme_info}', fontsize=18, fontweight='bold', pad=40)
+                ax.set_title(f'Z-Score Distribution (Sorted)', fontsize=18, fontweight='bold', pad=40)
             
                 # 添加图例
                 from matplotlib.patches import Patch
@@ -1968,7 +1968,7 @@ if data is not None and len(data) > 0:
                     Patch(facecolor=color_map['Unsatisfactory'], alpha=0.6, label='Unsatisfactory (|Z| > 3)')
                 ]
             
-                ax.legend(handles=legend_elements, title=f'Category {scheme_info}', title_fontsize=12, fontsize=11, 
+                ax.legend(handles=legend_elements, title=f'Category', title_fontsize=12, fontsize=11, 
                           loc='upper center', bbox_to_anchor=(0.5, 1.00), ncol=3, frameon=True)
             
                 # 设置Y轴刻度 - 使用原始标签
