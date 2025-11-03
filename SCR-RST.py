@@ -943,7 +943,8 @@ elif input_method == "带编号数据输入":
                     
                     # 数据验证（只验证有效数据）
                     values_str = "\n".join([str(pair[1]) for pair in valid_pairs])
-                    is_valid, _, clean_data, blank_count, full_validation_report = DataValidator.comprehensive_validation(
+                    # 修复：接收6个返回值
+                    is_valid, _, clean_data, blank_count, full_validation_report, decimal_info_from_validation = DataValidator.comprehensive_validation(
                         values_str, calculation_scheme
                     )
                     
@@ -957,7 +958,8 @@ elif input_method == "带编号数据输入":
                         st.session_state.original_labels = labels
                         st.session_state.two_column_processed = True
                         st.session_state.two_column_validation_report = validation_report
-                        st.session_state.decimal_info = decimal_info  # 保存小数位数信息
+                        # 使用从验证返回的小数位数信息
+                        st.session_state.decimal_info = decimal_info_from_validation
                         
                         st.success(f"✅ 成功解析 {len(valid_pairs)} 个数据对")
                         
