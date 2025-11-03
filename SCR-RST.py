@@ -596,6 +596,77 @@ class FileProcessor:
         return np.array(clean_data), original_data, blank_count, decimal_info
 
 # =============================================
+# 初始化会话状态
+# =============================================
+
+def initialize_session_state():
+    """初始化所有必要的会话状态变量"""
+    if 'manual_data' not in st.session_state:
+        st.session_state.manual_data = "54.4, 54.6, 54.2, 54.3, 53.9, 54.4, 54.3, 54.6, 54.5, 54.3, 54.5, 54.1, 54.2, 54.3, 54.8, 54.8, 54.8, 54.3, 54.4, 54.3, 54.3, 54.7, 54.4, 54.5, 54.4, 55.0, 55.0, 55.1, 54.1, 54.8, 54.5, 55.5, 55.6, 55.0, 54.3, 55.3, 54.3, 54.4, 54.3, 54.4, 54.5, 55.9, 53.2, 54.6"
+    
+    if 'data_history' not in st.session_state:
+        st.session_state.data_history = []
+    
+    if 'data_loaded' not in st.session_state:
+        st.session_state.data_loaded = False
+    
+    if 'processed_data' not in st.session_state:
+        st.session_state.processed_data = None
+        
+    if 'original_data' not in st.session_state:
+        st.session_state.original_data = None
+        
+    if 'blank_count' not in st.session_state:
+        st.session_state.blank_count = 0
+        
+    if 'reset_counter' not in st.session_state:
+        st.session_state.reset_counter = 0
+        
+    if 'validation_report' not in st.session_state:
+        st.session_state.validation_report = []
+        
+    if 'validation_passed' not in st.session_state:
+        st.session_state.validation_passed = False
+        
+    if 'decimal_info' not in st.session_state:
+        st.session_state.decimal_info = {}
+    
+    # 两列数据相关的会话状态
+    if 'two_column_data' not in st.session_state:
+        st.session_state.two_column_data = ""
+    
+    if 'two_column_processed' not in st.session_state:
+        st.session_state.two_column_processed = False
+    
+    if 'label_data_pairs' not in st.session_state:
+        st.session_state.label_data_pairs = []
+    
+    if 'two_column_validation_report' not in st.session_state:
+        st.session_state.two_column_validation_report = []
+        
+    if 'valid_pairs' not in st.session_state:
+        st.session_state.valid_pairs = []
+        
+    if 'original_labels' not in st.session_state:
+        st.session_state.original_labels = []
+    
+    # 文件上传相关的会话状态
+    if 'file_processed_data' not in st.session_state:
+        st.session_state.file_processed_data = None
+        
+    if 'file_original_data' not in st.session_state:
+        st.session_state.file_original_data = None
+        
+    if 'file_blank_count' not in st.session_state:
+        st.session_state.file_blank_count = 0
+        
+    if 'file_validation_report' not in st.session_state:
+        st.session_state.file_validation_report = []
+        
+    if 'file_validation_passed' not in st.session_state:
+        st.session_state.file_validation_passed = False
+
+# =============================================
 # 主程序开始
 # =============================================
 
@@ -605,6 +676,9 @@ st.set_page_config(
     page_icon="📊",
     layout="wide"
 )
+
+# 初始化会话状态
+initialize_session_state()
 
 # 标题和说明
 st.title("📊 统计分析工具")
@@ -651,35 +725,12 @@ elif method == "Q/Hampel法":
 
 # 数据输入方式选择
 input_method = st.radio("数据输入方式:", 
-                       ["手动输入", "带编号数据输入", "文件上传", "示例数据"])  # 新增两列数据输入
+                       ["手动输入", "带编号数据输入", "文件上传", "示例数据"])
 data = None
 
 if input_method == "手动输入":
     st.subheader("📝 手动输入数据")
     
-    # 初始化所有必要的会话状态
-    if 'manual_data' not in st.session_state:
-        st.session_state.manual_data = "54.4, 54.6, 54.2, 54.3, 53.9, 54.4, 54.3, 54.6, 54.5, 54.3, 54.5, 54.1, 54.2, 54.3, 54.8, 54.8, 54.8, 54.3, 54.4, 54.3, 54.3, 54.7, 54.4, 54.5, 54.4, 55.0, 55.0, 55.1, 54.1, 54.8, 54.5, 55.5, 55.6, 55.0, 54.3, 55.3, 54.3, 54.4, 54.3, 54.4, 54.5, 55.9, 53.2, 54.6"
-    
-    # 关键修复：确保历史记录正确初始化
-    if 'data_history' not in st.session_state:
-        st.session_state.data_history = []
-    
-    if 'data_loaded' not in st.session_state:
-        st.session_state.data_loaded = False
-    
-    if 'processed_data' not in st.session_state:
-        st.session_state.processed_data = None
-        
-    if 'original_data' not in st.session_state:
-        st.session_state.original_data = None
-        
-    if 'blank_count' not in st.session_state:
-        st.session_state.blank_count = 0
-        
-    if 'reset_counter' not in st.session_state:
-        st.session_state.reset_counter = 0
-
     # 创建文本输入框
     current_data = st.text_area(
         "请输入数据（每行一个数值或用逗号分隔，空白数据会自动忽略）:",
@@ -713,10 +764,8 @@ if input_method == "手动输入":
         st.session_state.blank_count = 0
         st.session_state.reset_counter += 1
         # 清除验证相关状态
-        if hasattr(st.session_state, 'validation_report'):
-            del st.session_state.validation_report
-        if hasattr(st.session_state, 'validation_passed'):
-            del st.session_state.validation_passed
+        st.session_state.validation_report = []
+        st.session_state.validation_passed = False
 
     def undo_data():
         """撤销操作的回调函数"""
@@ -729,10 +778,8 @@ if input_method == "手动输入":
             st.session_state.blank_count = 0
             st.session_state.reset_counter += 1
             # 清除验证相关状态
-            if hasattr(st.session_state, 'validation_report'):
-                del st.session_state.validation_report
-            if hasattr(st.session_state, 'validation_passed'):
-                del st.session_state.validation_passed
+            st.session_state.validation_report = []
+            st.session_state.validation_passed = False
         else:
             st.session_state.reset_counter += 1
 
@@ -792,7 +839,7 @@ if input_method == "手动输入":
                   on_click=undo_data)
     
     # 数据验证结果显示
-    if hasattr(st.session_state, 'validation_report'):
+    if st.session_state.validation_report:
         if st.session_state.validation_passed:
             st.success(f"✅ 数据验证通过！成功解析 {len(st.session_state.processed_data)} 个有效数据点")
             if st.session_state.blank_count > 0:
@@ -833,19 +880,6 @@ if input_method == "手动输入":
 
 elif input_method == "带编号数据输入":
     st.subheader("📝 带编号数据输入")
-    
-    # 初始化两列数据相关的会话状态
-    if 'two_column_data' not in st.session_state:
-        st.session_state.two_column_data = ""
-    
-    if 'two_column_processed' not in st.session_state:
-        st.session_state.two_column_processed = False
-    
-    if 'label_data_pairs' not in st.session_state:
-        st.session_state.label_data_pairs = []
-    
-    if 'two_column_validation_report' not in st.session_state:
-        st.session_state.two_column_validation_report = []
     
     # 两列数据输入说明
     st.markdown("""
@@ -970,91 +1004,6 @@ elif input_method == "文件上传":
         help="支持多种文件格式：CSV、文本文件、Excel工作簿、JSON数据文件。空白数据会自动识别并忽略。"
     )
     
-    # 文件格式说明
-    with st.expander("📝 查看文件格式说明和示例", expanded=False):
-        st.markdown("""
-        **支持的文件格式:**
-        
-        **📄 TXT文件**
-        - 每行一个数值
-        - 支持整数和小数
-        - 空白行、连续逗号或空格表示数据空缺
-        - 示例：`1, ,2,,3` 表示有2个空白数据
-        
-        **📊 CSV文件**  
-        - 第一列包含数值数据
-        - 可以有表头，也可以没有
-        - 空白单元格表示数据空缺
-        
-        **📑 Excel文件 (xlsx, xls)**
-        - 支持多工作表
-        - 自动检测数据列
-        - 支持数值数据提取
-        - 空白单元格表示数据空缺
-        
-        **📋 JSON文件**
-        - 支持数组格式: `[1.1, 2.2, 3.3]`
-        - 支持对象格式: `{"data": [1.1, 2.2, 3.3]}`
-        - 自动识别数据结构
-        - `null` 值表示数据空缺
-
-        **空白数据处理：**
-        - 空白数据会保留原始标签
-        - 分析时自动忽略空白数据
-        - 导出时显示空白数据统计
-        """)
-        
-        # 提供多种示例文件下载
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            example_content = "54.4\n \n54.6\n54.2\n\n54.3\n53.9"
-            st.download_button(
-                label="下载TXT示例",
-                data=example_content,
-                file_name="example_data_with_blanks.txt",
-                mime="text/plain",
-                help="包含空白数据的TXT示例文件"
-            )
-        
-        with col2:
-            # 创建CSV示例（包含空白数据）
-            csv_data = "测量值\n54.4\n \n54.6\n54.2\n\n54.3\n53.9"
-            st.download_button(
-                label="下载CSV示例",
-                data=csv_data,
-                file_name="example_data_with_blanks.csv",
-                mime="text/csv",
-                help="包含空白数据的CSV示例文件"
-            )
-        
-        with col3:
-            # 创建JSON示例（包含空白数据）
-            json_data = [54.4, None, 54.6, 54.2, None, 54.3, 53.9]
-            st.download_button(
-                label="下载JSON示例",
-                data=json.dumps(json_data, indent=2),
-                file_name="example_data_with_blanks.json",
-                mime="application/json",
-                help="包含空白数据的JSON示例文件"
-            )
-        
-        with col4:
-            # 创建Excel示例（包含空白数据）
-            df_example = pd.DataFrame({'测量值': [54.4, None, 54.6, 54.2, None, 54.3, 53.9]})
-            excel_buffer = io.BytesIO()
-            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                df_example.to_excel(writer, index=False, sheet_name='测量数据')
-            excel_buffer.seek(0)
-            
-            st.download_button(
-                label="下载Excel示例",
-                data=excel_buffer,
-                file_name="example_data_with_blanks.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                help="包含空白数据的Excel示例文件"
-            )
-    
     if uploaded_file is not None:
         try:
             # 显示文件信息
@@ -1064,18 +1013,6 @@ elif input_method == "文件上传":
             # 自动检测文件格式
             file_format = FileProcessor.detect_file_format(uploaded_file)
             st.write(f"🔍 **检测到的格式**: {file_format.upper()}")
-            
-            # 初始化会话状态
-            if 'file_processed_data' not in st.session_state:
-                st.session_state.file_processed_data = None
-            if 'file_original_data' not in st.session_state:
-                st.session_state.file_original_data = None
-            if 'file_blank_count' not in st.session_state:
-                st.session_state.file_blank_count = 0
-            if 'file_validation_report' not in st.session_state:
-                st.session_state.file_validation_report = []
-            if 'file_validation_passed' not in st.session_state:
-                st.session_state.file_validation_passed = False
             
             processed_data = None
             original_data = []
@@ -1165,7 +1102,7 @@ elif input_method == "文件上传":
                 
             else:
                 st.error("❌ 文件数据验证失败或没有有效数据")
-                if hasattr(st.session_state, 'file_validation_report') and st.session_state.file_validation_report:
+                if st.session_state.file_validation_report:
                     with st.expander("📋 查看验证详情", expanded=True):
                         for line in st.session_state.file_validation_report:
                             if line.startswith("❌"):
@@ -1361,6 +1298,7 @@ def iterative_robust_algorithm(data, max_iterations=50, k=1.5, scheme="strict"):
         robust_std = S_star
     
     outliers_mask = (data < lower_limit) | (data > upper_limit)
+    
     # 彻底的类型安全处理
     outliers_list = []
     clean_data_list = []
@@ -1390,24 +1328,32 @@ def iterative_robust_algorithm(data, max_iterations=50, k=1.5, scheme="strict"):
             except (ValueError, TypeError):
                 continue
     
+    # === 修复：确保 Z_scores 是安全的Python类型 ===
+    if hasattr(Z_scores, 'tolist'):
+        safe_z_scores = Z_scores.tolist()
+    elif hasattr(Z_scores, '__iter__') and not isinstance(Z_scores, (str, dict)):
+        safe_z_scores = list(Z_scores)
+    else:
+        safe_z_scores = [Z_scores] if Z_scores is not None else []
+    
     # 确保返回标准Python类型
     return {
         'robust_mean': float(robust_mean) if not np.isnan(robust_mean) else 0.0,
         'robust_std': float(robust_std) if not np.isnan(robust_std) else 0.0,
         'clean_data': clean_data_list,
         'outliers': outliers_list,
-        'Z_scores': z_scores_list,  # 确保这也是列表
+        'Z_scores': safe_z_scores,  # 使用修复后的变量
         'iterations': iteration,
         'converged': converged,
-        'lower_limit': lower_limit,
-        'upper_limit': upper_limit,
+        'lower_limit': float(lower_limit) if not np.isnan(lower_limit) else 0.0,
+        'upper_limit': float(upper_limit) if not np.isnan(upper_limit) else 0.0,
         'history': history,
         'method_name': '迭代稳健统计法',
         'decimal_places': decimal_places,
         'calculation_scheme': scheme,
         'formatting_note': formatting_note,
-        'original_mean': X_star,  # 始终保存原始计算值
-        'original_std': S_star    # 始终保存原始计算值
+        'original_mean': float(X_star) if not np.isnan(X_star) else 0.0,  # 始终保存原始计算值
+        'original_std': float(S_star) if not np.isnan(S_star) else 0.0    # 始终保存原始计算值
     }
 
 def quartile_robust_algorithm(data, scheme="strict"):
@@ -1457,7 +1403,7 @@ def quartile_robust_algorithm(data, scheme="strict"):
                 clean_data_list.append(float(value))
             except (ValueError, TypeError):
                 continue
-      
+                 
     # 根据选择的方案进行格式化
     if scheme == "presentation":
         # 规范展示方案
@@ -1488,21 +1434,29 @@ def quartile_robust_algorithm(data, scheme="strict"):
         
         robust_mean = median
         robust_std = niqr
-    
+        
+         # === 修复：确保 Z_scores 是安全的Python类型 ===
+        if hasattr(Z_scores, 'tolist'):
+             safe_z_scores = Z_scores.tolist()
+        elif hasattr(Z_scores, '__iter__') and not isinstance(Z_scores, (str, dict)):
+             safe_z_scores = list(Z_scores)
+        else:
+            safe_z_scores = [Z_scores] if Z_scores is not None else []  
+
     # 确保返回标准Python类型
     return {
         'robust_mean': float(robust_mean) if not np.isnan(robust_mean) else 0.0,
         'robust_std': float(robust_std) if not np.isnan(robust_std) else 0.0,
         'clean_data': clean_data_list,
         'outliers': outliers_list,
-        'Z_scores': z_scores_list,  # 确保这也是列表
-        'q1': q1,
-        'q3': q3,
-        'iqr': iqr,
-        'niqr': niqr,
+        'Z_scores': safe_z_scores,  # 确保这也是列表
+        'q1': float(q1) if not np.isnan(q1) else 0.0,
+        'q3': float(q3) if not np.isnan(q3) else 0.0,
+        'iqr': float(iqr) if not np.isnan(iqr) else 0.0,
+        'niqr': float(niqr) if not np.isnan(niqr) else 0.0,
         'method_name': '四分位稳健统计法',
-        'lower_limit': lower_limit,
-        'upper_limit': upper_limit,
+        'lower_limit': float(lower_limit) if not np.isnan(lower_limit) else 0.0,
+        'upper_limit': float(upper_limit) if not np.isnan(upper_limit) else 0.0,
         'formatting_note': formatting_note,
         'calculation_scheme': scheme
     }
@@ -1612,6 +1566,14 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         
         robust_mean = current_mean
         robust_std = q_std
+        
+        # === 修复：确保 Z_scores 是安全的Python类型 ===
+        if hasattr(Z_scores, 'tolist'):
+            safe_z_scores = Z_scores.tolist()
+        elif hasattr(Z_scores, '__iter__') and not isinstance(Z_scores, (str, dict)):
+            safe_z_scores = list(Z_scores)
+        else:
+            safe_z_scores = [Z_scores] if Z_scores is not None else []
     
     # 确保返回标准Python类型
     return {
@@ -1619,11 +1581,11 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         'robust_std': float(robust_std) if not np.isnan(robust_std) else 0.0,
         'clean_data': clean_data_list,
         'outliers': outliers_list,
-        'Z_scores': z_scores_list,  # 确保这也是列表 
+        'Z_scores': safe_z_scores,  # 确保这也是列表 
         'method_name': 'Q/Hampel法',
-        'lower_limit': lower_limit,
-        'upper_limit': upper_limit,
-        'weights': weights if 'weights' in locals() else np.ones_like(data),
+        'lower_limit': float(lower_limit) if not np.isnan(lower_limit) else 0.0,
+        'upper_limit': float(upper_limit) if not np.isnan(upper_limit) else 0.0,
+        'weights': weights.tolist() if hasattr(weights, 'tolist') else list(weights),
         'formatting_note': formatting_note,
         'calculation_scheme': scheme
     }
@@ -1640,28 +1602,6 @@ if data is not None and len(data) > 0:
             st.error("❌ 数据包含非数值类型，请检查数据格式")
             st.stop()
         
-        # =============================================
-        # 添加调试信息：执行分析前
-        # =============================================
-        with st.expander("🔍 调试信息 - 分析前数据状态", expanded=False):
-            st.write("**数据基本信息:**")
-            st.write(f"数据长度 = {len(data)}")
-            st.write(f"数据类型 = {type(data)}")
-            if hasattr(data, 'dtype'):
-                st.write(f"数据dtype = {data.dtype}")
-            if hasattr(data, 'shape'):
-                st.write(f"- 数据形状: {data.shape}")  
-            
-            st.write("**数据样本:**")
-            st.write(f"- 前5个值: {data[:5].tolist() if hasattr(data, 'tolist') else data[:5]}")
-            st.write(f"- 后5个值: {data[-5:].tolist() if hasattr(data, 'tolist') else data[-5:]}")
-            
-            st.write("**数据统计:**")
-            st.write(f"- 最小值: {np.min(data):.4f}")
-            st.write(f"- 最大值: {np.max(data):.4f}")
-            st.write(f"- 平均值: {np.mean(data):.4f}")
-            st.write(f"- 标准差: {np.std(data, ddof=1):.4f}")
-        
         st.markdown("---")
         st.subheader(f"📈 {method}分析结果")
         
@@ -1670,7 +1610,7 @@ if data is not None and len(data) > 0:
         st.info(f"当前使用: **{scheme_display}**")
         
         # 显示数据小数位数分析（如果可用）
-        if hasattr(st.session_state, 'decimal_info'):
+        if hasattr(st.session_state, 'decimal_info') and st.session_state.decimal_info:
             decimal_info = st.session_state.decimal_info
             if decimal_info.get('decimal_places_count'):
                 with st.expander("📏 数据小数位数分析", expanded=False):
@@ -1786,7 +1726,6 @@ if data is not None and len(data) > 0:
         
         # 离群值显示
         if len(results['outliers']) > 0:
-            # 确保 outliers 是列表且可以迭代
             outliers_list = results['outliers']
             if hasattr(outliers_list, '__iter__') and not isinstance(outliers_list, str):
                 try:
@@ -1826,14 +1765,14 @@ if data is not None and len(data) > 0:
         
         # 创建数据框用于可视化 - 添加全面的类型安全
         try:
-            if input_method == "带编号数据输入" and hasattr(st.session_state, 'label_data_pairs'):
+            if input_method == "带编号数据输入" and st.session_state.label_data_pairs:
                 # 使用两列数据的原始标签
                 valid_labels = []
                 valid_data = []
                 valid_z_scores = []
                 
                 # 确保Z_scores与有效数据正确对应
-                if hasattr(st.session_state, 'valid_pairs') and st.session_state.valid_pairs:
+                if st.session_state.valid_pairs:
                     # 获取有效数据对应的标签和数值
                     valid_labels = [pair[0] for pair in st.session_state.valid_pairs]
                     valid_data = [float(pair[1]) for pair in st.session_state.valid_pairs]  # 确保转换为float
@@ -1858,7 +1797,7 @@ if data is not None and len(data) > 0:
                 })
                 
             else:
-                # 其他输入方式使用自动生成的标签
+                # 其他输入方式：使用自动生成的三位数字标签
                 # 确保数据是安全的Python类型
                 safe_data = []
                 if hasattr(data, 'tolist'):
@@ -1883,7 +1822,7 @@ if data is not None and len(data) > 0:
                 
                 # 生成三位数字标签 - 仅对有效数据
                 valid_labels = []
-                if hasattr(st.session_state, 'original_data'):
+                if st.session_state.original_data:
                     valid_count = 0
                     for i, value in enumerate(st.session_state.original_data):
                         if value is not None:  # 有效数据
@@ -1909,38 +1848,10 @@ if data is not None and len(data) > 0:
             st.error(f"创建数据框时发生错误: {str(e)}")
             chart_created = False
             
-        # =============================================
-        # 添加调试信息：图表创建前
-        # =============================================
-        with st.expander("🔍 调试信息 - 图表创建前数据状态", expanded=False):
-            if chart_created:
-                st.write("**数据框信息:**")
-                st.write(f"- 形状: {df_clean.shape}")
-                st.write(f"- 列名: {df_clean.columns.tolist()}")
-                st.write("**Z分数信息:**")
-                st.write(f"- 类型: {type(results['Z_scores'])}")
-                if hasattr(results['Z_scores'], 'shape'):
-                    st.write(f"Z_scores 形状 = {results['Z_scores'].shape}")
-                st.write(f"Z_scores 范围 = [{np.min(results['Z_scores']):.4f}, {np.max(results['Z_scores']):.4f}]")
-                
-                st.write("df_clean 数据预览:")
-                st.dataframe(df_clean.head(10), width='stretch')
-            else:
-                st.write("图表创建失败，无法显示调试信息")
-        
         # 只有在成功创建数据框时才继续创建图表
         if chart_created:
             try:
                 set_chinese_font()
-                # === 添加调试信息2：创建图表前 ===
-                st.write(f"🔍 调试信息: df_clean 形状 = {df_clean.shape}")
-                st.write(f"🔍 调试信息: Z_scores 类型 = {type(results['Z_scores'])}")
-                if hasattr(results['Z_scores'], 'shape'):
-                    st.write(f"🔍 调试信息: Z_scores 形状 = {results['Z_scores'].shape}")
-                st.write(f"🔍 调试信息: df_clean 列名 = {df_clean.columns.tolist()}")
-                st.write(f"🔍 调试信息: df_clean 前3行:")
-                st.write(df_clean.head(3))
-                # === 结束调试信息2 ===
                 
                 # 根据Z值进行分类 - 修复分类函数
                 def classify_data(row):
@@ -2144,7 +2055,7 @@ if data is not None and len(data) > 0:
             return round(value, decimal_places)
         
         # 获取检测到的小数位数 - 现在这是最大小数位数
-        detected_decimal_places = results.get('detected_decimal_places', 2)
+        detected_decimal_places = results.get('decimal_places', 2)
         
         # 确保detected_decimal_places是一个整数
         if detected_decimal_places is None:
@@ -2153,7 +2064,7 @@ if data is not None and len(data) > 0:
         # 创建结果DataFrame - 支持原始标签
         result_data = []
         
-        if input_method == "带编号数据输入" and hasattr(st.session_state, 'label_data_pairs'):
+        if input_method == "带编号数据输入" and st.session_state.label_data_pairs:
             # 两列数据输入：使用用户提供的原始标签
             valid_data_count = 0
             for label, value in st.session_state.label_data_pairs:
@@ -2180,7 +2091,7 @@ if data is not None and len(data) > 0:
         else:
             # 其他输入方式：使用自动生成的三位数字标签
             valid_data_count = 0
-            if hasattr(st.session_state, 'original_data'):
+            if st.session_state.original_data:
                 for i, value in enumerate(st.session_state.original_data):
                     original_label = f"{str(i+1).zfill(3)}"  # 001, 002, ...
                     
