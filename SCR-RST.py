@@ -1407,10 +1407,12 @@ def quartile_robust_algorithm(data, scheme="strict"):
             except (ValueError, TypeError):
                 continue
     
+    # 检测数据的小数位数 - 与迭代法保持一致
+    decimal_places = detect_decimal_places(data)
+    
     # 根据选择的方案进行格式化
     if scheme == "presentation":
         # 规范展示方案：使用四舍五入后的均值和标准差
-        decimal_places = detect_decimal_places(data)
         formatted_median = round(median, decimal_places)
         formatted_niqr = round(niqr, 3)
         
@@ -1424,7 +1426,6 @@ def quartile_robust_algorithm(data, scheme="strict"):
         
     else:
         # 严格计算方案：使用原始计算值
-        decimal_places = 6  # 高精度显示
         formatted_median = median
         formatted_niqr = niqr
         
@@ -1459,7 +1460,10 @@ def quartile_robust_algorithm(data, scheme="strict"):
         'lower_limit': float(lower_limit) if not np.isnan(lower_limit) else 0.0,
         'upper_limit': float(upper_limit) if not np.isnan(upper_limit) else 0.0,
         'formatting_note': formatting_note,
-        'calculation_scheme': scheme
+        'calculation_scheme': scheme,
+        'decimal_places': decimal_places,  # 添加小数位数信息，与迭代法保持一致
+        'original_mean': float(median) if not np.isnan(median) else 0.0,  # 保存原始计算值
+        'original_std': float(niqr) if not np.isnan(niqr) else 0.0  # 保存原始计算值
     }
 
 def q_hampel_robust_algorithm(data, scheme="strict"):
@@ -1537,10 +1541,12 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
             except (ValueError, TypeError):
                 continue
     
+    # 检测数据的小数位数 - 与迭代法保持一致
+    decimal_places = detect_decimal_places(data)
+    
     # 根据选择的方案进行格式化
     if scheme == "presentation":
         # 规范展示方案：使用四舍五入后的均值和标准差
-        decimal_places = detect_decimal_places(data)
         formatted_current_mean = round(current_mean, decimal_places)
         formatted_q_std = round(q_std, 3)
         
@@ -1554,7 +1560,6 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         
     else:
         # 严格计算方案：使用原始计算值
-        decimal_places = 6  # 高精度显示
         formatted_current_mean = current_mean
         formatted_q_std = q_std
         
@@ -1586,7 +1591,10 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         'upper_limit': float(upper_limit) if not np.isnan(upper_limit) else 0.0,
         'weights': weights.tolist() if hasattr(weights, 'tolist') else list(weights),
         'formatting_note': formatting_note,
-        'calculation_scheme': scheme
+        'calculation_scheme': scheme,
+        'decimal_places': decimal_places,  # 添加小数位数信息，与迭代法保持一致
+        'original_mean': float(current_mean) if not np.isnan(current_mean) else 0.0,  # 保存原始计算值
+        'original_std': float(q_std) if not np.isnan(q_std) else 0.0  # 保存原始计算值
     }
 
 # =============================================
