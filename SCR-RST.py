@@ -1055,6 +1055,10 @@ elif input_method == "带编号数据输入":
     if st.session_state.two_column_processed and st.session_state.label_data_pairs:
         data = st.session_state.processed_data
         
+# =============================================
+# 修复文件上传模块的数据处理
+# =============================================
+
 elif input_method == "文件上传":
     st.subheader("📁 上传数据文件")
     
@@ -1096,6 +1100,7 @@ elif input_method == "文件上传":
                 
                 if clean_data is not None and len(clean_data) > 0:
                     processed_data = clean_data
+                    
                     # 构建验证报告
                     validation_report = [
                         "✅ 文件格式验证通过",
@@ -1116,43 +1121,50 @@ elif input_method == "文件上传":
                     recommended_scheme, recommendation_reason = DataValidator.get_recommended_scheme(decimal_info)
                     validation_report.append(f"💡 推荐计算方案: {recommended_scheme} - {recommendation_reason}")
                     
+                    # =============================================
+                    # 修复：设置正确的会话状态，确保使用文件数据
+                    # =============================================
                     st.session_state.file_processed_data = processed_data
                     st.session_state.file_original_data = original_data
                     st.session_state.file_blank_count = blank_count
                     st.session_state.file_validation_report = validation_report
                     st.session_state.file_validation_passed = True
+                    st.session_state.file_decimal_info = decimal_info
+                    
+                    # 同时设置通用状态，确保后续分析使用文件数据
+                    st.session_state.processed_data = processed_data
+                    st.session_state.original_data = original_data
+                    st.session_state.blank_count = blank_count
                     st.session_state.decimal_info = decimal_info
+                    st.session_state.data_loaded = True
+                    
+                    st.success(f"✅ 文件验证通过！成功加载 {len(processed_data)} 个有效数据点")
+                    if blank_count > 0:
+                        st.warning(f"⚠️ 检测到 {blank_count} 个空白数据点，这些数据将被忽略")
+                    
+                    # 显示验证报告
+                    with st.expander("📋 查看文件验证报告", expanded=True):
+                        for line in validation_report:
+                            if line.startswith("❌"):
+                                st.error(line)
+                            elif line.startswith("⚠️"):
+                                st.warning(line)
+                            elif line.startswith("📊"):
+                                st.write("**" + line + "**")
+                            else:
+                                st.write(line)
+                    
+                    st.write("**前10个有效数据:**", processed_data[:10])
+                    
+                    # 设置数据变量，以便后续分析
+                    data = processed_data
+                    
                 else:
                     st.error("❌ 无法从文件中提取有效数据")
             
-            # 数据验证和结果展示
-            if st.session_state.file_processed_data is not None and len(st.session_state.file_processed_data) > 0:
-                processed_data = st.session_state.file_processed_data
-                
-                st.success(f"✅ 文件验证通过！成功加载 {len(processed_data)} 个有效数据点")
-                if st.session_state.file_blank_count > 0:
-                    st.warning(f"⚠️ 检测到 {st.session_state.file_blank_count} 个空白数据点，这些数据将被忽略")
-                
-                # 显示验证报告
-                with st.expander("📋 查看文件验证报告", expanded=True):
-                    for line in st.session_state.file_validation_report:
-                        if line.startswith("❌"):
-                            st.error(line)
-                        elif line.startswith("⚠️"):
-                            st.warning(line)
-                        elif line.startswith("📊"):
-                            st.write("**" + line + "**")
-                        else:
-                            st.write(line)
-                
-                st.write("**前10个有效数据:**", processed_data[:10])
-                
-                # 设置数据变量，以便后续分析
-                data = processed_data
-                
             else:
                 st.error("❌ 文件数据验证失败或没有有效数据")
-                if st.session_state.file_validation_report:
+                if hasattr(st.session_state, 'file_validation_report') and st.session_state.file_validation_report:
                     with st.expander("📋 查看验证详情", expanded=True):
                         for line in st.session_state.file_validation_report:
                             if line.startswith("❌"):
@@ -1694,14 +1706,35 @@ if data is not None and len(data) > 0:
         scheme_display = "规范展示方案" if calculation_scheme == "规范展示方案" else "严格计算方案"
         st.info(f"当前使用: **{scheme_display}**")
         
-        # 显示数据小数位数分析（如果可用）
-        if hasattr(st.session_state, 'decimal_info') and st.session_state.decimal_info:
-            decimal_info = st.session_state.decimal_info
-            if decimal_info.get('decimal_places_count'):
-                with st.expander("📏 数据小数位数分析", expanded=False):
-                    st.write(f"**小数位数分布:** {', '.join([f'{places}位({count}个)' for places, count in decimal_info['decimal_places_count'].items()])}")
-                    st.write(f"**最常出现的小数位数:** {decimal_info['detected_decimal_places']}位")
-                    st.write(f"**小数位数一致性:** {'是' if decimal_info['consistent_decimals'] else '否'}")
+        # 显示数据小数位数分析（如果可用）- 修复：使用正确的数据源
+        current_decimal_info = None
+        if input_method == "文件上传" and hasattr(st.session_state, 'file_decimal_info'):
+            current_decimal_info = st.session_state.file_decimal_info
+        elif hasattr(st.session_state, 'decimal_info'):
+            current_decimal_info = st.session_state.decimal_info
+            
+        if current_decimal_info and current_decimal_info.get('decimal_places_count'):
+            with st.expander("📏 数据小数位数分析", expanded=False):
+                st.write(f"**小数位数分布:** {', '.join([f'{places}位({count}个)' for places, count in current_decimal_info['decimal_places_count'].items()])}")
+                st.write(f"**最常出现的小数位数:** {current_decimal_info['detected_decimal_places']}位")
+                st.write(f"**小数位数一致性:** {'是' if current_decimal_info['consistent_decimals'] else '否'}")
+        
+        # =============================================
+        # 修复：确保使用正确的原始数据
+        # =============================================
+        
+        # 确定当前使用的原始数据
+        if input_method == "文件上传":
+            current_original_data = st.session_state.file_original_data if hasattr(st.session_state, 'file_original_data') else []
+            current_blank_count = st.session_state.file_blank_count if hasattr(st.session_state, 'file_blank_count') else 0
+        else:
+            current_original_data = st.session_state.original_data if hasattr(st.session_state, 'original_data') else []
+            current_blank_count = st.session_state.blank_count if hasattr(st.session_state, 'blank_count') else 0
+        
+        # 如果原始数据为空，使用当前分析的数据
+        if not current_original_data:
+            current_original_data = data.tolist() if hasattr(data, 'tolist') else list(data)
+            current_blank_count = 0
         
         # =============================================
         # 输入数据正态分布分析
@@ -2138,8 +2171,10 @@ if data is not None and len(data) > 0:
                 return int(value)  # 如果是整数，返回整数形式
             return round(value, decimal_places)
         
-        # 获取检测到的小数位数 - 现在这是最大小数位数
+        # 获取检测到的小数位数 - 使用正确的数据源
         detected_decimal_places = results.get('decimal_places', 2)
+        if current_decimal_info and 'detected_decimal_places' in current_decimal_info:
+            detected_decimal_places = current_decimal_info['detected_decimal_places']
         
         # 确保detected_decimal_places是一个整数
         if detected_decimal_places is None:
@@ -2176,8 +2211,10 @@ if data is not None and len(data) > 0:
         else:
             # 其他输入方式：使用自动生成的三位数字标签
             valid_data_count = 0
-            if st.session_state.original_data:
-                for i, value in enumerate(st.session_state.original_data):
+            
+            # 修复：使用正确的原始数据源
+            if current_original_data:
+                for i, value in enumerate(current_original_data):
                     original_label = f"{str(i+1).zfill(3)}"  # 001, 002, ...
                     
                     if value is not None:  # 有效数据
@@ -2200,8 +2237,8 @@ if data is not None and len(data) > 0:
                             'Z比分数': ""
                         })
                 
-                total_data_count = len(st.session_state.original_data)
-                blank_data_count = st.session_state.blank_count
+                total_data_count = len(current_original_data)
+                blank_data_count = current_blank_count
                 actual_analyzable_count = len(data)
             else:
                 # 如果没有原始数据信息，使用简单处理
@@ -2224,7 +2261,22 @@ if data is not None and len(data) > 0:
                 blank_data_count = 0
                 actual_analyzable_count = len(data)
         
-        result_df = pd.DataFrame(result_data)                
+        # 确保结果数据数量与Z分数数量一致
+        if len(result_data) != len(results['formatted_Z_scores']):
+            st.warning(f"⚠️ 数据数量不匹配: 结果数据({len(result_data)}) vs Z分数({len(results['formatted_Z_scores'])})")
+            # 调整结果数据以匹配Z分数数量
+            if len(result_data) > len(results['formatted_Z_scores']):
+                result_data = result_data[:len(results['formatted_Z_scores'])]
+            else:
+                # 如果结果数据较少，补充空数据
+                while len(result_data) < len(results['formatted_Z_scores']):
+                    result_data.append({
+                        '标签原始标号': f"{str(len(result_data)+1).zfill(3)}",
+                        '输入数据': None,
+                        'Z比分数': ""
+                    })
+        
+        result_df = pd.DataFrame(result_data)
         
         # 计算统计量 - 使用检测到的小数位数格式化
         stats_data = {
@@ -2249,8 +2301,18 @@ if data is not None and len(data) > 0:
         st.write("**导出数据预览:**")
         st.dataframe(display_df, use_container_width=True)
         
-        st.write("**统计量摘要:**")
-        st.dataframe(stats_df, use_container_width=True)                                             
+        # 验证数据一致性
+        st.write(f"**数据一致性验证:**")
+        st.write(f"- 原始数据点数: {total_data_count}")
+        st.write(f"- 有效分析数据: {actual_analyzable_count}")
+        st.write(f"- 空白数据数: {blank_data_count}")
+        st.write(f"- Z比分数量: {len(results['formatted_Z_scores'])}")
+        st.write(f"- 导出数据行数: {len(result_df)}")
+        
+        if total_data_count != len(results['formatted_Z_scores']):
+            st.error("❌ 数据数量不匹配！请检查数据处理逻辑。")
+        else:
+            st.success("✅ 数据一致性验证通过")                                             
                        
         # 在文本报告开头添加方案说明和小数位数说明
         scheme_text = "严格计算方案" if calculation_scheme == "严格计算方案" else "规范展示方案"
