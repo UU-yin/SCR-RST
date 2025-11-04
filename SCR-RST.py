@@ -2312,7 +2312,10 @@ if data is not None and len(data) > 0:
         if total_data_count != len(results['formatted_Z_scores']):
             st.error("❌ 数据数量不匹配！请检查数据处理逻辑。")
         else:
-            st.success("✅ 数据一致性验证通过")                                             
+            st.success("✅ 数据一致性验证通过")
+        
+        st.write("**统计量摘要:**")
+        st.dataframe(stats_df, use_container_width=True)                                             
                        
         # 在文本报告开头添加方案说明和小数位数说明
         scheme_text = "严格计算方案" if calculation_scheme == "严格计算方案" else "规范展示方案"
