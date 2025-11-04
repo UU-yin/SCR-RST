@@ -2094,7 +2094,7 @@ if data is not None and len(data) > 0:
                 st.pyplot(fig)
                 
                 # 在图表下方添加计算方案说明
-                st.info("📝 **Z比分显示说明**: 仅在展示和导出时统一格式化为两位小数。")
+                st.info("📝 **Z比分显示说明**: 仅在展示和导出时统一格式化为两位小数")
                     
             except Exception as e:
                 st.error(f"创建图表时发生错误: {str(e)}")
