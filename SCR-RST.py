@@ -475,7 +475,7 @@ class FileProcessor:
             # 处理不同类型的JSON结构
             if isinstance(data, list):
                 # 如果是数组，直接转换为DataFrame
-                df = pd.DataFrame(data, columns=['数据'])
+                df = pd.DataFrame(data)
                 return df, "JSON数组", ["JSON数组"]
             elif isinstance(data, dict):
                 # 如果是对象，让用户选择数据字段
@@ -487,11 +487,28 @@ class FileProcessor:
                     key="json_field_selector"
                 )
                 
-                if selected_key and isinstance(data[selected_key], list):
-                    df = pd.DataFrame(data[selected_key], columns=[selected_key])
-                    return df, f"JSON字段: {selected_key}", available_keys
+                if selected_key:
+                    if isinstance(data[selected_key], list):
+                        df = pd.DataFrame(data[selected_key])
+                        return df, f"JSON字段: {selected_key}", available_keys
+                    elif isinstance(data[selected_key], dict):
+                        # 如果是嵌套对象，进一步选择
+                        nested_keys = list(data[selected_key].keys())
+                        selected_nested_key = st.selectbox(
+                            "选择嵌套数据字段:", 
+                            nested_keys,
+                            key="json_nested_field_selector"
+                        )
+                        if isinstance(data[selected_key][selected_nested_key], list):
+                            df = pd.DataFrame(data[selected_key][selected_nested_key])
+                            return df, f"JSON字段: {selected_key}.{selected_nested_key}", available_keys
+                        else:
+                            st.error("选择的嵌套字段不包含有效的数值数组")
+                            return None, None, available_keys
+                    else:
+                        st.error("选择的字段不包含有效的数值数组")
+                        return None, None, available_keys
                 else:
-                    st.error("选择的字段不包含有效的数值数组")
                     return None, None, available_keys
             else:
                 st.error("JSON格式不支持，请提供数组或包含数组的对象")
@@ -503,11 +520,41 @@ class FileProcessor:
     
     @staticmethod
     def process_txt_file(uploaded_file):
-        """处理文本文件"""
+        """处理文本文件 - 支持多列数据"""
         try:
             content = uploaded_file.read().decode('utf-8')
-            # 将文本内容转换为字符串供验证器使用
-            return content, "文本数据", ["文本数据"]
+            
+            # 尝试多种分隔符解析文本文件
+            separators = [',', '\t', ';', '|', ' ']
+            df = None
+            
+            for sep in separators:
+                try:
+                    # 尝试使用当前分隔符解析
+                    df = pd.read_csv(io.StringIO(content), sep=sep, na_filter=True, engine='python')
+                    # 如果成功解析且有多个列，使用这个分隔符
+                    if len(df.columns) > 1:
+                        st.info(f"检测到文本文件使用分隔符: '{sep}'")
+                        break
+                except:
+                    continue
+            
+            # 如果没有成功解析，使用默认的逗号分隔符
+            if df is None:
+                try:
+                    df = pd.read_csv(io.StringIO(content), sep=',', na_filter=True)
+                except:
+                    # 如果还是失败，将整个内容作为一列处理
+                    lines = content.strip().split('\n')
+                    data = []
+                    for line in lines:
+                        # 尝试提取数字
+                        numbers = re.findall(r"[-+]?\d*\.\d+|\d+", line)
+                        if numbers:
+                            data.extend([float(num) for num in numbers])
+                    df = pd.DataFrame(data, columns=['数据'])
+            
+            return df, "文本数据", ["文本数据"]
         except Exception as e:
             st.error(f"文本文件读取错误: {str(e)}")
             return None, None, []
@@ -515,7 +562,7 @@ class FileProcessor:
     @staticmethod
     def extract_data_from_dataframe(df, sheet_name):
         """
-        从DataFrame中提取数值数据 - 统一支持空白数据处理
+        从DataFrame中提取数值数据 - 统一支持空白数据处理和多列选择
         返回: (clean_data, original_data, blank_count, decimal_info)
         """
         st.info(f"正在从 '{sheet_name}' 中提取数据")
@@ -535,24 +582,35 @@ class FileProcessor:
         }
         max_decimal_places = 0
         
-        # 数据提取逻辑 - 修复缺失的部分
-        # 如果只有一列，直接使用
+        # 数据提取逻辑 - 支持多列选择
         if len(df.columns) == 1:
+            # 如果只有一列，直接使用
             data_column = df.iloc[:, 0]
             st.write(f"使用唯一列: {df.columns[0]}")
             
-        # 多列时让用户选择
         else:
+            # 多列时让用户选择
             st.write("检测到多列数据，请选择包含数值数据的列:")
+            
+            # 显示各列的数据类型和前几个值
+            col_info = []
+            for col in df.columns:
+                sample_values = df[col].dropna().head(3).tolist()
+                dtype = df[col].dtype
+                col_info.append(f"{col} (类型: {dtype}, 样例: {sample_values})")
+            
             selected_column = st.selectbox(
                 "选择数据列:", 
                 df.columns.tolist(),
+                format_func=lambda x: f"{x} (类型: {df[x].dtype}, 样例: {df[x].dropna().head(3).tolist()})",
                 key=f"column_selector_{hash(str(df.columns))}"  # 使用唯一的key
             )
             
             if selected_column:
                 data_column = df[selected_column]
+                st.success(f"已选择列: {selected_column}")
             else:
+                st.error("请选择数据列")
                 return None, [], 0, decimal_info
         
         # 在处理每个数值时，添加小数位数检测
@@ -594,6 +652,7 @@ class FileProcessor:
             st.warning(f"检测到 {blank_count} 个空白或无效数据，已自动过滤")
         
         return np.array(clean_data), original_data, blank_count, decimal_info
+
 
 # =============================================
 # 初始化会话状态
@@ -1028,23 +1087,10 @@ elif input_method == "文件上传":
             elif file_format == 'json':
                 df, sheet_name, all_sheets = FileProcessor.process_json_file(uploaded_file)
             else:  # txt
-                content, sheet_name, all_sheets = FileProcessor.process_txt_file(uploaded_file)
-                # 对于文本文件，直接使用验证器处理
-                if content is not None:
-                    is_valid, original_data, clean_data, blank_count, validation_report, decimal_info = \
-                        DataValidator.comprehensive_validation(content, calculation_scheme)
-                    
-                    if is_valid:
-                        processed_data = np.array(clean_data)
-                        st.session_state.file_processed_data = processed_data
-                        st.session_state.file_original_data = original_data
-                        st.session_state.file_blank_count = blank_count
-                        st.session_state.file_validation_report = validation_report
-                        st.session_state.file_validation_passed = True
-                        st.session_state.decimal_info = decimal_info
+                df, sheet_name, all_sheets = FileProcessor.process_txt_file(uploaded_file)
             
-            # 处理非文本文件（Excel、CSV、JSON）
-            if file_format != 'txt' and df is not None:
+            # 统一处理所有格式的DataFrame
+            if df is not None:
                 # 从DataFrame提取数据
                 clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(df, sheet_name)
                 
@@ -1076,6 +1122,8 @@ elif input_method == "文件上传":
                     st.session_state.file_validation_report = validation_report
                     st.session_state.file_validation_passed = True
                     st.session_state.decimal_info = decimal_info
+                else:
+                    st.error("❌ 无法从文件中提取有效数据")
             
             # 数据验证和结果展示
             if st.session_state.file_processed_data is not None and len(st.session_state.file_processed_data) > 0:
