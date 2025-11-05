@@ -7,6 +7,7 @@ Created on Thu Oct 23 15:51:46 2025
 
 import streamlit as st
 import numpy as np
+from collections import Counter
 import pandas as pd
 import matplotlib.pyplot as plt
 import io
@@ -1526,224 +1527,377 @@ def quartile_robust_algorithm(data, scheme="strict"):
         'original_std': float(niqr) if not np.isnan(niqr) else 0.0  # 保存原始计算值
     }
 
-def q_hampel_robust_algorithm(data, scheme="strict"):
-    """Q/Hampel稳健统计方法 - 支持两种计算方案，包含改进的ISO Qn异常情况处理"""
+def detect_decimal_places(data):
+    """检测数据的小数位数"""
+    if not hasattr(data, '__iter__') or isinstance(data, (str, dict)):
+        return 0
+    
+    decimal_counts = []
+    for value in data:
+        try:
+            value_str = str(float(value))
+            if '.' in value_str:
+                decimal_counts.append(len(value_str.split('.')[1]))
+            else:
+                decimal_counts.append(0)
+        except (ValueError, TypeError):
+            continue
+    
+    if decimal_counts:
+        return max(decimal_counts)
+    else:
+        return 0
+
+def identify_data_pattern(data, constant_threshold=0.3):
+    """识别数据模式：常数、混合或变化"""
+    if len(data) == 0:
+        return "empty", 0, 0
+    
+    # 统计最频繁值
+    value_counts = Counter(data)
+    most_common_value, most_common_count = value_counts.most_common(1)[0]
+    constant_ratio = most_common_count / len(data)
+    
+    # 计算全局MAD
+    median_val = np.median(data)
+    mad_val = np.median(np.abs(data - median_val))
+    
+    if constant_ratio > 0.8:
+        return "constant", constant_ratio, mad_val
+    elif constant_ratio > constant_threshold:
+        return "mixed", constant_ratio, mad_val
+    else:
+        return "varying", constant_ratio, mad_val
+
+def q_hampel_robust_algorithm_hybrid(data, scheme="strict", constant_threshold=0.3, fallback_method="iqr"):
+    """
+    Q/Hampel稳健统计方法 - 混合策略修正版
+    
+    参数:
+        data: 输入数据
+        scheme: "strict"严格计算或"presentation"规范展示
+        constant_threshold: 判断为混合数据的常数比例阈值
+        fallback_method: MAD=0时的回退方法 ("iqr", "global_mad", "min_std")
+    """
+    # 确保数据为numpy数组
+    data = np.asarray(data, dtype=float)
+    n = len(data)
+    
+    # 第一步：识别数据模式
+    pattern, constant_ratio, global_mad = identify_data_pattern(data, constant_threshold)
+    
+    print(f"数据模式识别: {pattern}, 常数比例: {constant_ratio:.2f}, 全局MAD: {global_mad:.2f}")
+    
+    # 第二步：根据数据模式选择策略
+    if pattern == "constant":
+        # 常数数据模式：使用简化策略
+        return handle_constant_data(data, scheme)
+    elif pattern == "mixed":
+        # 混合数据模式：使用分层策略
+        return handle_mixed_data(data, scheme, constant_threshold, fallback_method)
+    else:
+        # 变化数据模式：使用标准Q/Hampel方法
+        return handle_varying_data(data, scheme, fallback_method)
+
+def handle_constant_data(data, scheme):
+    """处理常数数据"""
+    median = np.median(data)
+    
+    # 对于常数数据，直接使用标准差作为Q_std的估计
+    q_std = np.std(data, ddof=1)
+    if q_std == 0:
+        q_std = 1e-6  # 最小标准差避免除零
+    
+    # 常数数据不需要迭代加权
+    current_mean = median
+    weights = np.ones_like(data)
+    
+    # 计算界限 - 对于常数数据使用宽松阈值
+    lower_limit = current_mean - 3 * q_std
+    upper_limit = current_mean + 3 * q_std
+    
+    # 检测异常值 - 对于常数数据，任何偏离都是异常
+    outliers_mask = (data < lower_limit) | (data > upper_limit)
+    
+    return format_results(data, current_mean, q_std, lower_limit, upper_limit, 
+                         outliers_mask, weights, scheme, "常数数据模式")
+
+def handle_mixed_data(data, scheme, constant_threshold, fallback_method):
+    """处理混合数据 - 分层策略"""
+    # 识别常数区域
+    constant_mask = identify_constant_regions(data)
+    varying_data = data[~constant_mask]
+    constant_data = data[constant_mask]
+    
+    print(f"混合数据分解: 常数区域{np.sum(constant_mask)}点, 变化区域{len(varying_data)}点")
+    
+    if len(varying_data) == 0:
+        # 如果没有变化数据，退回到常数处理
+        return handle_constant_data(data, scheme)
+    
+    # 对变化区域使用标准Q/Hampel方法
+    varying_result = handle_varying_data(varying_data, scheme, fallback_method)
+    
+    # 合并结果
+    return merge_mixed_results(data, constant_mask, varying_result, scheme)
+
+def handle_varying_data(data, scheme, fallback_method):
+    """处理变化数据 - 标准Q/Hampel方法，增加MAD=0保护"""
     n = len(data)
     median = np.median(data)
     
-    # 改进的ISO Qn方法，处理标准差为0的情况
-    def improved_iso_qn(x):
-        """
-        改进的ISO Qn估计器，处理标准差为0的情况
-        返回：稳健位置（中位数），稳健尺度（Qn）
-        """
-        x = np.asarray(x, float)
-        if x.size < 2:
-            return float(np.median(x)), 0.0  # 单点退化
-
-        # 1. 配对绝对差（全部或1000条随机子样本）
-        n = x.size
-        if n*(n-1)//2 <= 1000:  # 小样本直接全算
-            pdiff = [abs(x[i]-x[j]) for i in range(n) for j in range(i+1, n)]
-        else:  # 大样本抽1000条
-            rng = np.random.default_rng(42)
-            pdiff = []
-            while len(pdiff) < 1000:
-                i, j = rng.integers(0, n, 2)
-                if i != j: 
-                    pdiff.append(abs(x[i]-x[j]))
-
-        # 2. 25%分位数
-        q25 = np.percentile(pdiff, 25)
-        
-        # 3. 如果Q25为0，尝试使用50%分位数
-        if q25 == 0:
-            q50 = np.percentile(pdiff, 50)
-            if q50 == 0:
-                # 如果所有配对差都为0，尝试使用数据本身的变异性
-                unique_vals = np.unique(x)
-                if len(unique_vals) > 1:
-                    # 使用最小可检测差作为基础
-                    min_diff = np.min(np.diff(np.sort(unique_vals)))
-                    qn = min_diff / 2.0  # 经验因子
-                else:
-                    # 如果所有值完全相同，使用经验规则
-                    qn = 0.7  # 经验值，根据你的需求调整
-            else:
-                qn = 2.2219 * q50 * 1.5  # 调整因子
-        else:
-            # 3. 一致性因子
-            qn = 2.2219 * q25
-
-        return float(np.median(x)), float(qn)
-    
-    # 计算初始Q标准差
+    # 计算Q标准差
     pairs = []
     for i in range(n):
         for j in range(i+1, n):
             pairs.append(abs(data[i] - data[j]))
     
     if len(pairs) > 0:
-        median_pairs = np.median(pairs)
-        # 如果配对差中位数为0，使用改进的ISO Qn方法
-        if median_pairs == 0:
-            iso_median, iso_qn_std = improved_iso_qn(data)
-            q_std = iso_qn_std
-        else:
-            q_std = median_pairs / 1.0484
+        q_std = np.median(pairs) / 1.0484
     else:
         q_std = np.std(data, ddof=1)
     
+    # 迭代重加权过程，增加MAD保护
     current_mean = median
     max_iterations = 10
     tolerance = 1e-6
-    
-    # 标志位，记录是否使用了改进的ISO Qn方法
-    used_improved_iso_qn = False
-    iso_qn_note = ""
+    iteration_info = []
     
     for iteration in range(max_iterations):
         residuals = data - current_mean
         mad = np.median(np.abs(residuals))
         
-        # 处理MAD=0或标准差过小的特殊情况 - 使用改进的ISO Qn方法
-        if mad == 0 or q_std < 1e-10:
-            iso_median, iso_qn_std = improved_iso_qn(data)
-            current_mean = iso_median
-            q_std = iso_qn_std
-            used_improved_iso_qn = True
-            iso_qn_note = f"检测到MAD=0或标准差过小，使用改进的ISO Qn估计器。稳健位置：{iso_median:.6f}，稳健尺度：{iso_qn_std:.6f}"
+        # MAD=0保护策略
+        if mad == 0:
+            iteration_info.append(f"迭代{iteration+1}: MAD=0，使用回退策略")
+            current_mean, weights = apply_mad_fallback(data, current_mean, fallback_method)
             break
             
         standardized_residuals = residuals / (1.4826 * mad)
-        weights = np.ones_like(data)
-        mask1 = np.abs(standardized_residuals) > 1.5
-        mask2 = np.abs(standardized_residuals) > 3
-        mask3 = np.abs(standardized_residuals) > 4.5
-        
-        weights[mask1] = 1.5 / np.abs(standardized_residuals[mask1])
-        weights[mask2] = 0
-        weights[mask3] = 0
+        weights = compute_weights(standardized_residuals)
         
         new_mean = np.sum(weights * data) / np.sum(weights)
         
+        iteration_info.append(f"迭代{iteration+1}: 均值={new_mean:.6f}, MAD={mad:.6f}")
+        
         if abs(new_mean - current_mean) < tolerance:
+            iteration_info.append(f"收敛于迭代{iteration+1}")
             break
             
         current_mean = new_mean
-    
-    # 如果使用了改进的ISO Qn方法，重新计算Z比分和异常值
-    if used_improved_iso_qn:
-        # 使用ISO Qn计算的稳健位置和尺度
-        lower_limit = current_mean - 3 * q_std
-        upper_limit = current_mean + 3 * q_std
-        outliers_mask = (data < lower_limit) | (data > upper_limit)
-        
-        # 计算Z比分
-        Z_scores = (data - current_mean) / q_std
-        
-        # 权重设置为全1，因为ISO Qn方法不涉及权重迭代
-        weights = np.ones_like(data)
-        
     else:
-        # 传统Q/Hampel方法的正常计算流程
-        lower_limit = current_mean - 3 * q_std
-        upper_limit = current_mean + 3 * q_std
-        outliers_mask = (data < lower_limit) | (data > upper_limit)
-        Z_scores = (data - current_mean) / q_std
+        iteration_info.append(f"达到最大迭代次数{max_iterations}")
     
-    # 彻底的类型安全处理
-    outliers_list = []
-    clean_data_list = []
+    # 计算最终界限
+    lower_limit = current_mean - 3 * q_std
+    upper_limit = current_mean + 3 * q_std
+    outliers_mask = (data < lower_limit) | (data > upper_limit)
     
-    # 确保数据是可迭代的
-    if hasattr(data, '__iter__') and not isinstance(data, (str, dict)):
-        data_iter = data
-    else:
-        data_iter = [data]
+    result = format_results(data, current_mean, q_std, lower_limit, upper_limit, 
+                          outliers_mask, weights, scheme, "变化数据模式")
+    result['iteration_info'] = iteration_info
+    return result
+
+def identify_constant_regions(data, threshold=1e-6, min_constant_length=2):
+    """识别数据中的常数区域"""
+    constant_mask = np.zeros(len(data), dtype=bool)
     
-    # 确保掩码是可迭代的
-    if hasattr(outliers_mask, '__iter__') and not isinstance(outliers_mask, (str, dict)):
-        mask_iter = outliers_mask
-    else:
-        mask_iter = [outliers_mask]
-    
-    # 安全地分离异常值和正常数据
-    for i, value in enumerate(data_iter):
-        if i < len(mask_iter) and mask_iter[i]:
-            try:
-                outliers_list.append(float(value))
-            except (ValueError, TypeError):
-                continue
+    i = 0
+    while i < len(data):
+        j = i
+        while j < len(data) and abs(data[j] - data[i]) < threshold:
+            j += 1
+        
+        # 如果连续多个点相同，标记为常数区域
+        if j - i >= min_constant_length:
+            constant_mask[i:j] = True
+            i = j
         else:
-            try:
-                clean_data_list.append(float(value))
-            except (ValueError, TypeError):
-                continue
+            i += 1
     
-    # 检测数据的小数位数
+    return constant_mask
+
+def apply_mad_fallback(data, current_mean, fallback_method):
+    """MAD=0时的回退策略"""
+    if fallback_method == "iqr":
+        # 使用IQR方法
+        Q1 = np.percentile(data, 25)
+        Q3 = np.percentile(data, 75)
+        iqr = Q3 - Q1
+        if iqr > 0:
+            scaled_residuals = (data - current_mean) / (iqr * 0.7413)  # 0.7413将IQR转换为标准差估计
+        else:
+            scaled_residuals = (data - current_mean) / 1e-6
+    elif fallback_method == "global_mad":
+        # 使用全局MAD
+        global_mad = np.median(np.abs(data - np.median(data)))
+        if global_mad > 0:
+            scaled_residuals = (data - current_mean) / (1.4826 * global_mad)
+        else:
+            scaled_residuals = (data - current_mean) / 1e-6
+    else:  # min_std
+        # 使用最小标准差
+        scaled_residuals = (data - current_mean) / 1e-6
+    
+    weights = compute_weights(scaled_residuals)
+    new_mean = np.sum(weights * data) / np.sum(weights)
+    
+    return new_mean, weights
+
+def compute_weights(standardized_residuals):
+    """计算Hampel权重"""
+    weights = np.ones_like(standardized_residuals)
+    abs_residuals = np.abs(standardized_residuals)
+    
+    # Hampel三段权重函数
+    mask1 = (abs_residuals > 1.5) & (abs_residuals <= 3.0)
+    mask2 = (abs_residuals > 3.0) & (abs_residuals <= 4.5)
+    mask3 = (abs_residuals > 4.5)
+    
+    weights[mask1] = 1.5 / abs_residuals[mask1]
+    weights[mask2] = 1.5 * (4.5 - abs_residuals[mask2]) / (4.5 - 3.0) / abs_residuals[mask2]
+    weights[mask3] = 0
+    
+    return weights
+
+def merge_mixed_results(data, constant_mask, varying_result, scheme):
+    """合并混合数据的结果"""
+    # 创建完整数据的掩码和权重
+    full_outliers_mask = np.zeros(len(data), dtype=bool)
+    full_weights = np.ones(len(data))
+    
+    # 获取变化区域的索引
+    varying_indices = np.where(~constant_mask)[0]
+    constant_indices = np.where(constant_mask)[0]
+    
+    # 合并异常检测结果
+    for i, idx in enumerate(varying_indices):
+        if varying_result['outliers_mask'][i]:
+            full_outliers_mask[idx] = True
+        full_weights[idx] = varying_result['weights'][i]
+    
+    # 对于常数区域，使用宽松的异常检测
+    constant_value = np.median(data[constant_mask])
+    constant_std = np.std(data[constant_mask]) if len(data[constant_mask]) > 1 else 1e-6
+    
+    for idx in constant_indices:
+        # 常数区域：只有明显偏离才认为是异常
+        if abs(data[idx] - constant_value) > 5 * constant_std:
+            full_outliers_mask[idx] = True
+    
+    # 提取异常值和清洁数据
+    outliers_list = data[full_outliers_mask].tolist()
+    clean_data_list = data[~full_outliers_mask].tolist()
+    
+    # 计算Z比分
+    robust_mean = varying_result['robust_mean']
+    robust_std = varying_result['robust_std']
+    Z_scores = (data - robust_mean) / robust_std
+    
+    # 格式化说明
+    formatting_note = (f"混合数据模式：检测到{np.sum(constant_mask)}个常数区域点和{len(varying_indices)}个变化区域点。"
+                      f"变化区域使用Q/Hampel方法，常数区域使用宽松阈值检测。")
+    
+    return {
+        'robust_mean': float(robust_mean),
+        'robust_std': float(robust_std),
+        'clean_data': clean_data_list,
+        'outliers': outliers_list,
+        'Z_scores': Z_scores.tolist(),
+        'method_name': 'Q/Hampel混合法',
+        'lower_limit': float(varying_result['lower_limit']),
+        'upper_limit': float(varying_result['upper_limit']),
+        'weights': full_weights.tolist(),
+        'formatting_note': formatting_note,
+        'calculation_scheme': scheme,
+        'decimal_places': varying_result['decimal_places'],
+        'data_pattern': 'mixed',
+        'constant_ratio': np.sum(constant_mask) / len(data),
+        'outliers_mask': full_outliers_mask.tolist()
+    }
+
+def format_results(data, current_mean, q_std, lower_limit, upper_limit, outliers_mask, weights, scheme, pattern_note):
+    """统一格式化结果"""
+    # 分离异常值和清洁数据
+    outliers_list = data[outliers_mask].tolist()
+    clean_data_list = data[~outliers_mask].tolist()
+    
+    # 检测小数位数
     decimal_places = detect_decimal_places(data)
     
-    # 根据选择的方案进行格式化
+    # 根据方案格式化
     if scheme == "presentation":
-        # 规范展示方案：使用四舍五入后的均值和标准差
-        formatted_current_mean = round(current_mean, decimal_places)
-        formatted_q_std = round(q_std, 3)
-        
-        # 使用格式化后的值计算Z比分（计算过程不四舍五入）
-        Z_scores = (data - formatted_current_mean) / formatted_q_std
-        
-        formatting_note = f"使用规范展示方案：稳健平均值({formatted_current_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分计算使用格式化后的均值和标准差，但计算过程中不进行四舍五入。"
-        
-        robust_mean = formatted_current_mean
-        robust_std = formatted_q_std
-        
+        formatted_mean = round(current_mean, decimal_places)
+        formatted_std = round(q_std, 3)
+        Z_scores = (data - formatted_mean) / formatted_std
+        formatting_note = f"{pattern_note} - 规范展示：均值({formatted_mean})与数据小数位数一致，标准差保留3位小数"
+        robust_mean = formatted_mean
+        robust_std = formatted_std
     else:
-        # 严格计算方案：使用原始计算值
-        formatted_current_mean = current_mean
-        formatted_q_std = q_std
-        
-        # 使用原始计算值计算Z比分
+        formatted_mean = current_mean
+        formatted_std = q_std
         Z_scores = (data - current_mean) / q_std
-        
-        formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。Z比分计算过程中不进行四舍五入。"
-        
+        formatting_note = f"{pattern_note} - 严格计算：保留完整计算精度"
         robust_mean = current_mean
         robust_std = q_std
     
-    # 如果使用了改进的ISO Qn方法，在formatting_note中追加说明
-    if used_improved_iso_qn:
-        formatting_note = iso_qn_note + " " + formatting_note
-    
-    # === 修复：确保 Z_scores 在所有分支中都是安全的Python类型 ===
-    if hasattr(Z_scores, 'tolist'):
-        safe_z_scores = Z_scores.tolist()
-    elif hasattr(Z_scores, '__iter__') and not isinstance(Z_scores, (str, dict)):
-        safe_z_scores = list(Z_scores)
-    else:
-        safe_z_scores = [Z_scores] if Z_scores is not None else []
-    
-    # 确定使用的方法名称
-    method_name = '改进的ISO Qn法' if used_improved_iso_qn else 'Q/Hampel法'
-    
-    # 确保返回标准Python类型
     return {
-        'robust_mean': float(robust_mean) if not np.isnan(robust_mean) else 0.0,
-        'robust_std': float(robust_std) if not np.isnan(robust_std) else 0.0,
+        'robust_mean': float(robust_mean),
+        'robust_std': float(robust_std),
         'clean_data': clean_data_list,
         'outliers': outliers_list,
-        'Z_scores': safe_z_scores,
-        'method_name': method_name,
-        'lower_limit': float(lower_limit) if not np.isnan(lower_limit) else 0.0,
-        'upper_limit': float(upper_limit) if not np.isnan(upper_limit) else 0.0,
-        'weights': weights.tolist() if hasattr(weights, 'tolist') else list(weights),
+        'Z_scores': Z_scores.tolist(),
+        'method_name': 'Q/Hampel法',
+        'lower_limit': float(lower_limit),
+        'upper_limit': float(upper_limit),
+        'weights': weights.tolist(),
         'formatting_note': formatting_note,
         'calculation_scheme': scheme,
         'decimal_places': decimal_places,
-        'original_mean': float(current_mean) if not np.isnan(current_mean) else 0.0,
-        'original_std': float(q_std) if not np.isnan(q_std) else 0.0,
-        'used_iso_qn': used_improved_iso_qn  # 新增字段，标识是否使用了改进的ISO Qn方法
+        'data_pattern': 'constant' if pattern_note.startswith('常数') else 'varying',
+        'outliers_mask': outliers_mask.tolist()
     }
+
+# 测试函数
+def test_hybrid_method():
+    """测试混合方法"""
+    # 创建测试数据：混合数据场景
+    test_data = np.concatenate([
+        np.full(15, 10.0),           # 常数段
+        np.random.normal(12, 1, 20), # 变化段
+        np.full(10, 10.0),           # 常数段  
+        [100, -50],                  # 明显异常
+        np.random.normal(11, 0.5, 18) # 变化段
+    ])
+    
+    print("=== 测试混合Q/Hampel方法 ===")
+    result = q_hampel_robust_algorithm_hybrid(test_data, scheme="strict")
+    
+    print(f"数据模式: {result['data_pattern']}")
+    print(f"稳健均值: {result['robust_mean']:.3f}")
+    print(f"稳健标准差: {result['robust_std']:.3f}")
+    print(f"检测到异常值: {len(result['outliers'])}个")
+    print(f"异常值: {result['outliers']}")
+    print(f"说明: {result['formatting_note']}")
+    
+    # 可视化
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(12, 6))
+    plt.plot(test_data, 'b.-', label='原始数据', alpha=0.7)
+    outliers_indices = [i for i, is_outlier in enumerate(result['outliers_mask']) if is_outlier]
+    plt.scatter(outliers_indices, test_data[outliers_indices], 
+                color='red', s=50, zorder=5, label='异常值')
+    plt.axhline(y=result['robust_mean'], color='green', linestyle='--', label='稳健均值')
+    plt.axhline(y=result['lower_limit'], color='orange', linestyle=':', label='界限')
+    plt.axhline(y=result['upper_limit'], color='orange', linestyle=':')
+    plt.legend()
+    plt.title('混合Q/Hampel方法异常检测结果')
+    plt.show()
+    
+    return result
+
+if __name__ == "__main__":
+    test_result = test_hybrid_method()
 
 # =============================================
 # Z比分格式化函数 - 确保显示两位小数
@@ -1885,7 +2039,7 @@ if data is not None and len(data) > 0:
             elif method == "四分位稳健统计法":
                 results = quartile_robust_algorithm(data, scheme=scheme_param)
             else:  # Q/Hampel法
-                results = q_hampel_robust_algorithm(data, scheme=scheme_param)
+                results = q_hampel_robust_algorithm_hybrid(data, scheme=scheme_param)
 
             # === 新增：统一格式化Z比分为两位小数（仅用于展示和导出）===
             results['formatted_Z_scores'] = format_z_scores(results['Z_scores'])
@@ -2303,8 +2457,8 @@ if data is not None and len(data) > 0:
                     strict_results = quartile_robust_algorithm(data, scheme="strict")
                     presentation_results = quartile_robust_algorithm(data, scheme="presentation")
                 else:  # Q/Hampel法
-                    strict_results = q_hampel_robust_algorithm(data, scheme="strict")
-                    presentation_results = q_hampel_robust_algorithm(data, scheme="presentation")
+                    strict_results = q_hampel_robust_algorithm_hybrid(data, scheme="strict")
+                    presentation_results = q_hampel_robust_algorithm_hybrid(data, scheme="presentation")
                 
                 # 格式化Z比分为两位小数用于比较显示
                 strict_results['formatted_Z_scores'] = format_z_scores(strict_results['Z_scores'])
