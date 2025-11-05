@@ -1569,6 +1569,51 @@ def identify_data_pattern(data, constant_threshold=0.3):
     else:
         return "varying", constant_ratio, mad_val
 
+import numpy as np
+from collections import Counter
+
+def detect_decimal_places(data):
+    """检测数据的小数位数"""
+    if not hasattr(data, '__iter__') or isinstance(data, (str, dict)):
+        return 0
+    
+    decimal_counts = []
+    for value in data:
+        try:
+            value_str = str(float(value))
+            if '.' in value_str:
+                decimal_counts.append(len(value_str.split('.')[1]))
+            else:
+                decimal_counts.append(0)
+        except (ValueError, TypeError):
+            continue
+    
+    if decimal_counts:
+        return max(decimal_counts)
+    else:
+        return 0
+
+def identify_data_pattern(data, constant_threshold=0.3):
+    """识别数据模式：常数、混合或变化"""
+    if len(data) == 0:
+        return "empty", 0, 0
+    
+    # 统计最频繁值
+    value_counts = Counter(data)
+    most_common_value, most_common_count = value_counts.most_common(1)[0]
+    constant_ratio = most_common_count / len(data)
+    
+    # 计算全局MAD
+    median_val = np.median(data)
+    mad_val = np.median(np.abs(data - median_val))
+    
+    if constant_ratio > 0.8:
+        return "constant", constant_ratio, mad_val
+    elif constant_ratio > constant_threshold:
+        return "mixed", constant_ratio, mad_val
+    else:
+        return "varying", constant_ratio, mad_val
+
 def q_hampel_robust_algorithm_hybrid(data, scheme="strict", constant_threshold=0.3, fallback_method="iqr"):
     """
     Q/Hampel稳健统计方法 - 混合策略修正版
@@ -1600,7 +1645,7 @@ def q_hampel_robust_algorithm_hybrid(data, scheme="strict", constant_threshold=0
         return handle_varying_data(data, scheme, fallback_method)
 
 def handle_constant_data(data, scheme):
-    """处理常数数据"""
+    """处理常数数据 - 始终使用中位数作为稳健平均值"""
     median = np.median(data)
     
     # 对于常数数据，直接使用标准差作为Q_std的估计
@@ -1608,7 +1653,7 @@ def handle_constant_data(data, scheme):
     if q_std == 0:
         q_std = 1e-6  # 最小标准差避免除零
     
-    # 常数数据不需要迭代加权
+    # 常数数据不需要迭代加权，直接使用中位数
     current_mean = median
     weights = np.ones_like(data)
     
@@ -1620,10 +1665,10 @@ def handle_constant_data(data, scheme):
     outliers_mask = (data < lower_limit) | (data > upper_limit)
     
     return format_results(data, current_mean, q_std, lower_limit, upper_limit, 
-                         outliers_mask, weights, scheme, "常数数据模式")
+                         outliers_mask, weights, scheme, "常数数据模式 - 使用中位数作为稳健平均值")
 
 def handle_mixed_data(data, scheme, constant_threshold, fallback_method):
-    """处理混合数据 - 分层策略"""
+    """处理混合数据 - 分层策略，始终使用中位数作为初始值"""
     # 识别常数区域
     constant_mask = identify_constant_regions(data)
     varying_data = data[~constant_mask]
@@ -1635,16 +1680,19 @@ def handle_mixed_data(data, scheme, constant_threshold, fallback_method):
         # 如果没有变化数据，退回到常数处理
         return handle_constant_data(data, scheme)
     
-    # 对变化区域使用标准Q/Hampel方法
+    # 对变化区域使用标准Q/Hampel方法，但始终使用中位数作为初始值
     varying_result = handle_varying_data(varying_data, scheme, fallback_method)
     
     # 合并结果
     return merge_mixed_results(data, constant_mask, varying_result, scheme)
 
 def handle_varying_data(data, scheme, fallback_method):
-    """处理变化数据 - 标准Q/Hampel方法，增加MAD=0保护"""
+    """处理变化数据 - 标准Q/Hampel方法，始终使用中位数作为初始值"""
     n = len(data)
+    
+    # 首先指定稳健平均值为数据中位数
     median = np.median(data)
+    current_mean = median  # 初始值设为中位数
     
     # 计算Q标准差
     pairs = []
@@ -1658,10 +1706,9 @@ def handle_varying_data(data, scheme, fallback_method):
         q_std = np.std(data, ddof=1)
     
     # 迭代重加权过程，增加MAD保护
-    current_mean = median
     max_iterations = 10
     tolerance = 1e-6
-    iteration_info = []
+    iteration_info = [f"初始稳健平均值（中位数）: {current_mean:.6f}"]
     
     for iteration in range(max_iterations):
         residuals = data - current_mean
@@ -1670,7 +1717,8 @@ def handle_varying_data(data, scheme, fallback_method):
         # MAD=0保护策略
         if mad == 0:
             iteration_info.append(f"迭代{iteration+1}: MAD=0，使用回退策略")
-            current_mean, weights = apply_mad_fallback(data, current_mean, fallback_method)
+            # 当MAD=0时，保持中位数作为稳健平均值
+            weights = np.ones_like(data)
             break
             
         standardized_residuals = residuals / (1.4826 * mad)
@@ -1694,7 +1742,7 @@ def handle_varying_data(data, scheme, fallback_method):
     outliers_mask = (data < lower_limit) | (data > upper_limit)
     
     result = format_results(data, current_mean, q_std, lower_limit, upper_limit, 
-                          outliers_mask, weights, scheme, "变化数据模式")
+                          outliers_mask, weights, scheme, "变化数据模式 - 以中位数作为初始稳健平均值")
     result['iteration_info'] = iteration_info
     return result
 
@@ -1716,33 +1764,6 @@ def identify_constant_regions(data, threshold=1e-6, min_constant_length=2):
             i += 1
     
     return constant_mask
-
-def apply_mad_fallback(data, current_mean, fallback_method):
-    """MAD=0时的回退策略"""
-    if fallback_method == "iqr":
-        # 使用IQR方法
-        Q1 = np.percentile(data, 25)
-        Q3 = np.percentile(data, 75)
-        iqr = Q3 - Q1
-        if iqr > 0:
-            scaled_residuals = (data - current_mean) / (iqr * 0.7413)  # 0.7413将IQR转换为标准差估计
-        else:
-            scaled_residuals = (data - current_mean) / 1e-6
-    elif fallback_method == "global_mad":
-        # 使用全局MAD
-        global_mad = np.median(np.abs(data - np.median(data)))
-        if global_mad > 0:
-            scaled_residuals = (data - current_mean) / (1.4826 * global_mad)
-        else:
-            scaled_residuals = (data - current_mean) / 1e-6
-    else:  # min_std
-        # 使用最小标准差
-        scaled_residuals = (data - current_mean) / 1e-6
-    
-    weights = compute_weights(scaled_residuals)
-    new_mean = np.sum(weights * data) / np.sum(weights)
-    
-    return new_mean, weights
 
 def compute_weights(standardized_residuals):
     """计算Hampel权重"""
@@ -1776,13 +1797,13 @@ def merge_mixed_results(data, constant_mask, varying_result, scheme):
             full_outliers_mask[idx] = True
         full_weights[idx] = varying_result['weights'][i]
     
-    # 对于常数区域，使用宽松的异常检测
-    constant_value = np.median(data[constant_mask])
+    # 对于常数区域，使用中位数作为代表值
+    constant_median = np.median(data[constant_mask])
     constant_std = np.std(data[constant_mask]) if len(data[constant_mask]) > 1 else 1e-6
     
     for idx in constant_indices:
         # 常数区域：只有明显偏离才认为是异常
-        if abs(data[idx] - constant_value) > 5 * constant_std:
+        if abs(data[idx] - constant_median) > 5 * constant_std:
             full_outliers_mask[idx] = True
     
     # 提取异常值和清洁数据
@@ -1796,7 +1817,7 @@ def merge_mixed_results(data, constant_mask, varying_result, scheme):
     
     # 格式化说明
     formatting_note = (f"混合数据模式：检测到{np.sum(constant_mask)}个常数区域点和{len(varying_indices)}个变化区域点。"
-                      f"变化区域使用Q/Hampel方法，常数区域使用宽松阈值检测。")
+                      f"变化区域使用Q/Hampel方法（以中位数作为初始值），常数区域使用中位数作为代表值。")
     
     return {
         'robust_mean': float(robust_mean),
@@ -1854,7 +1875,7 @@ def format_results(data, current_mean, q_std, lower_limit, upper_limit, outliers
         'formatting_note': formatting_note,
         'calculation_scheme': scheme,
         'decimal_places': decimal_places,
-        'data_pattern': 'constant' if pattern_note.startswith('常数') else 'varying',
+        'data_pattern': 'constant' if '常数' in pattern_note else 'varying',
         'outliers_mask': outliers_mask.tolist()
     }
 
@@ -1874,11 +1895,18 @@ def test_hybrid_method():
     result = q_hampel_robust_algorithm_hybrid(test_data, scheme="strict")
     
     print(f"数据模式: {result['data_pattern']}")
-    print(f"稳健均值: {result['robust_mean']:.3f}")
+    print(f"初始中位数: {np.median(test_data):.3f}")
+    print(f"最终稳健均值: {result['robust_mean']:.3f}")
     print(f"稳健标准差: {result['robust_std']:.3f}")
     print(f"检测到异常值: {len(result['outliers'])}个")
     print(f"异常值: {result['outliers']}")
     print(f"说明: {result['formatting_note']}")
+    
+    # 输出迭代信息
+    if 'iteration_info' in result:
+        print("\n迭代过程:")
+        for info in result['iteration_info']:
+            print(f"  {info}")
     
     # 可视化
     import matplotlib.pyplot as plt
@@ -1888,8 +1916,9 @@ def test_hybrid_method():
     plt.scatter(outliers_indices, test_data[outliers_indices], 
                 color='red', s=50, zorder=5, label='异常值')
     plt.axhline(y=result['robust_mean'], color='green', linestyle='--', label='稳健均值')
-    plt.axhline(y=result['lower_limit'], color='orange', linestyle=':', label='界限')
-    plt.axhline(y=result['upper_limit'], color='orange', linestyle=':')
+    plt.axhline(y=np.median(test_data), color='orange', linestyle=':', label='数据中位数')
+    plt.axhline(y=result['lower_limit'], color='gray', linestyle=':', label='界限')
+    plt.axhline(y=result['upper_limit'], color='gray', linestyle=':')
     plt.legend()
     plt.title('混合Q/Hampel方法异常检测结果')
     plt.show()
