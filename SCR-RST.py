@@ -1527,10 +1527,42 @@ def quartile_robust_algorithm(data, scheme="strict"):
     }
 
 def q_hampel_robust_algorithm(data, scheme="strict"):
-    """Q/Hampel稳健统计方法 - 支持两种计算方案"""
+    """Q/Hampel稳健统计方法 - 支持两种计算方案，包含ISO Qn异常情况处理"""
     n = len(data)
     median = np.median(data)
     
+    # 使用ISO Qn方法计算稳健位置和尺度
+    def iso_qn(x):
+        """
+        ISO 16269-4:2010 Qn估计器
+        配对差 → 25%分位数 → ×2.2219
+        返回：稳健位置（中位数），稳健尺度（Qn）
+        """
+        x = np.asarray(x, float)
+        if x.size < 2:
+            return float(np.median(x)), 0.0  # 单点退化
+
+        # 1. 配对绝对差（全部或1000条随机子样本）
+        n = x.size
+        if n*(n-1)//2 <= 1000:  # 小样本直接全算
+            pdiff = [abs(x[i]-x[j]) for i in range(n) for j in range(i+1, n)]
+        else:  # 大样本抽1000条
+            rng = np.random.default_rng(42)
+            pdiff = []
+            while len(pdiff) < 1000:
+                i, j = rng.integers(0, n, 2)
+                if i != j: 
+                    pdiff.append(abs(x[i]-x[j]))
+
+        # 2. 25%分位数
+        q25 = np.percentile(pdiff, 25)
+
+        # 3. 一致性因子
+        qn = 2.2219 * q25
+
+        return float(np.median(x)), float(qn)
+    
+    # 计算初始Q标准差
     pairs = []
     for i in range(n):
         for j in range(i+1, n):
@@ -1545,11 +1577,21 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
     max_iterations = 10
     tolerance = 1e-6
     
+    # 标志位，记录是否使用了ISO Qn方法
+    used_iso_qn = False
+    iso_qn_note = ""
+    
     for iteration in range(max_iterations):
         residuals = data - current_mean
         mad = np.median(np.abs(residuals))
         
+        # 处理MAD=0的特殊情况 - 使用ISO Qn方法
         if mad == 0:
+            iso_median, iso_qn_std = iso_qn(data)
+            current_mean = iso_median
+            q_std = iso_qn_std
+            used_iso_qn = True
+            iso_qn_note = f"检测到MAD=0，使用ISO 16269-4:2010 Qn估计器替代传统Q/Hampel方法。稳健位置：{iso_median:.6f}，稳健尺度：{iso_qn_std:.6f}"
             break
             
         standardized_residuals = residuals / (1.4826 * mad)
@@ -1569,9 +1611,26 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
             
         current_mean = new_mean
     
-    lower_limit = current_mean - 3 * q_std
-    upper_limit = current_mean + 3 * q_std
-    outliers_mask = (data < lower_limit) | (data > upper_limit)
+    # 如果使用了ISO Qn方法，重新计算Z比分和异常值
+    if used_iso_qn:
+        # 使用ISO Qn计算的稳健位置和尺度
+        lower_limit = current_mean - 3 * q_std
+        upper_limit = current_mean + 3 * q_std
+        outliers_mask = (data < lower_limit) | (data > upper_limit)
+        
+        # 计算Z比分
+        Z_scores = (data - current_mean) / q_std
+        
+        # 权重设置为全1，因为ISO Qn方法不涉及权重迭代
+        weights = np.ones_like(data)
+        
+    else:
+        # 传统Q/Hampel方法的正常计算流程
+        lower_limit = current_mean - 3 * q_std
+        upper_limit = current_mean + 3 * q_std
+        outliers_mask = (data < lower_limit) | (data > upper_limit)
+        Z_scores = (data - current_mean) / q_std
+    
     # 彻底的类型安全处理
     outliers_list = []
     clean_data_list = []
@@ -1601,7 +1660,7 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
             except (ValueError, TypeError):
                 continue
     
-    # 检测数据的小数位数 - 与迭代法保持一致
+    # 检测数据的小数位数
     decimal_places = detect_decimal_places(data)
     
     # 根据选择的方案进行格式化
@@ -1631,6 +1690,10 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         robust_mean = current_mean
         robust_std = q_std
     
+    # 如果使用了ISO Qn方法，在formatting_note中追加说明
+    if used_iso_qn:
+        formatting_note = iso_qn_note + " " + formatting_note
+    
     # === 修复：确保 Z_scores 在所有分支中都是安全的Python类型 ===
     if hasattr(Z_scores, 'tolist'):
         safe_z_scores = Z_scores.tolist()
@@ -1639,22 +1702,26 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
     else:
         safe_z_scores = [Z_scores] if Z_scores is not None else []
     
+    # 确定使用的方法名称
+    method_name = 'ISO Qn法' if used_iso_qn else 'Q/Hampel法'
+    
     # 确保返回标准Python类型
     return {
         'robust_mean': float(robust_mean) if not np.isnan(robust_mean) else 0.0,
         'robust_std': float(robust_std) if not np.isnan(robust_std) else 0.0,
         'clean_data': clean_data_list,
         'outliers': outliers_list,
-        'Z_scores': safe_z_scores,  # 使用修复后的变量
-        'method_name': 'Q/Hampel法',
+        'Z_scores': safe_z_scores,
+        'method_name': method_name,
         'lower_limit': float(lower_limit) if not np.isnan(lower_limit) else 0.0,
         'upper_limit': float(upper_limit) if not np.isnan(upper_limit) else 0.0,
         'weights': weights.tolist() if hasattr(weights, 'tolist') else list(weights),
         'formatting_note': formatting_note,
         'calculation_scheme': scheme,
-        'decimal_places': decimal_places,  # 添加小数位数信息，与迭代法保持一致
-        'original_mean': float(current_mean) if not np.isnan(current_mean) else 0.0,  # 保存原始计算值
-        'original_std': float(q_std) if not np.isnan(q_std) else 0.0  # 保存原始计算值
+        'decimal_places': decimal_places,
+        'original_mean': float(current_mean) if not np.isnan(current_mean) else 0.0,
+        'original_std': float(q_std) if not np.isnan(q_std) else 0.0,
+        'used_iso_qn': used_iso_qn  # 新增字段，标识是否使用了ISO Qn方法
     }
 
 # =============================================
