@@ -1670,7 +1670,24 @@ def q_hampel_procedure_iso13528(data, scheme="strict", instrument_resolution=Non
         robust_mean, weights, iterations, converged = hampel_estimator_iso13528(data)
         robust_std = qn_estimator_iso13528(data)
     
-    # 计算控制限和Z分数
+    # 保存原始计算值（用于严格计算方案）
+    original_mean = robust_mean
+    original_std = robust_std
+    
+    # 检测数据的小数位数
+    decimal_places = detect_decimal_places(data)
+    
+    # 根据选择的方案进行格式化
+    if scheme == "presentation":
+        # 规范展示方案：使用四舍五入后的均值和标准差
+        robust_mean = round(robust_mean, decimal_places)
+        robust_std = round(robust_std, 3)
+        formatting_note = f"使用规范展示方案：稳健平均值({robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分计算使用格式化后的均值和标准差，但计算过程中不进行四舍五入。"
+    else:
+        # 严格计算方案：使用原始计算值
+        formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。Z比分计算过程中不进行四舍五入。"
+    
+    # 计算控制限和Z分数 - 使用格式化后的值
     lower_limit = robust_mean - 3 * robust_std
     upper_limit = robust_mean + 3 * robust_std
     
@@ -1679,100 +1696,42 @@ def q_hampel_procedure_iso13528(data, scheme="strict", instrument_resolution=Non
     outliers = data[outliers_mask].tolist()
     clean_data = data[~outliers_mask].tolist()
     
-    # 计算Z分数
-    z_scores = (data - robust_mean) / robust_std
+    # 计算Z分数 - 使用格式化后的值
+    Z_scores = (data - robust_mean) / robust_std
     
-    # 格式化输出（根据方案）
-    decimal_places = 0
-    if scheme == "presentation":
-        # 检测数据的小数位数
-        decimal_parts = [str(x).split('.')[1] for x in data if '.' in str(x)]
-        if decimal_parts:
-            decimal_places = max(len(part) for part in decimal_parts)
-        
-        robust_mean = round(robust_mean, decimal_places)
-        robust_std = round(robust_std, 3)
-    
+    # === 修复：确保返回数据结构与其他方法一致 ===
     return {
-        'robust_mean': robust_mean,
-        'robust_std': robust_std,
-        'initial_median': initial_median,
-        'mad': mad,
-        'lower_limit': lower_limit,
-        'upper_limit': upper_limit,
-        'outliers': outliers,
+        'robust_mean': float(robust_mean) if not np.isnan(robust_mean) else 0.0,
+        'robust_std': float(robust_std) if not np.isnan(robust_std) else 0.0,
         'clean_data': clean_data,
-        'z_scores': z_scores.tolist(),
-        'weights': weights.tolist(),
+        'outliers': outliers,
+        'Z_scores': Z_scores.tolist(),  # 统一使用'Z_scores'键名
         'iterations': iterations,
         'converged': converged,
+        'lower_limit': float(lower_limit) if not np.isnan(lower_limit) else 0.0,
+        'upper_limit': float(upper_limit) if not np.isnan(upper_limit) else 0.0,
+        'initial_median': float(initial_median) if not np.isnan(initial_median) else 0.0,
+        'mad': float(mad) if not np.isnan(mad) else 0.0,
+        'weights': weights.tolist(),
+        'method_name': 'Q/Hampel法',  # 统一方法名称
         'decimal_places': decimal_places,
         'calculation_scheme': scheme,
-        'method_name': 'Q/Hampel法 (ISO 13528)'
+        'formatting_note': formatting_note,
+        'original_mean': float(original_mean) if not np.isnan(original_mean) else 0.0,  # 保存原始计算值
+        'original_std': float(original_std) if not np.isnan(original_std) else 0.0  # 保存原始计算值
     }
 
-# 测试和验证函数
-def test_q_hampel_implementation():
-    """
-    测试Q/Hampel实现的函数
-    """
-    # 测试案例1: 正常数据
-    normal_data = np.random.normal(10, 1, 30)
-    
-    # 测试案例2: 包含离群值的数据
-    contaminated_data = np.concatenate([
-        np.random.normal(10, 1, 25),
-        np.random.normal(20, 1, 5)  # 离群值
-    ])
-    
-    # 测试案例3: 接近常数的数据 (模拟MAD ≈ 0)
-    constant_like_data = np.array([10.0, 10.1, 9.9, 10.0, 10.1, 9.9, 10.0, 10.0, 10.0, 10.0])
-    
-    test_cases = [
-        ("正常数据", normal_data),
-        ("污染数据", contaminated_data),
-        ("常数类数据", constant_like_data)
-    ]
-    
-    for name, data in test_cases:
-        print(f"\n=== {name} ===")
-        result = q_hampel_procedure_iso13528(data)
-        
-        print(f"数据量: {len(data)}")
-        print(f"稳健均值: {result['robust_mean']:.6f}")
-        print(f"稳健标准差: {result['robust_std']:.6f}")
-        print(f"离群值数量: {len(result['outliers'])}")
-        print(f"迭代次数: {result['iterations']}")
-        print(f"收敛: {result['converged']}")
-        
-        if len(result['outliers']) > 0:
-            print(f"离群值: {result['outliers']}")
-
-# 使用示例
-if __name__ == "__main__":
-    # 运行测试
-    test_q_hampel_implementation()
-    
-    # 使用您提供的数据示例
-    user_data = np.array([-21, -20, -20, -20, -20, -20, -20, -20, -20, -20,
-                         -20, -20, -20, -20, -20, -20, -20, -20, -20, -20,
-                         -20, -20, -20, -20, -20, -20, -20, -20, -20, -19,
-                         -19, -19, -19, -19, -19, -19, -19, -19, -19, -19,
-                         -19, -19, -19, -19, -19, -19, -19, -19, -19, -19,
-                         -19, -19, -19, -19, -19, -19, -19, -19, -19, -19,
-                         -19, -19, -19, -19, -18])
-    
-    print("\n=== 用户数据示例 ===")
-    result = q_hampel_procedure_iso13528(user_data, instrument_resolution=0.1)
-    print(f"数据中位数: {result['initial_median']}")
-    print(f"稳健均值: {result['robust_mean']}")
-    print(f"稳健标准差: {result['robust_std']:.6f}")
-    print(f"离群值: {result['outliers']}")
-
 # =============================================
+# 修复：添加Q/Hampel法的主函数，确保方法名称一致
+# =============================================
+
+def q_hampel_algorithm(data, scheme="strict"):
+    """
+    Q/Hampel法主函数 - 确保与其他方法接口一致
+    """
+    return q_hampel_procedure_iso13528(data, scheme)
+
 # Z比分格式化函数 - 确保显示两位小数
-# =============================================
-
 def format_z_scores(z_scores):
     """将Z比分统一格式化为两位小数（确保显示两位小数，如56.60）"""
     if z_scores is None:
@@ -1908,8 +1867,8 @@ if data is not None and len(data) > 0:
                 results = iterative_robust_algorithm(data, max_iterations=max_iter, k=k_value, scheme=scheme_param)
             elif method == "四分位稳健统计法":
                 results = quartile_robust_algorithm(data, scheme=scheme_param)
-            else:  # Q/Hampel法
-                results = q_hampel_procedure_iso13528(data, scheme=scheme_param)
+            else:  # Q/Hampel法 - 使用修复后的函数
+                results = q_hampel_algorithm(data, scheme=scheme_param)
 
             # === 新增：统一格式化Z比分为两位小数（仅用于展示和导出）===
             results['formatted_Z_scores'] = format_z_scores(results['Z_scores'])
@@ -1962,7 +1921,7 @@ if data is not None and len(data) > 0:
                 st.metric("标准化四分位距(NIQR)", f"{results['niqr']:.6f}")
         
         # Q/Hampel法特有信息
-        if method == "Q/Hampel稳健统计法":
+        if method == "Q/Hampel法":
             st.info("🔧 **ISO 13528 Q/Hampel统计量:**")
             col3, col4, col5, col6 = st.columns(4)
             with col3:
@@ -2359,9 +2318,9 @@ if data is not None and len(data) > 0:
                 elif method == "四分位稳健统计法":
                     strict_results = quartile_robust_algorithm(data, scheme="strict")
                     presentation_results = quartile_robust_algorithm(data, scheme="presentation")
-                else:  # Q/Hampel法
-                    strict_results = q_hampel_procedure_iso13528(data, scheme="strict")
-                    presentation_results = q_hampel_procedure_iso13528(data, scheme="presentation")
+                else:  # Q/Hampel法 - 使用修复后的函数
+                    strict_results = q_hampel_algorithm(data, scheme="strict")
+                    presentation_results = q_hampel_algorithm(data, scheme="presentation")
                 
                 # 格式化Z比分为两位小数用于比较显示
                 strict_results['formatted_Z_scores'] = format_z_scores(strict_results['Z_scores'])
@@ -2629,6 +2588,15 @@ if data is not None and len(data) > 0:
 上四分位数(Q3): {results['q3']:.6f}
 四分位距(IQR): {results['iqr']:.6f}
 标准化四分位距(NIQR): {results['niqr']:.6f}
+"""
+        elif method == "Q/Hampel法":
+            report += f"""
+Q/Hampel统计量:
+--------------
+初始中位数: {results['initial_median']:.6f}
+MAD值: {results['mad']:.6f}
+迭代次数: {results['iterations']}
+收敛状态: {'是' if results['converged'] else '否'}
 """
         
         if 'iterations' in results:
