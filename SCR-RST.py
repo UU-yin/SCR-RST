@@ -1933,16 +1933,15 @@ if data is not None and len(data) > 0:
             st.metric("稳健平均值", f"{results['robust_mean']:.6f}")
             st.metric("稳健标准差", f"{results['robust_std']:.6f}")
             
-            # 显示方法说明，特别是混合策略的情况
-            if results.get('data_pattern') in ['constant', 'mixed']:
-                st.warning(f"⚠️ 使用 {results['method_name']} (检测到{results.get('data_pattern', '未知')}数据模式)")
+            # 显示方法说明，基于ISO 13528标准
+            if results.get('mad', 1) < 1e-12:  # MAD接近0的情况
+                st.warning(f"⚠️ {results['method_name']} (MAD≈0，使用ISO 13528特殊处理)")
             else:
-                st.info(f"📊 使用 {results['method_name']}")
+                st.info(f"📊 {results['method_name']}")
                 
         with col2:
-            # 显示迭代信息（如果有）
-            if 'iteration_info' in results:
-                st.metric("迭代次数", len(results['iteration_info']))
+            # 显示迭代信息
+            st.metric("迭代次数", results.get('iterations', 0))
             st.metric("离群值数量", len(results['outliers']))
             
             # 显示计算方案
@@ -1964,30 +1963,21 @@ if data is not None and len(data) > 0:
         
         # Q/Hampel法特有信息
         if method == "Q/Hampel稳健统计法":
-            st.info("🔧 **Q/Hampel统计量:**")
+            st.info("🔧 **ISO 13528 Q/Hampel统计量:**")
             col3, col4, col5, col6 = st.columns(4)
             with col3:
-                # 显示原始计算值（与格式化值对比）
-                if results.get('calculation_scheme') == "presentation":
-                    st.metric("原始计算均值", f"{results.get('original_mean', results['robust_mean']):.6f}")
-                else:
-                    st.metric("稳健均值", f"{results['robust_mean']:.6f}")
+                # 显示初始中位数
+                st.metric("初始中位数", f"{results.get('initial_median', results['robust_mean']):.6f}")
             with col4:
-                if results.get('calculation_scheme') == "presentation":
-                    st.metric("原始计算标准差", f"{results.get('original_std', results['robust_std']):.6f}")
-                else:
-                    st.metric("稳健标准差", f"{results['robust_std']:.6f}")
+                # 显示MAD值
+                st.metric("MAD", f"{results.get('mad', 0):.6f}")
             with col5:
-                st.metric("数据小数位数", results.get('decimal_places', '未知'))
+                # 显示收敛状态
+                converged_status = "是" if results.get('converged', True) else "否"
+                st.metric("收敛状态", converged_status)
             with col6:
-                # 显示数据模式
-                pattern_map = {
-                    'constant': '常数数据',
-                    'mixed': '混合数据', 
-                    'varying': '变化数据'
-                }
-                pattern_display = pattern_map.get(results.get('data_pattern', 'varying'), '未知')
-                st.metric("数据模式", pattern_display)
+                # 显示数据小数位数
+                st.metric("数据小数位数", results.get('decimal_places', '未知'))
         
         # =============================================
         # 显示详细结果
@@ -1995,24 +1985,29 @@ if data is not None and len(data) > 0:
         st.subheader("📋 详细结果")
         st.write(f"**正常值范围**: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]")
         
-        # 显示数据模式信息（Q/Hampel混合方法特有）
-        if results.get('data_pattern') == 'mixed' and 'constant_ratio' in results:
-            st.write(f"**数据模式**: 混合数据 (常数区域占比: {results['constant_ratio']:.1%})")
-        elif results.get('data_pattern') == 'constant':
-            st.write(f"**数据模式**: 常数数据")
-        elif results.get('data_pattern') == 'varying':
-            st.write(f"**数据模式**: 变化数据")
+        # 显示MAD状态信息
+        mad_value = results.get('mad', 1)
+        if mad_value < 1e-12:
+            st.write(f"**MAD状态**: ≈0 (使用ISO 13528特殊处理)")
+        else:
+            st.write(f"**MAD值**: {mad_value:.6e}")
         
-        # 显示迭代信息（如果有）
-        if 'iteration_info' in results:
-            with st.expander("查看迭代过程"):
-                for info in results['iteration_info']:
-                    st.write(f"- {info}")
+        # 显示权重分布信息
+        if 'weights' in results:
+            weights = results['weights']
+            if hasattr(weights, '__iter__') and not isinstance(weights, str):
+                try:
+                    unique_weights = np.unique(np.round(weights, 3))
+                    if len(unique_weights) > 1:
+                        st.write(f"**权重分布**: {', '.join([f'{w:.3f}' for w in unique_weights])}")
+                    else:
+                        st.write(f"**权重**: 常数权重 {unique_weights[0]:.3f}")
+                except:
+                    pass
         
         # 显示格式化说明
         if 'formatting_note' in results:
-            # 根据数据模式显示不同的图标
-            if results.get('data_pattern') in ['constant', 'mixed']:
+            if results.get('mad', 1) < 1e-12:
                 st.warning(f"⚠️ {results['formatting_note']}")
             else:
                 st.info(f"💡 {results['formatting_note']}")
@@ -2059,10 +2054,29 @@ if data is not None and len(data) > 0:
         else:
             st.success("✅ **离群值**: 无检测到离群值")
         
-        # Z比分数分类统计
-        if 'Z_scores' in results and results['Z_scores'] is not None:
+        # Z比分数分类统计 - 修复键名问题
+        z_scores_data = None
+        
+        # 尝试获取Z比分数据，兼容多种可能的键名
+        if 'z_scores' in results and results['z_scores'] is not None:
+            z_scores_data = results['z_scores']
+        elif 'Z_scores' in results and results['Z_scores'] is not None:
+            z_scores_data = results['Z_scores']
+        # 如果没有Z比分数据，但需要计算，可以从原始数据和稳健统计量计算
+        elif 'clean_data' in results and len(results['clean_data']) > 0:
             try:
-                z_scores = np.array(results['Z_scores'])
+                # 从清洁数据计算Z比分
+                clean_data = np.array(results['clean_data'])
+                robust_mean = results['robust_mean']
+                robust_std = results['robust_std']
+                if robust_std > 0:
+                    z_scores_data = ((clean_data - robust_mean) / robust_std).tolist()
+            except Exception as e:
+                st.warning(f"无法从清洁数据计算Z比分: {str(e)}")
+        
+        if z_scores_data is not None:
+            try:
+                z_scores = np.array(z_scores_data)
                 z_scores_abs = np.abs(z_scores)
                 satisfactory = np.sum(z_scores_abs <= 2)
                 questionable = np.sum((z_scores_abs > 2) & (z_scores_abs <= 3))
@@ -2090,7 +2104,11 @@ if data is not None and len(data) > 0:
             except Exception as e:
                 st.warning(f"无法计算Z比分分类: {str(e)}")
         else:
-            st.warning("Z比分数据不可用")
+            # 如果无法获取Z比分数据，显示替代信息
+            st.info("ℹ️ **Z比分信息**: 使用稳健统计量计算")
+            st.write(f"**稳健平均值**: {results['robust_mean']:.6f}")
+            st.write(f"**稳健标准差**: {results['robust_std']:.6f}")
+            st.write(f"**正常值范围**: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]")
         
         # 显示权重信息（如果可用且有意义）
         if 'weights' in results and results.get('data_pattern') != 'constant':
