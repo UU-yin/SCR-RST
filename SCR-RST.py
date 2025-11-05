@@ -2092,16 +2092,16 @@ if data is not None and len(data) > 0:
             st.metric("稳健平均值", f"{results['robust_mean']:.6f}")
             st.metric("稳健标准差", f"{results['robust_std']:.6f}")
             
-            # 显示方法说明，特别是改进的ISO Qn的情况
-            if results.get('used_iso_qn', False):
-                st.warning(f"⚠️ 使用 {results['method_name']} (检测到MAD=0或标准差过小)")
+            # 显示方法说明，特别是混合策略的情况
+            if results.get('data_pattern') in ['constant', 'mixed']:
+                st.warning(f"⚠️ 使用 {results['method_name']} (检测到{results.get('data_pattern', '未知')}数据模式)")
             else:
                 st.info(f"📊 使用 {results['method_name']}")
                 
         with col2:
-            # 迭代次数只在传统Q/Hampel方法且有迭代时显示
-            if 'iterations' in results and not results.get('used_iso_qn', False):
-                st.metric("迭代次数", results['iterations'])
+            # 显示迭代信息（如果有）
+            if 'iteration_info' in results:
+                st.metric("迭代次数", len(results['iteration_info']))
             st.metric("离群值数量", len(results['outliers']))
             
             # 显示计算方案
@@ -2139,9 +2139,14 @@ if data is not None and len(data) > 0:
             with col5:
                 st.metric("数据小数位数", results.get('decimal_places', '未知'))
             with col6:
-                # 显示是否使用改进的ISO Qn方法
-                method_status = "改进ISO Qn" if results.get('used_iso_qn', False) else "标准方法"
-                st.metric("计算方法", method_status)
+                # 显示数据模式
+                pattern_map = {
+                    'constant': '常数数据',
+                    'mixed': '混合数据', 
+                    'varying': '变化数据'
+                }
+                pattern_display = pattern_map.get(results.get('data_pattern', 'varying'), '未知')
+                st.metric("数据模式", pattern_display)
         
         # =============================================
         # 显示详细结果
@@ -2149,14 +2154,24 @@ if data is not None and len(data) > 0:
         st.subheader("📋 详细结果")
         st.write(f"**正常值范围**: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]")
         
-        # 收敛状态只在传统Q/Hampel方法时显示
-        if 'converged' in results and not results.get('used_iso_qn', False):
-            st.write(f"**收敛状态**: {'是' if results['converged'] else '否'}")
+        # 显示数据模式信息（Q/Hampel混合方法特有）
+        if results.get('data_pattern') == 'mixed' and 'constant_ratio' in results:
+            st.write(f"**数据模式**: 混合数据 (常数区域占比: {results['constant_ratio']:.1%})")
+        elif results.get('data_pattern') == 'constant':
+            st.write(f"**数据模式**: 常数数据")
+        elif results.get('data_pattern') == 'varying':
+            st.write(f"**数据模式**: 变化数据")
+        
+        # 显示迭代信息（如果有）
+        if 'iteration_info' in results:
+            with st.expander("查看迭代过程"):
+                for info in results['iteration_info']:
+                    st.write(f"- {info}")
         
         # 显示格式化说明
         if 'formatting_note' in results:
-            # 根据是否使用改进的ISO Qn方法显示不同的图标
-            if results.get('used_iso_qn', False):
+            # 根据数据模式显示不同的图标
+            if results.get('data_pattern') in ['constant', 'mixed']:
                 st.warning(f"⚠️ {results['formatting_note']}")
             else:
                 st.info(f"💡 {results['formatting_note']}")
@@ -2237,7 +2252,7 @@ if data is not None and len(data) > 0:
             st.warning("Z比分数据不可用")
         
         # 显示权重信息（如果可用且有意义）
-        if 'weights' in results and not results.get('used_iso_qn', False):
+        if 'weights' in results and results.get('data_pattern') != 'constant':
             weights = results['weights']
             if hasattr(weights, '__iter__') and not isinstance(weights, str):
                 try:
