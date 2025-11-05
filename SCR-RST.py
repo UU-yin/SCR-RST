@@ -1909,7 +1909,7 @@ if data is not None and len(data) > 0:
             elif method == "四分位稳健统计法":
                 results = quartile_robust_algorithm(data, scheme=scheme_param)
             else:  # Q/Hampel法
-                results = q_hampel_robust_algorithm_hybrid(data, scheme=scheme_param)
+                results = q_hampel_procedure_iso13528(data, scheme=scheme_param)
 
             # === 新增：统一格式化Z比分为两位小数（仅用于展示和导出）===
             results['formatted_Z_scores'] = format_z_scores(results['Z_scores'])
@@ -2342,8 +2342,8 @@ if data is not None and len(data) > 0:
                     strict_results = quartile_robust_algorithm(data, scheme="strict")
                     presentation_results = quartile_robust_algorithm(data, scheme="presentation")
                 else:  # Q/Hampel法
-                    strict_results = q_hampel_robust_algorithm_hybrid(data, scheme="strict")
-                    presentation_results = q_hampel_robust_algorithm_hybrid(data, scheme="presentation")
+                    strict_results = q_hampel_procedure_iso13528(data, scheme="strict")
+                    presentation_results = q_hampel_procedure_iso13528(data, scheme="presentation")
                 
                 # 格式化Z比分为两位小数用于比较显示
                 strict_results['formatted_Z_scores'] = format_z_scores(strict_results['Z_scores'])
