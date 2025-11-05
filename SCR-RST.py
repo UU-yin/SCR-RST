@@ -1530,8 +1530,20 @@ def quartile_robust_algorithm(data, scheme="strict"):
 def hampel_estimator_iso13528(data, a=1.5, b=3.0, c=4.5, max_iter=100, tol=1e-8):
     """
     Hampel估计器实现，基于ISO 13528标准
+    
+    参数:
+        data: 输入数据数组
+        a, b, c: Hampel权重函数的阈值参数 (默认值来自ISO 13528)
+        max_iter: 最大迭代次数
+        tol: 收敛容忍度
+    
+    返回:
+        robust_mean: 稳健均值
+        weights: 最终权重向量
+        iterations: 实际迭代次数
+        converged: 是否收敛
     """
-    # 初始估计使用中位数
+    # 初始估计使用中位数[citation:1]
     current_estimate = np.median(data)
     n = len(data)
     weights = np.ones(n)
@@ -1543,15 +1555,15 @@ def hampel_estimator_iso13528(data, a=1.5, b=3.0, c=4.5, max_iter=100, tol=1e-8)
         # 计算MAD（中位数绝对偏差）
         mad = np.median(np.abs(residuals))
         
-        # 处理MAD为零的情况 - 按照ISO 13528标准直接返回中位数
+        # 处理MAD为零的情况
         if mad < 1e-12:
-            # 当MAD=0时，直接返回中位数估计（ISO 13528 7.2.2 注 3）
+            # 当MAD=0时，直接返回中位数估计[citation:1]
             return np.median(data), np.ones(n), iteration+1, True
         
-        # 标准化残差
+        # 标准化残差[citation:1]
         standardized_residuals = np.abs(residuals) / (1.4826 * mad)
         
-        # Hampel权重函数
+        # Hampel权重函数[citation:1]
         weights = np.zeros(n)
         for i, q in enumerate(standardized_residuals):
             if q <= a:
@@ -1577,6 +1589,12 @@ def hampel_estimator_iso13528(data, a=1.5, b=3.0, c=4.5, max_iter=100, tol=1e-8)
 def qn_estimator_iso13528(data):
     """
     Qn尺度估计器实现，基于ISO 13528标准
+    
+    参数:
+        data: 输入数据数组
+    
+    返回:
+        qn_scale: Qn稳健尺度估计
     """
     n = len(data)
     if n < 2:
@@ -1588,7 +1606,7 @@ def qn_estimator_iso13528(data):
         for j in range(i+1, n):
             pairwise_diffs.append(abs(data[i] - data[j]))
     
-    # 计算Qn统计量
+    # 计算Qn统计量[citation:1]
     h = n // 2 + 1
     k = h * (h - 1) // 2
     
@@ -1610,10 +1628,17 @@ def qn_estimator_iso13528(data):
     
     return 2.2219 * correction * qn_statistic
 
-def q_hampel_procedure_iso13528(data, scheme="strict"):
+def q_hampel_procedure_iso13528(data, scheme="strict", instrument_resolution=None):
     """
     完整的Q/Hampel程序，符合ISO 13528标准
-    修改：将噪声水平固定为0.336
+    
+    参数:
+        data: 输入数据
+        scheme: 计算方案 ("strict" 或 "presentation")
+        instrument_resolution: 仪器分辨率，用于处理MAD=0的情况
+    
+    返回:
+        dict: 包含所有统计量的字典
     """
     data = np.asarray(data, dtype=float)
     n = len(data)
@@ -1626,35 +1651,24 @@ def q_hampel_procedure_iso13528(data, scheme="strict"):
     
     # 3. 处理MAD ≈ 0的特殊情况
     if mad < 1e-12:
-        # MAD ≈ 0的情况，按照ISO 13528标准处理
+        if instrument_resolution is not None:
+            # 注入与仪器分辨率成比例的噪声
+            noise = np.random.uniform(-instrument_resolution/2, instrument_resolution/2, n)
+            perturbed_data = data + noise
+            robust_std = qn_estimator_iso13528(perturbed_data)
+        else:
+            # 使用Qn估计器（对扰动更稳健）
+            robust_std = qn_estimator_iso13528(data)
         
-        # 位置估计：直接使用中位数（不再迭代）
+        # 位置估计直接使用中位数
         robust_mean = initial_median
-        
-        # 使用固定的噪声水平 0.336
-        noise_level = 0.336
-        
-        # 使用固定随机种子确保结果可重现
-        np.random.seed(42)
-        noise = np.random.uniform(-noise_level/2, noise_level/2, n)
-        perturbed_data = data + noise
-        
-        # 计算Qn稳健标准差
-        robust_std = qn_estimator_iso13528(perturbed_data)
-        
-        mad_zero_handling = True
         weights = np.ones(n)
         iterations = 0
         converged = True
-        
-        special_note = f"检测到MAD≈0（平台状数据），按照ISO 13528标准处理：使用中位数作为稳健平均值，使用固定噪声水平(±{noise_level/2:.3f})的Qn方法计算稳健标准差。"
-        
     else:
         # 正常Hampel流程
         robust_mean, weights, iterations, converged = hampel_estimator_iso13528(data)
         robust_std = qn_estimator_iso13528(data)
-        mad_zero_handling = False
-        special_note = "正常Q/Hampel流程"
     
     # 保存原始计算值（用于严格计算方案）
     original_mean = robust_mean
@@ -1668,14 +1682,10 @@ def q_hampel_procedure_iso13528(data, scheme="strict"):
         # 规范展示方案：使用四舍五入后的均值和标准差
         robust_mean = round(robust_mean, decimal_places)
         robust_std = round(robust_std, 3)
-        formatting_note = f"使用规范展示方案：稳健平均值({robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。"
+        formatting_note = f"使用规范展示方案：稳健平均值({robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分计算使用格式化后的均值和标准差，但计算过程中不进行四舍五入。"
     else:
         # 严格计算方案：使用原始计算值
-        formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。"
-    
-    # 添加特殊处理说明（如果适用）
-    if mad_zero_handling:
-        formatting_note += " " + special_note
+        formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。Z比分计算过程中不进行四舍五入。"
     
     # 计算控制限和Z分数 - 使用格式化后的值
     lower_limit = robust_mean - 3 * robust_std
@@ -1689,13 +1699,13 @@ def q_hampel_procedure_iso13528(data, scheme="strict"):
     # 计算Z分数 - 使用格式化后的值
     Z_scores = (data - robust_mean) / robust_std
     
-    # 返回完整结果
+    # === 修复：确保返回数据结构与其他方法一致 ===
     return {
         'robust_mean': float(robust_mean) if not np.isnan(robust_mean) else 0.0,
         'robust_std': float(robust_std) if not np.isnan(robust_std) else 0.0,
         'clean_data': clean_data,
         'outliers': outliers,
-        'Z_scores': Z_scores.tolist(),
+        'Z_scores': Z_scores.tolist(),  # 统一使用'Z_scores'键名
         'iterations': iterations,
         'converged': converged,
         'lower_limit': float(lower_limit) if not np.isnan(lower_limit) else 0.0,
@@ -1703,15 +1713,17 @@ def q_hampel_procedure_iso13528(data, scheme="strict"):
         'initial_median': float(initial_median) if not np.isnan(initial_median) else 0.0,
         'mad': float(mad) if not np.isnan(mad) else 0.0,
         'weights': weights.tolist(),
-        'method_name': 'Q/Hampel法',
+        'method_name': 'Q/Hampel法',  # 统一方法名称
         'decimal_places': decimal_places,
         'calculation_scheme': scheme,
         'formatting_note': formatting_note,
-        'original_mean': float(original_mean) if not np.isnan(original_mean) else 0.0,
-        'original_std': float(original_std) if not np.isnan(original_std) else 0.0,
-        'mad_zero_handling': mad_zero_handling,
-        'noise_level_used': noise_level if mad_zero_handling else None
+        'original_mean': float(original_mean) if not np.isnan(original_mean) else 0.0,  # 保存原始计算值
+        'original_std': float(original_std) if not np.isnan(original_std) else 0.0  # 保存原始计算值
     }
+
+# =============================================
+# 修复：添加Q/Hampel法的主函数，确保方法名称一致
+# =============================================
 
 def q_hampel_algorithm(data, scheme="strict"):
     """
