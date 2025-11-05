@@ -1527,15 +1527,14 @@ def quartile_robust_algorithm(data, scheme="strict"):
     }
 
 def q_hampel_robust_algorithm(data, scheme="strict"):
-    """Q/Hampel稳健统计方法 - 支持两种计算方案，包含ISO Qn异常情况处理"""
+    """Q/Hampel稳健统计方法 - 支持两种计算方案，包含改进的ISO Qn异常情况处理"""
     n = len(data)
     median = np.median(data)
     
-    # 使用ISO Qn方法计算稳健位置和尺度
-    def iso_qn(x):
+    # 改进的ISO Qn方法，处理标准差为0的情况
+    def improved_iso_qn(x):
         """
-        ISO 16269-4:2010 Qn估计器
-        配对差 → 25%分位数 → ×2.2219
+        改进的ISO Qn估计器，处理标准差为0的情况
         返回：稳健位置（中位数），稳健尺度（Qn）
         """
         x = np.asarray(x, float)
@@ -1556,9 +1555,25 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
 
         # 2. 25%分位数
         q25 = np.percentile(pdiff, 25)
-
-        # 3. 一致性因子
-        qn = 2.2219 * q25
+        
+        # 3. 如果Q25为0，尝试使用50%分位数
+        if q25 == 0:
+            q50 = np.percentile(pdiff, 50)
+            if q50 == 0:
+                # 如果所有配对差都为0，尝试使用数据本身的变异性
+                unique_vals = np.unique(x)
+                if len(unique_vals) > 1:
+                    # 使用最小可检测差作为基础
+                    min_diff = np.min(np.diff(np.sort(unique_vals)))
+                    qn = min_diff / 2.0  # 经验因子
+                else:
+                    # 如果所有值完全相同，使用经验规则
+                    qn = 0.7  # 经验值，根据你的需求调整
+            else:
+                qn = 2.2219 * q50 * 1.5  # 调整因子
+        else:
+            # 3. 一致性因子
+            qn = 2.2219 * q25
 
         return float(np.median(x)), float(qn)
     
@@ -1569,7 +1584,13 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
             pairs.append(abs(data[i] - data[j]))
     
     if len(pairs) > 0:
-        q_std = np.median(pairs) / 1.0484
+        median_pairs = np.median(pairs)
+        # 如果配对差中位数为0，使用改进的ISO Qn方法
+        if median_pairs == 0:
+            iso_median, iso_qn_std = improved_iso_qn(data)
+            q_std = iso_qn_std
+        else:
+            q_std = median_pairs / 1.0484
     else:
         q_std = np.std(data, ddof=1)
     
@@ -1577,21 +1598,21 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
     max_iterations = 10
     tolerance = 1e-6
     
-    # 标志位，记录是否使用了ISO Qn方法
-    used_iso_qn = False
+    # 标志位，记录是否使用了改进的ISO Qn方法
+    used_improved_iso_qn = False
     iso_qn_note = ""
     
     for iteration in range(max_iterations):
         residuals = data - current_mean
         mad = np.median(np.abs(residuals))
         
-        # 处理MAD=0的特殊情况 - 使用ISO Qn方法
-        if mad == 0:
-            iso_median, iso_qn_std = iso_qn(data)
+        # 处理MAD=0或标准差过小的特殊情况 - 使用改进的ISO Qn方法
+        if mad == 0 or q_std < 1e-10:
+            iso_median, iso_qn_std = improved_iso_qn(data)
             current_mean = iso_median
             q_std = iso_qn_std
-            used_iso_qn = True
-            iso_qn_note = f"检测到MAD=0，使用ISO 16269-4:2010 Qn估计器替代传统Q/Hampel方法。稳健位置：{iso_median:.6f}，稳健尺度：{iso_qn_std:.6f}"
+            used_improved_iso_qn = True
+            iso_qn_note = f"检测到MAD=0或标准差过小，使用改进的ISO Qn估计器。稳健位置：{iso_median:.6f}，稳健尺度：{iso_qn_std:.6f}"
             break
             
         standardized_residuals = residuals / (1.4826 * mad)
@@ -1611,8 +1632,8 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
             
         current_mean = new_mean
     
-    # 如果使用了ISO Qn方法，重新计算Z比分和异常值
-    if used_iso_qn:
+    # 如果使用了改进的ISO Qn方法，重新计算Z比分和异常值
+    if used_improved_iso_qn:
         # 使用ISO Qn计算的稳健位置和尺度
         lower_limit = current_mean - 3 * q_std
         upper_limit = current_mean + 3 * q_std
@@ -1690,8 +1711,8 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         robust_mean = current_mean
         robust_std = q_std
     
-    # 如果使用了ISO Qn方法，在formatting_note中追加说明
-    if used_iso_qn:
+    # 如果使用了改进的ISO Qn方法，在formatting_note中追加说明
+    if used_improved_iso_qn:
         formatting_note = iso_qn_note + " " + formatting_note
     
     # === 修复：确保 Z_scores 在所有分支中都是安全的Python类型 ===
@@ -1703,7 +1724,7 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         safe_z_scores = [Z_scores] if Z_scores is not None else []
     
     # 确定使用的方法名称
-    method_name = 'ISO Qn法' if used_iso_qn else 'Q/Hampel法'
+    method_name = '改进的ISO Qn法' if used_improved_iso_qn else 'Q/Hampel法'
     
     # 确保返回标准Python类型
     return {
@@ -1721,7 +1742,7 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         'decimal_places': decimal_places,
         'original_mean': float(current_mean) if not np.isnan(current_mean) else 0.0,
         'original_std': float(q_std) if not np.isnan(q_std) else 0.0,
-        'used_iso_qn': used_iso_qn  # 新增字段，标识是否使用了ISO Qn方法
+        'used_iso_qn': used_improved_iso_qn  # 新增字段，标识是否使用了改进的ISO Qn方法
     }
 
 # =============================================
@@ -1887,10 +1908,22 @@ if data is not None and len(data) > 0:
         with col1:
             st.metric("稳健平均值", f"{results['robust_mean']:.6f}")
             st.metric("稳健标准差", f"{results['robust_std']:.6f}")
+            
+            # 显示方法说明，特别是改进的ISO Qn的情况
+            if results.get('used_iso_qn', False):
+                st.warning(f"⚠️ 使用 {results['method_name']} (检测到MAD=0或标准差过小)")
+            else:
+                st.info(f"📊 使用 {results['method_name']}")
+                
         with col2:
-            if 'iterations' in results:
+            # 迭代次数只在传统Q/Hampel方法且有迭代时显示
+            if 'iterations' in results and not results.get('used_iso_qn', False):
                 st.metric("迭代次数", results['iterations'])
             st.metric("离群值数量", len(results['outliers']))
+            
+            # 显示计算方案
+            scheme_display = "规范展示" if results.get('calculation_scheme') == "presentation" else "严格计算"
+            st.metric("计算方案", scheme_display)
         
         # 四分位法特有统计量
         if method == "四分位稳健统计法":
@@ -1905,113 +1938,131 @@ if data is not None and len(data) > 0:
             with col6:
                 st.metric("标准化四分位距(NIQR)", f"{results['niqr']:.6f}")
         
-        # =============================================                                                       
-        # 显示主要结果                                                                                        
-        # =============================================                                                       
-        col1, col2 = st.columns(2)                                                                            
-        with col1:                                                                                            
-            st.metric("稳健平均值", f"{results['robust_mean']:.6f}")                                          
-            st.metric("稳健标准差", f"{results['robust_std']:.6f}")                                           
-                                                                                                              
-            # 显示方法说明，特别是ISO Qn的情况                                                                
-            if results.get('used_iso_qn', False):                                                             
-                st.warning(f"⚠️ 使用 {results['method_name']} (检测到MAD=0)")                                 
-            else:                                                                                             
-                st.info(f"📊 使用 {results['method_name']}")                                                  
-                                                                                                              
-        with col2:                                                                                            
-            # 迭代次数只在传统Q/Hampel方法且有迭代时显示                                                      
-            if 'iterations' in results and not results.get('used_iso_qn', False):                             
-                st.metric("迭代次数", results['iterations'])                                                  
-            st.metric("离群值数量", len(results['outliers']))                                                 
-                                                                                                              
-            # 显示计算方案                                                                                    
-            scheme_display = "规范展示" if results.get('calculation_scheme') == "presentation" else "严格计算"
-            st.metric("计算方案", scheme_display)                                                             
-                                                                                                              
-        # 四分位法特有统计量                                                                                  
-        if method == "四分位稳健统计法":                                                                      
-            st.info("📊 **四分位统计量:**")                                                                   
-            col3, col4, col5, col6 = st.columns(4)                                                            
-            with col3:                                                                                        
-                st.metric("下四分位数(Q1)", f"{results['q1']:.6f}")                                           
-            with col4:                                                                                        
-                st.metric("上四分位数(Q3)", f"{results['q3']:.6f}")                                           
-            with col5:                                                                                        
-                st.metric("四分位距(IQR)", f"{results['iqr']:.6f}")                                           
-            with col6:                                                                                        
-                st.metric("标准化四分位距(NIQR)", f"{results['niqr']:.6f}")                                   
-                                                                                                              
-        # Q/Hampel法特有信息                                                                                  
-        if method == "Q/Hampel稳健统计法":                                                                    
-            st.info("🔧 **Q/Hampel统计量:**")                                                                 
-            col3, col4, col5 = st.columns(3)                                                                  
-            with col3:                                                                                        
-                # 显示原始计算值（与格式化值对比）                                                            
-                if results.get('calculation_scheme') == "presentation":                                       
-                    st.metric("原始计算均值", f"{results.get('original_mean', results['robust_mean']):.6f}")  
-                else:                                                                                         
-                    st.metric("稳健均值", f"{results['robust_mean']:.6f}")                                    
-            with col4:                                                                                        
-                if results.get('calculation_scheme') == "presentation":                                       
-                    st.metric("原始计算标准差", f"{results.get('original_std', results['robust_std']):.6f}")  
-                else:                                                                                         
-                    st.metric("稳健标准差", f"{results['robust_std']:.6f}")                                   
-            with col5:                                                                                        
-                st.metric("数据小数位数", results.get('decimal_places', '未知'))                              
-                                                                                                              
-        # =============================================                                                       
-        # 显示详细结果                                                                                        
-        # =============================================                                                       
-        st.subheader("📋 详细结果")                                                                           
-        st.write(f"**正常值范围**: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]")             
-                                                                                                              
-        # 收敛状态只在传统Q/Hampel方法时显示                                                                  
-        if 'converged' in results and not results.get('used_iso_qn', False):                                  
-            st.write(f"**收敛状态**: {'是' if results['converged'] else '否'}")                               
-                                                                                                              
-        # 显示格式化说明                                                                                      
-        if 'formatting_note' in results:                                                                      
-            st.info(f"💡 {results['formatting_note']}")                                                       
-                                                                                                              
-        # 离群值显示                                                                                          
-        if len(results['outliers']) > 0:                                                                      
-            outliers_list = results['outliers']                                                               
-            if hasattr(outliers_list, '__iter__') and not isinstance(outliers_list, str):                     
-                try:                                                                                          
-                    # 转换为浮点数列表并排序                                                                  
-                    outliers_list = [float(x) for x in outliers_list]                                         
-                    outliers_list = sorted(outliers_list)                                                     
-                    st.write(f"**离群值** ({len(outliers_list)}个): {outliers_list}")                         
-                except (ValueError, TypeError):                                                               
-                    st.write("**离群值**: [无法显示]")                                                        
-            else:                                                                                             
-                st.write("**离群值**: 无")                                                                    
-        else:                                                                                                 
-            st.success("✅ **离群值**: 无检测到离群值")                                                        
-                                                                                                              
-        # Z比分数分类统计（使用格式化后的Z比分）                                                              
-        # 注意：确保results中有Z_scores字段                                                                   
-        if 'Z_scores' in results and results['Z_scores'] is not None:                                         
-            try:                                                                                              
-                z_scores = np.array(results['Z_scores'])                                                      
-                z_scores_abs = np.abs(z_scores)                                                               
-                satisfactory = np.sum(z_scores_abs <= 2)                                                      
-                questionable = np.sum((z_scores_abs > 2) & (z_scores_abs <= 3))                               
-                unsatisfactory = np.sum(z_scores_abs > 3)                                                     
-                                                                                                              
-                st.write("**Z比分数分类**:")                                                                  
-                col1, col2, col3 = st.columns(3)                                                              
-                with col1:                                                                                    
-                    st.metric("满意 (|Z| ≤ 2)", f"{satisfactory} 个", delta=None)                            
-                with col2:                                                                                    
-                    st.metric("可疑 (2 < |Z| ≤ 3)", f"{questionable} 个", delta=None)                        
-                with col3:                                                                                    
-                    st.metric("不满意 (|Z| > 3)", f"{unsatisfactory} 个", delta=None)                         
-            except Exception as e:                                                                            
-                st.warning(f"无法计算Z比分分类: {str(e)}")                                                    
-        else:                                                                                                 
-            st.warning("Z比分数据不可用") 
+        # Q/Hampel法特有信息
+        if method == "Q/Hampel稳健统计法":
+            st.info("🔧 **Q/Hampel统计量:**")
+            col3, col4, col5, col6 = st.columns(4)
+            with col3:
+                # 显示原始计算值（与格式化值对比）
+                if results.get('calculation_scheme') == "presentation":
+                    st.metric("原始计算均值", f"{results.get('original_mean', results['robust_mean']):.6f}")
+                else:
+                    st.metric("稳健均值", f"{results['robust_mean']:.6f}")
+            with col4:
+                if results.get('calculation_scheme') == "presentation":
+                    st.metric("原始计算标准差", f"{results.get('original_std', results['robust_std']):.6f}")
+                else:
+                    st.metric("稳健标准差", f"{results['robust_std']:.6f}")
+            with col5:
+                st.metric("数据小数位数", results.get('decimal_places', '未知'))
+            with col6:
+                # 显示是否使用改进的ISO Qn方法
+                method_status = "改进ISO Qn" if results.get('used_iso_qn', False) else "标准方法"
+                st.metric("计算方法", method_status)
+        
+        # =============================================
+        # 显示详细结果
+        # =============================================
+        st.subheader("📋 详细结果")
+        st.write(f"**正常值范围**: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]")
+        
+        # 收敛状态只在传统Q/Hampel方法时显示
+        if 'converged' in results and not results.get('used_iso_qn', False):
+            st.write(f"**收敛状态**: {'是' if results['converged'] else '否'}")
+        
+        # 显示格式化说明
+        if 'formatting_note' in results:
+            # 根据是否使用改进的ISO Qn方法显示不同的图标
+            if results.get('used_iso_qn', False):
+                st.warning(f"⚠️ {results['formatting_note']}")
+            else:
+                st.info(f"💡 {results['formatting_note']}")
+        
+        # 离群值显示
+        if len(results['outliers']) > 0:
+            outliers_list = results['outliers']
+            if hasattr(outliers_list, '__iter__') and not isinstance(outliers_list, str):
+                try:
+                    # 转换为浮点数列表并排序
+                    outliers_list = [float(x) for x in outliers_list]
+                    outliers_list = sorted(outliers_list)
+                    
+                    # 分类显示离群值
+                    st.write(f"**离群值** ({len(outliers_list)}个):")
+                    
+                    # 计算每个离群值的Z比分
+                    robust_mean = results['robust_mean']
+                    robust_std = results['robust_std']
+                    
+                    # 按Z比分分类离群值
+                    questionable_outliers = []
+                    unsatisfactory_outliers = []
+                    
+                    for outlier in outliers_list:
+                        z_score = abs((outlier - robust_mean) / robust_std) if robust_std > 0 else float('inf')
+                        if 2 < z_score <= 3:
+                            questionable_outliers.append((outlier, z_score))
+                        elif z_score > 3:
+                            unsatisfactory_outliers.append((outlier, z_score))
+                    
+                    # 显示可疑离群值
+                    if questionable_outliers:
+                        st.write(f"  - 可疑离群值 (2<|Z|≤3): {[f'{val[0]} (Z={val[1]:.2f})' for val in questionable_outliers]}")
+                    
+                    # 显示不满意离群值
+                    if unsatisfactory_outliers:
+                        st.write(f"  - 不满意离群值 (|Z|>3): {[f'{val[0]} (Z={val[1]:.2f})' for val in unsatisfactory_outliers]}")
+                        
+                except (ValueError, TypeError):
+                    st.write("**离群值**: [无法显示]")
+            else:
+                st.write("**离群值**: 无")
+        else:
+            st.success("✅ **离群值**: 无检测到离群值")
+        
+        # Z比分数分类统计
+        if 'Z_scores' in results and results['Z_scores'] is not None:
+            try:
+                z_scores = np.array(results['Z_scores'])
+                z_scores_abs = np.abs(z_scores)
+                satisfactory = np.sum(z_scores_abs <= 2)
+                questionable = np.sum((z_scores_abs > 2) & (z_scores_abs <= 3))
+                unsatisfactory = np.sum(z_scores_abs > 3)
+                
+                st.write("**Z比分数分类**:")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    # 计算满意数据的百分比
+                    sat_percent = satisfactory/len(z_scores)*100 if len(z_scores) > 0 else 0
+                    st.metric("满意 (|Z| ≤ 2)", f"{satisfactory} 个", f"{sat_percent:.1f}%")
+                with col2:
+                    # 计算可疑数据的百分比
+                    quest_percent = questionable/len(z_scores)*100 if len(z_scores) > 0 else 0
+                    st.metric("可疑 (2 < |Z| ≤ 3)", f"{questionable} 个", f"{quest_percent:.1f}%")
+                with col3:
+                    # 计算不满意数据的百分比
+                    unsat_percent = unsatisfactory/len(z_scores)*100 if len(z_scores) > 0 else 0
+                    st.metric("不满意 (|Z| > 3)", f"{unsatisfactory} 个", f"{unsat_percent:.1f}%")
+                    
+                # 显示Z比分统计摘要
+                if len(z_scores) > 0:
+                    st.write(f"**Z比分统计**: 最小值={np.min(z_scores):.2f}, 最大值={np.max(z_scores):.2f}, 平均值={np.mean(z_scores_abs):.2f}")
+                    
+            except Exception as e:
+                st.warning(f"无法计算Z比分分类: {str(e)}")
+        else:
+            st.warning("Z比分数据不可用")
+        
+        # 显示权重信息（如果可用且有意义）
+        if 'weights' in results and not results.get('used_iso_qn', False):
+            weights = results['weights']
+            if hasattr(weights, '__iter__') and not isinstance(weights, str):
+                try:
+                    unique_weights = np.unique(np.round(weights, 2))
+                    if len(unique_weights) > 1:
+                        st.write(f"**权重分布**: {', '.join([f'{w:.2f}' for w in unique_weights])}")
+                except:
+                    pass  
         
         # =============================================
         # 数据可视化 - 使用格式化后的Z比分
