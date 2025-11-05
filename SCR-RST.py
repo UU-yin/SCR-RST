@@ -1569,9 +1569,6 @@ def identify_data_pattern(data, constant_threshold=0.3):
     else:
         return "varying", constant_ratio, mad_val
 
-import numpy as np
-from collections import Counter
-
 def detect_decimal_places(data):
     """检测数据的小数位数"""
     if not hasattr(data, '__iter__') or isinstance(data, (str, dict)):
@@ -1614,6 +1611,41 @@ def identify_data_pattern(data, constant_threshold=0.3):
     else:
         return "varying", constant_ratio, mad_val
 
+def identify_constant_regions(data, threshold=1e-6, min_constant_length=2):
+    """识别数据中的常数区域"""
+    constant_mask = np.zeros(len(data), dtype=bool)
+    
+    i = 0
+    while i < len(data):
+        j = i
+        while j < len(data) and abs(data[j] - data[i]) < threshold:
+            j += 1
+        
+        # 如果连续多个点相同，标记为常数区域
+        if j - i >= min_constant_length:
+            constant_mask[i:j] = True
+            i = j
+        else:
+            i += 1
+    
+    return constant_mask
+
+def compute_weights(standardized_residuals):
+    """计算Hampel权重"""
+    weights = np.ones_like(standardized_residuals)
+    abs_residuals = np.abs(standardized_residuals)
+    
+    # Hampel三段权重函数
+    mask1 = (abs_residuals > 1.5) & (abs_residuals <= 3.0)
+    mask2 = (abs_residuals > 3.0) & (abs_residuals <= 4.5)
+    mask3 = (abs_residuals > 4.5)
+    
+    weights[mask1] = 1.5 / abs_residuals[mask1]
+    weights[mask2] = 1.5 * (4.5 - abs_residuals[mask2]) / (4.5 - 3.0) / abs_residuals[mask2]
+    weights[mask3] = 0
+    
+    return weights
+
 def q_hampel_robust_algorithm_hybrid(data, scheme="strict", constant_threshold=0.3, fallback_method="iqr"):
     """
     Q/Hampel稳健统计方法 - 混合策略修正版
@@ -1654,7 +1686,7 @@ def handle_constant_data(data, scheme):
         q_std = 1e-6  # 最小标准差避免除零
     
     # 常数数据不需要迭代加权，直接使用中位数
-    current_mean = median
+    current_mean = median  # 确保使用中位数
     weights = np.ones_like(data)
     
     # 计算界限 - 对于常数数据使用宽松阈值
@@ -1668,7 +1700,7 @@ def handle_constant_data(data, scheme):
                          outliers_mask, weights, scheme, "常数数据模式 - 使用中位数作为稳健平均值")
 
 def handle_mixed_data(data, scheme, constant_threshold, fallback_method):
-    """处理混合数据 - 分层策略，始终使用中位数作为初始值"""
+    """处理混合数据 - 分层策略，始终使用中位数作为稳健平均值"""
     # 识别常数区域
     constant_mask = identify_constant_regions(data)
     varying_data = data[~constant_mask]
@@ -1680,14 +1712,31 @@ def handle_mixed_data(data, scheme, constant_threshold, fallback_method):
         # 如果没有变化数据，退回到常数处理
         return handle_constant_data(data, scheme)
     
-    # 对变化区域使用标准Q/Hampel方法，但始终使用中位数作为初始值
+    # 对变化区域使用标准Q/Hampel方法，但确保使用中位数
     varying_result = handle_varying_data(varying_data, scheme, fallback_method)
     
+    # 对于混合数据，我们使用整体数据的中位数作为最终的稳健平均值
+    overall_median = np.median(data)
+    
+    # 更新结果为整体中位数
+    varying_result['robust_mean'] = float(overall_median)
+    
+    # 重新计算Z比分和界限
+    varying_result['Z_scores'] = ((data - overall_median) / varying_result['robust_std']).tolist()
+    varying_result['lower_limit'] = float(overall_median - 3 * varying_result['robust_std'])
+    varying_result['upper_limit'] = float(overall_median + 3 * varying_result['robust_std'])
+    
+    # 重新计算异常值掩码
+    outliers_mask = (data < varying_result['lower_limit']) | (data > varying_result['upper_limit'])
+    varying_result['outliers_mask'] = outliers_mask.tolist()
+    varying_result['outliers'] = data[outliers_mask].tolist()
+    varying_result['clean_data'] = data[~outliers_mask].tolist()
+    
     # 合并结果
-    return merge_mixed_results(data, constant_mask, varying_result, scheme)
+    return merge_mixed_results(data, constant_mask, varying_result, scheme, overall_median)
 
 def handle_varying_data(data, scheme, fallback_method):
-    """处理变化数据 - 标准Q/Hampel方法，始终使用中位数作为初始值"""
+    """处理变化数据 - 标准Q/Hampel方法，始终使用中位数作为初始稳健平均值"""
     n = len(data)
     
     # 首先指定稳健平均值为数据中位数
@@ -1710,31 +1759,39 @@ def handle_varying_data(data, scheme, fallback_method):
     tolerance = 1e-6
     iteration_info = [f"初始稳健平均值（中位数）: {current_mean:.6f}"]
     
-    for iteration in range(max_iterations):
-        residuals = data - current_mean
-        mad = np.median(np.abs(residuals))
-        
-        # MAD=0保护策略
-        if mad == 0:
-            iteration_info.append(f"迭代{iteration+1}: MAD=0，使用回退策略")
-            # 当MAD=0时，保持中位数作为稳健平均值
-            weights = np.ones_like(data)
-            break
-            
-        standardized_residuals = residuals / (1.4826 * mad)
-        weights = compute_weights(standardized_residuals)
-        
-        new_mean = np.sum(weights * data) / np.sum(weights)
-        
-        iteration_info.append(f"迭代{iteration+1}: 均值={new_mean:.6f}, MAD={mad:.6f}")
-        
-        if abs(new_mean - current_mean) < tolerance:
-            iteration_info.append(f"收敛于迭代{iteration+1}")
-            break
-            
-        current_mean = new_mean
+    # 检查数据是否接近常数
+    if np.std(data) < 1e-6 or np.max(np.abs(data - median)) < 1e-6:
+        # 如果数据非常接近常数，直接使用中位数，不进行迭代
+        iteration_info.append("数据接近常数，直接使用中位数作为稳健平均值")
+        weights = np.ones_like(data)
     else:
-        iteration_info.append(f"达到最大迭代次数{max_iterations}")
+        # 正常迭代过程
+        for iteration in range(max_iterations):
+            residuals = data - current_mean
+            mad = np.median(np.abs(residuals))
+            
+            # MAD=0保护策略
+            if mad == 0:
+                iteration_info.append(f"迭代{iteration+1}: MAD=0，使用中位数作为稳健平均值")
+                # 当MAD=0时，保持中位数作为稳健平均值
+                weights = np.ones_like(data)
+                current_mean = median  # 确保使用中位数
+                break
+                
+            standardized_residuals = residuals / (1.4826 * mad)
+            weights = compute_weights(standardized_residuals)
+            
+            new_mean = np.sum(weights * data) / np.sum(weights)
+            
+            iteration_info.append(f"迭代{iteration+1}: 均值={new_mean:.6f}, MAD={mad:.6f}")
+            
+            if abs(new_mean - current_mean) < tolerance:
+                iteration_info.append(f"收敛于迭代{iteration+1}")
+                break
+                
+            current_mean = new_mean
+        else:
+            iteration_info.append(f"达到最大迭代次数{max_iterations}")
     
     # 计算最终界限
     lower_limit = current_mean - 3 * q_std
@@ -1746,43 +1803,8 @@ def handle_varying_data(data, scheme, fallback_method):
     result['iteration_info'] = iteration_info
     return result
 
-def identify_constant_regions(data, threshold=1e-6, min_constant_length=2):
-    """识别数据中的常数区域"""
-    constant_mask = np.zeros(len(data), dtype=bool)
-    
-    i = 0
-    while i < len(data):
-        j = i
-        while j < len(data) and abs(data[j] - data[i]) < threshold:
-            j += 1
-        
-        # 如果连续多个点相同，标记为常数区域
-        if j - i >= min_constant_length:
-            constant_mask[i:j] = True
-            i = j
-        else:
-            i += 1
-    
-    return constant_mask
-
-def compute_weights(standardized_residuals):
-    """计算Hampel权重"""
-    weights = np.ones_like(standardized_residuals)
-    abs_residuals = np.abs(standardized_residuals)
-    
-    # Hampel三段权重函数
-    mask1 = (abs_residuals > 1.5) & (abs_residuals <= 3.0)
-    mask2 = (abs_residuals > 3.0) & (abs_residuals <= 4.5)
-    mask3 = (abs_residuals > 4.5)
-    
-    weights[mask1] = 1.5 / abs_residuals[mask1]
-    weights[mask2] = 1.5 * (4.5 - abs_residuals[mask2]) / (4.5 - 3.0) / abs_residuals[mask2]
-    weights[mask3] = 0
-    
-    return weights
-
-def merge_mixed_results(data, constant_mask, varying_result, scheme):
-    """合并混合数据的结果"""
+def merge_mixed_results(data, constant_mask, varying_result, scheme, overall_median):
+    """合并混合数据的结果 - 使用整体中位数"""
     # 创建完整数据的掩码和权重
     full_outliers_mask = np.zeros(len(data), dtype=bool)
     full_weights = np.ones(len(data))
@@ -1810,14 +1832,14 @@ def merge_mixed_results(data, constant_mask, varying_result, scheme):
     outliers_list = data[full_outliers_mask].tolist()
     clean_data_list = data[~full_outliers_mask].tolist()
     
-    # 计算Z比分
-    robust_mean = varying_result['robust_mean']
+    # 计算Z比分 - 使用整体中位数
+    robust_mean = overall_median
     robust_std = varying_result['robust_std']
     Z_scores = (data - robust_mean) / robust_std
     
     # 格式化说明
     formatting_note = (f"混合数据模式：检测到{np.sum(constant_mask)}个常数区域点和{len(varying_indices)}个变化区域点。"
-                      f"变化区域使用Q/Hampel方法（以中位数作为初始值），常数区域使用中位数作为代表值。")
+                      f"使用整体数据中位数({overall_median})作为稳健平均值。")
     
     return {
         'robust_mean': float(robust_mean),
@@ -1826,15 +1848,16 @@ def merge_mixed_results(data, constant_mask, varying_result, scheme):
         'outliers': outliers_list,
         'Z_scores': Z_scores.tolist(),
         'method_name': 'Q/Hampel混合法',
-        'lower_limit': float(varying_result['lower_limit']),
-        'upper_limit': float(varying_result['upper_limit']),
+        'lower_limit': float(overall_median - 3 * robust_std),
+        'upper_limit': float(overall_median + 3 * robust_std),
         'weights': full_weights.tolist(),
         'formatting_note': formatting_note,
         'calculation_scheme': scheme,
         'decimal_places': varying_result['decimal_places'],
         'data_pattern': 'mixed',
         'constant_ratio': np.sum(constant_mask) / len(data),
-        'outliers_mask': full_outliers_mask.tolist()
+        'outliers_mask': full_outliers_mask.tolist(),
+        'overall_median': float(overall_median)  # 添加整体中位数信息
     }
 
 def format_results(data, current_mean, q_std, lower_limit, upper_limit, outliers_mask, weights, scheme, pattern_note):
@@ -1882,22 +1905,22 @@ def format_results(data, current_mean, q_std, lower_limit, upper_limit, outliers
 # 测试函数
 def test_hybrid_method():
     """测试混合方法"""
-    # 创建测试数据：混合数据场景
-    test_data = np.concatenate([
-        np.full(15, 10.0),           # 常数段
-        np.random.normal(12, 1, 20), # 变化段
-        np.full(10, 10.0),           # 常数段  
-        [100, -50],                  # 明显异常
-        np.random.normal(11, 0.5, 18) # 变化段
+    # 创建测试数据：使用您提供的具体数据
+    test_data = np.array([
+        -21, -20, -20, -20, -20, -20, -20, -20, -20, -20, -20, -20, -20, -20, -20,
+        -20, -20, -20, -20, -20, -20, -20, -20, -20, -20, -20, -20, -20, -20, -19,
+        -19, -19, -19, -19, -19, -19, -19, -19, -19, -19, -19, -19, -19, -19, -19,
+        -19, -19, -19, -19, -19, -19, -19, -19, -19, -19, -19, -19, -19, -19, -19,
+        -19, -19, -19, -19, -18
     ])
     
     print("=== 测试混合Q/Hampel方法 ===")
     result = q_hampel_robust_algorithm_hybrid(test_data, scheme="strict")
     
     print(f"数据模式: {result['data_pattern']}")
-    print(f"初始中位数: {np.median(test_data):.3f}")
-    print(f"最终稳健均值: {result['robust_mean']:.3f}")
-    print(f"稳健标准差: {result['robust_std']:.3f}")
+    print(f"数据中位数: {np.median(test_data)}")
+    print(f"最终稳健均值: {result['robust_mean']}")
+    print(f"稳健标准差: {result['robust_std']:.6f}")
     print(f"检测到异常值: {len(result['outliers'])}个")
     print(f"异常值: {result['outliers']}")
     print(f"说明: {result['formatting_note']}")
@@ -1907,21 +1930,6 @@ def test_hybrid_method():
         print("\n迭代过程:")
         for info in result['iteration_info']:
             print(f"  {info}")
-    
-    # 可视化
-    import matplotlib.pyplot as plt
-    plt.figure(figsize=(12, 6))
-    plt.plot(test_data, 'b.-', label='原始数据', alpha=0.7)
-    outliers_indices = [i for i, is_outlier in enumerate(result['outliers_mask']) if is_outlier]
-    plt.scatter(outliers_indices, test_data[outliers_indices], 
-                color='red', s=50, zorder=5, label='异常值')
-    plt.axhline(y=result['robust_mean'], color='green', linestyle='--', label='稳健均值')
-    plt.axhline(y=np.median(test_data), color='orange', linestyle=':', label='数据中位数')
-    plt.axhline(y=result['lower_limit'], color='gray', linestyle=':', label='界限')
-    plt.axhline(y=result['upper_limit'], color='gray', linestyle=':')
-    plt.legend()
-    plt.title('混合Q/Hampel方法异常检测结果')
-    plt.show()
     
     return result
 
