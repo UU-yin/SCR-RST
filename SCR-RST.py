@@ -748,13 +748,17 @@ st.markdown("""
 支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
 """)
 
-# 侧边栏 - 参数设置和方法选择
+# =============================================
+# 修改侧边栏方法选择
+# =============================================
+
+# 在侧边栏 - 参数设置和方法选择部分
 st.sidebar.header("⚙️ 分析设置")
 
-# 方法选择
+# 方法选择 - 添加Z比分计算模块
 method = st.sidebar.selectbox(
     "选择统计方法:",
-    ["迭代稳健统计法", "四分位稳健统计法", "Q/Hampel法"],
+    ["迭代稳健统计法", "四分位稳健统计法", "Q/Hampel法", "Z比分计算模块"],
     help="选择适合数据特征的稳健统计方法"
 )
 
@@ -783,6 +787,22 @@ elif method == "四分位稳健统计法":
     st.sidebar.info("四分位法使用固定参数计算")
 elif method == "Q/Hampel法":
     st.sidebar.info("Q/Hampel法使用标准参数计算")
+elif method == "Z比分计算模块":
+    # Z比分计算模块的特殊参数
+    st.sidebar.info("Z比分计算模块：直接输入稳健统计量")
+    
+    # 稳健统计量输入
+    robust_mean_input = st.sidebar.text_input(
+        "稳健平均值:",
+        value="54.4",
+        help="请输入稳健平均值"
+    )
+    
+    robust_std_input = st.sidebar.text_input(
+        "稳健标准差:",
+        value="0.3",
+        help="请输入稳健标准差"
+    )
 
 # 数据输入方式选择
 input_method = st.radio("数据输入方式:", 
@@ -1528,6 +1548,110 @@ def quartile_robust_algorithm(data, scheme="strict"):
         'original_std': float(niqr) if not np.isnan(niqr) else 0.0  # 保存原始计算值
     }
 
+# =============================================
+# 新增：Z比分计算方法
+# =============================================
+
+def z_score_calculation_algorithm(data, robust_mean, robust_std, scheme="strict"):
+    """
+    Z比分计算方法 - 使用用户提供的稳健统计量
+    """
+    try:
+        # 确保数据是numpy数组
+        data_array = np.asarray(data, dtype=float)
+        
+        # 验证稳健统计量
+        try:
+            robust_mean_val = float(robust_mean)
+        except ValueError:
+            raise ValueError("稳健平均值格式错误，请输入有效的数字")
+        
+        try:
+            robust_std_val = float(robust_std)
+            if robust_std_val <= 0:
+                raise ValueError("稳健标准差必须大于0")
+        except ValueError:
+            raise ValueError("稳健标准差格式错误，请输入有效的数字")
+        
+        # 计算正常值范围
+        lower_limit = robust_mean_val - 3 * robust_std_val
+        upper_limit = robust_mean_val + 3 * robust_std_val
+        
+        # 识别离群值
+        outliers_mask = (data_array < lower_limit) | (data_array > upper_limit)
+        
+        # 分离正常数据和离群值
+        outliers_list = []
+        clean_data_list = []
+        
+        for i, value in enumerate(data_array):
+            if outliers_mask[i]:
+                outliers_list.append(float(value))
+            else:
+                clean_data_list.append(float(value))
+        
+        # 计算Z比分
+        if robust_std_val > 0:
+            Z_scores = ((data_array - robust_mean_val) / robust_std_val).tolist()
+        else:
+            Z_scores = [0.0] * len(data_array)
+        
+        # 检测数据的小数位数
+        decimal_places = detect_decimal_places(data_array)
+        
+        # 根据选择的方案进行格式化
+        if scheme == "presentation":
+            # 规范展示方案
+            formatted_robust_mean = round(robust_mean_val, decimal_places)
+            formatted_robust_std = round(robust_std_val, 3)
+            
+            # 使用格式化后的值计算Z比分（计算过程不四舍五入）
+            Z_scores = (data_array - formatted_robust_mean) / formatted_robust_std
+            
+            formatting_note = f"使用规范展示方案：稳健平均值({formatted_robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分计算使用格式化后的均值和标准差，但计算过程中不进行四舍五入。"
+            
+            robust_mean_display = formatted_robust_mean
+            robust_std_display = formatted_robust_std
+            
+        else:
+            # 严格计算方案
+            formatted_robust_mean = robust_mean_val
+            formatted_robust_std = robust_std_val
+            
+            # 使用原始计算值计算Z比分
+            Z_scores = (data_array - robust_mean_val) / robust_std_val
+            
+            formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。Z比分计算过程中不进行四舍五入。"
+            
+            robust_mean_display = robust_mean_val
+            robust_std_display = robust_std_val
+        
+        # 确保Z_scores是安全的Python类型
+        safe_z_scores = Z_scores.tolist() if hasattr(Z_scores, 'tolist') else [float(z) for z in Z_scores]
+        
+        # 格式化Z比分为两位小数用于显示
+        formatted_Z_scores = [format_z_score_display(z) for z in safe_z_scores]
+        
+        return {
+            'robust_mean': float(robust_mean_display),
+            'robust_std': float(robust_std_display),
+            'clean_data': clean_data_list,
+            'outliers': outliers_list,
+            'Z_scores': safe_z_scores,
+            'formatted_Z_scores': formatted_Z_scores,
+            'method_name': 'Z比分计算模块',
+            'lower_limit': float(lower_limit),
+            'upper_limit': float(upper_limit),
+            'formatting_note': formatting_note,
+            'calculation_scheme': scheme,
+            'decimal_places': decimal_places,
+            'original_mean': float(robust_mean_val),
+            'original_std': float(robust_std_val)
+        }
+        
+    except Exception as e:
+        raise e
+
 def Q_method_standard_deviation(data):
     """
     修复后的Q方法计算稳健标准差 - 基于ISO 13528:2022 C.5.2.2
@@ -2182,6 +2306,8 @@ if data is not None and len(data) > 0:
         # =============================================
         # 执行稳健统计分析
         # =============================================
+        # 根据选择的方法执行分析
+
         with st.spinner(f"正在执行{method}分析..."):
             # 将方案选择转换为参数
             scheme_param = "presentation" if calculation_scheme == "规范展示方案" else "strict"
@@ -2191,12 +2317,19 @@ if data is not None and len(data) > 0:
                 results = iterative_robust_algorithm(data, max_iterations=max_iter, k=k_value, scheme=scheme_param)
             elif method == "四分位稳健统计法":
                 results = quartile_robust_algorithm(data, scheme=scheme_param)
-            else:  # Q/Hampel法 - 使用修复后的函数
+            elif method == "Q/Hampel法":
                 results = q_hampel_robust_algorithm(data, scheme=scheme_param)
+            elif method == "Z比分计算模块":
+                # 使用Z比分计算方法
+                if 'robust_mean_input' not in locals() or 'robust_std_input' not in locals():
+                    st.error("❌ 请先在侧边栏输入稳健平均值和稳健标准差")
+                    st.stop()
+                
+                results = z_score_calculation_algorithm(data, robust_mean_input, robust_std_input, scheme=scheme_param)
 
-            # === 新增：统一格式化Z比分为两位小数（仅用于展示和导出）===
+            # 统一格式化Z比分为两位小数（仅用于展示和导出）
             results['formatted_Z_scores'] = format_z_scores(results['Z_scores'])
-        
+
         # =============================================
         # 显示计算方案说明
         # =============================================
@@ -2208,23 +2341,19 @@ if data is not None and len(data) > 0:
             else:
                 st.success("严格计算方案确保计算精度，Z比分计算过程中不进行四舍五入")
         
-        # =============================================
         # 显示主要结果
-        # =============================================
         col1, col2 = st.columns(2)
         with col1:
             st.metric("稳健平均值", f"{results['robust_mean']:.6f}")
             st.metric("稳健标准差", f"{results['robust_std']:.6f}")
             
-            # 显示方法说明，基于ISO 13528标准
-            if results.get('mad', 1) < 1e-12:  # MAD接近0的情况
-                st.warning(f"⚠️ {results['method_name']} (MAD≈0，使用ISO 13528特殊处理)")
-            else:
-                st.info(f"📊 {results['method_name']}")
+            # 显示方法说明
+            st.info(f"📊 {results['method_name']}")
                 
         with col2:
-            # 显示迭代信息
-            st.metric("迭代次数", results.get('iterations', 0))
+            # 显示迭代信息（如果可用）
+            if 'iterations' in results:
+                st.metric("迭代次数", results['iterations'])
             st.metric("离群值数量", len(results['outliers']))
             
             # 显示计算方案
@@ -2263,24 +2392,14 @@ if data is not None and len(data) > 0:
                 st.metric("数据小数位数", results.get('decimal_places', '未知'))
         
         # =============================================
-        # 显示详细结果
+        # 显示详细结果 - 使用原有模块
         # =============================================
         st.subheader("📋 详细结果")
         st.write(f"**正常值范围**: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]")
         
-        # 显示MAD状态信息
-        mad_value = results.get('mad', 1)
-        if mad_value < 1e-12:
-            st.write(f"**MAD状态**: ≈0 (使用ISO 13528特殊处理)")
-        else:
-            st.write(f"**MAD值**: {mad_value:.6e}")
-        
         # 显示格式化说明
         if 'formatting_note' in results:
-            if results.get('mad', 1) < 1e-12:
-                st.warning(f"⚠️ {results['formatting_note']}")
-            else:
-                st.info(f"💡 {results['formatting_note']}")
+            st.info(f"💡 {results['formatting_note']}")
         
         # 离群值显示
         if len(results['outliers']) > 0:
@@ -2324,25 +2443,8 @@ if data is not None and len(data) > 0:
         else:
             st.success("✅ **离群值**: 无检测到离群值")
         
-        # Z比分数分类统计 - 修复键名问题
-        z_scores_data = None
-        
-        # 尝试获取Z比分数据，兼容多种可能的键名
-        if 'z_scores' in results and results['z_scores'] is not None:
-            z_scores_data = results['z_scores']
-        elif 'Z_scores' in results and results['Z_scores'] is not None:
-            z_scores_data = results['Z_scores']
-        # 如果没有Z比分数据，但需要计算，可以从原始数据和稳健统计量计算
-        elif 'clean_data' in results and len(results['clean_data']) > 0:
-            try:
-                # 从清洁数据计算Z比分
-                clean_data = np.array(results['clean_data'])
-                robust_mean = results['robust_mean']
-                robust_std = results['robust_std']
-                if robust_std > 0:
-                    z_scores_data = ((clean_data - robust_mean) / robust_std).tolist()
-            except Exception as e:
-                st.warning(f"无法从清洁数据计算Z比分: {str(e)}")
+        # Z比分数分类统计
+        z_scores_data = results['Z_scores']
         
         if z_scores_data is not None:
             try:
@@ -2392,14 +2494,11 @@ if data is not None and len(data) > 0:
                     pass  
         
         # =============================================
-        # 数据可视化 - 使用格式化后的Z比分
+        # 数据可视化 - 使用原有的可视化模块
         # =============================================
         st.subheader("数据可视化")
         
-        # 添加计算方案信息到图表
-        scheme_info = "（规范展示方案）" if calculation_scheme == "规范展示方案" else "（严格计算方案）"
-        
-        # 创建数据框用于可视化 - 添加全面的类型安全
+        # 创建数据框用于可视化 - 使用原有的逻辑
         try:
             if input_method == "带编号数据输入" and st.session_state.label_data_pairs:
                 # 使用两列数据的原始标签
@@ -2479,7 +2578,7 @@ if data is not None and len(data) > 0:
             try:
                 set_chinese_font()
                 
-                # 根据Z值进行分类 - 修复分类函数
+                # 根据Z值进行分类 - 使用原有的分类函数
                 def classify_data(row):
                     try:
                         z_score = float(row['Z_Score'])
@@ -2502,7 +2601,7 @@ if data is not None and len(data) > 0:
                     df_sorted = df_clean.copy()
                     st.warning("数据排序失败，使用原始顺序")
             
-                # 创建Z值柱状图
+                # 创建Z值柱状图 - 使用原有的图表创建逻辑
                 chart_height = max(10, len(df_sorted) * 0.4)
                 fig, ax = plt.subplots(figsize=(14, chart_height))
             
@@ -2615,9 +2714,9 @@ if data is not None and len(data) > 0:
                 st.info("这可能是因为数据格式问题，请检查输入数据的有效性")
         
         # =============================================
-        # 方案比较功能
+        # 方案比较功能 - 使用原有模块
         # =============================================
-        if show_scheme_comparison:  # 使用侧边栏定义的变量
+        if show_scheme_comparison and method != "Z比分计算模块":  # Z比分计算模块不支持方案比较
             st.markdown("---")
             st.subheader("🔍 计算方案对比")
             
@@ -2629,7 +2728,7 @@ if data is not None and len(data) > 0:
                 elif method == "四分位稳健统计法":
                     strict_results = quartile_robust_algorithm(data, scheme="strict")
                     presentation_results = quartile_robust_algorithm(data, scheme="presentation")
-                else:  # Q/Hampel法 - 使用修复后的函数
+                else:  # Q/Hampel法
                     strict_results = q_hampel_robust_algorithm(data, scheme="strict")
                     presentation_results = q_hampel_robust_algorithm(data, scheme="presentation")
                 
@@ -2672,7 +2771,7 @@ if data is not None and len(data) > 0:
             """)
         
         # =============================================
-        # 导出结果模块 - 使用格式化后的Z比分
+        # 导出结果模块 - 使用原有的导出模块
         # =============================================
         st.subheader("💾 导出结果")
         
@@ -2726,7 +2825,7 @@ if data is not None and len(data) > 0:
             # 其他输入方式：使用自动生成的三位数字标签
             valid_data_count = 0
             
-            # 修复：使用正确的原始数据源
+            # 使用正确的原始数据源
             if current_original_data:
                 for i, value in enumerate(current_original_data):
                     original_label = f"{str(i+1).zfill(3)}"  # 001, 002, ...
@@ -2936,7 +3035,7 @@ Z比分数分类（仅有效数据）:
         else:
             report += "无"
         
-        # 创建多格式导出选项
+        # 创建多格式导出选项 - 使用原有的导出模块
         export_col1, export_col2, export_col3, export_col4 = st.columns(4)
         
         with export_col1:
