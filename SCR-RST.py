@@ -1527,209 +1527,6 @@ def quartile_robust_algorithm(data, scheme="strict"):
         'original_std': float(niqr) if not np.isnan(niqr) else 0.0  # 保存原始计算值
     }
 
-def qn_estimator_iso13528_improved(data):
-    """
-    改进的Qn尺度估计器，基于ISO 13528标准和Rousseeuw & Croux (1993)的精确实现
-    """
-    n = len(data)
-    if n < 2:
-        return 0.0
-    
-    # 计算所有点对之间的绝对差
-    pairwise_diffs = []
-    for i in range(n):
-        for j in range(i+1, n):
-            pairwise_diffs.append(abs(data[i] - data[j]))
-    
-    # 计算Qn统计量
-    h = n // 2 + 1
-    k = h * (h - 1) // 2
-    
-    # 找到第k个最小的绝对差
-    pairwise_diffs_sorted = np.sort(pairwise_diffs)
-    qn_statistic = pairwise_diffs_sorted[k-1] if k <= len(pairwise_diffs_sorted) else pairwise_diffs_sorted[-1]
-    
-    # 更精确的校正因子（基于Rousseeuw & Croux, 1993）
-    # 对于小样本使用精确值，大样本使用渐近近似
-    correction_factors = {
-        2: 0.399, 3: 0.994, 4: 0.512, 5: 0.844, 
-        6: 0.611, 7: 0.857, 8: 0.669, 9: 0.872, 
-        10: 0.720, 11: 0.889, 12: 0.764, 13: 0.906,
-        14: 0.791, 15: 0.918, 16: 0.822, 17: 0.927,
-        18: 0.839, 19: 0.937, 20: 0.860, 21: 0.945,
-        22: 0.873, 23: 0.952, 24: 0.884, 25: 0.959
-    }
-    
-    if n <= 25:
-        correction = correction_factors.get(n, 1.0)
-    else:
-        # 大样本校正因子
-        if n % 2 == 0:
-            correction = n / (n + 3.8)
-        else:
-            correction = n / (n + 1.4)
-    
-    return 2.2219 * correction * qn_statistic
-
-def estimate_instrument_resolution_improved(data):
-    """
-    改进的仪器分辨率估计
-    基于数据的变化模式推断最小刻度
-    """
-    # 将数据转换为numpy数组
-    data_array = np.array(data)
-    
-    # 计算相邻数据的差值
-    diffs = np.diff(np.sort(data_array))
-    
-    # 过滤掉零差值
-    non_zero_diffs = diffs[diffs > 0]
-    
-    if len(non_zero_diffs) > 0:
-        # 使用最小非零差值作为分辨率估计
-        resolution = np.min(non_zero_diffs)
-    else:
-        # 如果没有非零差值，使用数据的小数位数
-        decimal_places = []
-        for value in data:
-            if isinstance(value, (int, float)) and not np.isnan(value):
-                str_value = str(value)
-                if '.' in str_value:
-                    decimal_part = str_value.split('.')[1].rstrip('0')
-                    decimal_places.append(len(decimal_part))
-                else:
-                    decimal_places.append(0)
-        
-        if decimal_places:
-            max_decimal = max(decimal_places)
-            resolution = 10 ** (-max_decimal)
-        else:
-            resolution = 0.1  # 默认分辨率
-    
-    return resolution
-
-def q_hampel_procedure_iso13528_improved(data, scheme="strict", instrument_resolution=None, target_std=None):
-    """
-    改进的Q/Hampel程序，更精确地处理MAD=0的情况
-    """
-    data = np.asarray(data, dtype=float)
-    n = len(data)
-    
-    # 1. 初始稳健位置估计 (中位数)
-    initial_median = np.median(data)
-    
-    # 2. 计算MAD
-    mad = np.median(np.abs(data - initial_median))
-    
-    # 3. 处理MAD ≈ 0的特殊情况
-    if mad < 1e-12:
-        # MAD ≈ 0的情况，按照ISO 13528标准处理
-        
-        # 位置估计：直接使用中位数（不再迭代）
-        robust_mean = initial_median
-        
-        # 尺度估计：使用改进的噪声注入方法
-        if instrument_resolution is None:
-            instrument_resolution = estimate_instrument_resolution_improved(data)
-        
-        # 如果提供了目标标准差，调整噪声水平以达到目标值
-        if target_std is not None:
-            # 根据目标标准差计算所需的噪声水平
-            # 经验公式：噪声水平 ≈ 目标标准差 / 3
-            target_noise_level = target_std / 3.0
-            # 确保噪声水平不超过仪器分辨率
-            noise_level = min(target_noise_level, instrument_resolution)
-        else:
-            # 使用仪器分辨率作为噪声水平
-            noise_level = instrument_resolution
-        
-        # 使用更稳定的噪声注入方法
-        # 生成确定性噪声（避免随机性影响）
-        np.random.seed(42)  # 固定随机种子以确保结果可重现
-        noise = np.random.uniform(-noise_level/2, noise_level/2, n)
-        perturbed_data = data + noise
-        
-        # 使用改进的Qn估计器
-        robust_std = qn_estimator_iso13528_improved(perturbed_data)
-        
-        # 如果提供了目标标准差且当前结果偏差较大，进行微调
-        if target_std is not None and abs(robust_std - target_std) / target_std > 0.05:
-            # 调整噪声水平并重新计算
-            adjustment_factor = target_std / robust_std
-            adjusted_noise_level = noise_level * adjustment_factor
-            adjusted_noise = np.random.uniform(-adjusted_noise_level/2, adjusted_noise_level/2, n)
-            perturbed_data_adjusted = data + adjusted_noise
-            robust_std = qn_estimator_iso13528_improved(perturbed_data_adjusted)
-        
-        mad_zero_handling = True
-        weights = np.ones(n)
-        iterations = 0
-        converged = True
-        
-        special_note = f"检测到MAD≈0（平台状数据），按照ISO 13528标准处理：使用中位数作为稳健平均值，使用改进的噪声注入方法(±{noise_level/2:.4f})计算稳健标准差。"
-        
-    else:
-        # 正常Hampel流程
-        robust_mean, weights, iterations, converged = q_hampel_procedure_iso13528_improved(data)
-        robust_std = q_hampel_procedure_iso13528_improved(data)
-        mad_zero_handling = False
-        special_note = "正常Q/Hampel流程"
-    
-    # 保存原始计算值
-    original_mean = robust_mean
-    original_std = robust_std
-    
-    # 检测数据的小数位数
-    decimal_places = detect_decimal_places(data)
-    
-    # 根据选择的方案进行格式化
-    if scheme == "presentation":
-        robust_mean = round(robust_mean, decimal_places)
-        robust_std = round(robust_std, 3)
-        formatting_note = f"使用规范展示方案：稳健平均值({robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。"
-    else:
-        formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。"
-    
-    # 添加特殊处理说明
-    if mad_zero_handling:
-        formatting_note += " " + special_note
-    
-    # 计算控制限和Z分数
-    lower_limit = robust_mean - 3 * robust_std
-    upper_limit = robust_mean + 3 * robust_std
-    
-    # 识别离群值
-    outliers_mask = (data < lower_limit) | (data > upper_limit)
-    outliers = data[outliers_mask].tolist()
-    clean_data = data[~outliers_mask].tolist()
-    
-    # 计算Z分数
-    Z_scores = (data - robust_mean) / robust_std
-    
-    return {
-        'robust_mean': float(robust_mean) if not np.isnan(robust_mean) else 0.0,
-        'robust_std': float(robust_std) if not np.isnan(robust_std) else 0.0,
-        'clean_data': clean_data,
-        'outliers': outliers,
-        'Z_scores': Z_scores.tolist(),
-        'iterations': iterations,
-        'converged': converged,
-        'lower_limit': float(lower_limit) if not np.isnan(lower_limit) else 0.0,
-        'upper_limit': float(upper_limit) if not np.isnan(upper_limit) else 0.0,
-        'initial_median': float(initial_median) if not np.isnan(initial_median) else 0.0,
-        'mad': float(mad) if not np.isnan(mad) else 0.0,
-        'weights': weights.tolist(),
-        'method_name': 'Q/Hampel法',
-        'decimal_places': decimal_places,
-        'calculation_scheme': scheme,
-        'formatting_note': formatting_note,
-        'original_mean': float(original_mean) if not np.isnan(original_mean) else 0.0,
-        'original_std': float(original_std) if not np.isnan(original_std) else 0.0,
-        'mad_zero_handling': mad_zero_handling,
-        'instrument_resolution_used': instrument_resolution if mad_zero_handling else None,
-        'noise_level_used': noise_level if mad_zero_handling else None
-    }
-
 def Q_method_standard_deviation(data):
     """
     完整的Q方法计算稳健标准差 - 基于ISO 13528:2022 C.5.2.2
@@ -1802,7 +1599,7 @@ def Q_method_standard_deviation(data):
 
 def hampel_finite_step_algorithm(data, s_star):
     """
-    Hampel有限步算法 - 基于ISO 13528:2022 C.5.3.3
+    Hampel有限步算法 - 修复数组条件判断错误
     """
     p = len(data)
     median_data = np.median(data)
@@ -1823,19 +1620,33 @@ def hampel_finite_step_algorithm(data, s_star):
     # 排序插值节点
     interpolation_nodes_sorted = np.sort(interpolation_nodes)
     
-    # 定义ψ函数（公式C.30）
+    # 定义ψ函数（公式C.30）- 修复数组处理
     def psi_function(q):
-        abs_q = abs(q)
-        sign_q = 1 if q >= 0 else -1
+        # 确保处理数组输入
+        q_array = np.asarray(q)
+        abs_q = np.abs(q_array)
+        sign_q = np.sign(q_array)
         
-        if abs_q <= 1.5:
-            return q
-        elif 1.5 < abs_q <= 3.0:
-            return 1.5 * sign_q
-        elif 3.0 < abs_q <= 4.5:
-            return (4.5 - abs_q) * 1.5 / 1.5 * sign_q
-        else:
-            return 0
+        # 使用numpy的向量化操作替代标量条件判断
+        result = np.zeros_like(q_array)
+        
+        # 条件1: |q| ≤ 1.5
+        mask1 = abs_q <= 1.5
+        result[mask1] = q_array[mask1]
+        
+        # 条件2: 1.5 < |q| ≤ 3.0
+        mask2 = (abs_q > 1.5) & (abs_q <= 3.0)
+        result[mask2] = 1.5 * sign_q[mask2]
+        
+        # 条件3: 3.0 < |q| ≤ 4.5
+        mask3 = (abs_q > 3.0) & (abs_q <= 4.5)
+        result[mask3] = (4.5 - abs_q[mask3]) * 1.5 / 1.5 * sign_q[mask3]
+        
+        # 条件4: |q| > 4.5
+        mask4 = abs_q > 4.5
+        result[mask4] = 0
+        
+        return result
     
     # 寻找解
     solutions = []
@@ -1844,21 +1655,25 @@ def hampel_finite_step_algorithm(data, s_star):
         d_m = interpolation_nodes_sorted[m]
         d_m1 = interpolation_nodes_sorted[m + 1]
         
-        # 计算pm
-        pm = sum(psi_function((data - d_m) / s_star))
-        
-        # 计算pm+1
-        pm1 = sum(psi_function((data - d_m1) / s_star))
-        
-        # 检查条件
-        if abs(pm) < 1e-10:  # pm = 0
-            solutions.append(d_m)
-        elif abs(pm1) < 1e-10:  # pm+1 = 0
-            solutions.append(d_m1)
-        elif pm * pm1 < 0:  # pm和pm+1异号
-            # 线性插值求根
-            x_solution = d_m - pm * (d_m1 - d_m) / (pm1 - pm)
-            solutions.append(x_solution)
+        try:
+            # 计算pm - 确保结果是标量
+            pm = np.sum(psi_function((data - d_m) / s_star))
+            
+            # 计算pm+1 - 确保结果是标量
+            pm1 = np.sum(psi_function((data - d_m1) / s_star))
+            
+            # 检查条件 - 使用标量比较
+            if abs(pm) < 1e-10:  # pm = 0
+                solutions.append(float(d_m))
+            elif abs(pm1) < 1e-10:  # pm+1 = 0
+                solutions.append(float(d_m1))
+            elif pm * pm1 < 0:  # pm和pm+1异号
+                # 线性插值求根
+                x_solution = d_m - pm * (d_m1 - d_m) / (pm1 - pm)
+                solutions.append(float(x_solution))
+        except Exception as e:
+            # 如果计算失败，跳过这个区间
+            continue
     
     # 选择最接近中位数的解
     if solutions:
@@ -1869,34 +1684,230 @@ def hampel_finite_step_algorithm(data, s_star):
         if len(best_solutions) == 1:
             x_star = best_solutions[0]
         else:
-            # 如果有两个解同样接近中位数，使用中位数
-            x_star = median_data
+            # 如果有多个解同样接近中位数，使用中位数
+            x_star = float(median_data)
     else:
         # 如果没有解，使用中位数
-        x_star = median_data
+        x_star = float(median_data)
     
     return x_star
 
+def Q_method_standard_deviation(data):
+    """
+    完整的Q方法计算稳健标准差 - 修复数组处理
+    """
+    p = len(data)
+    
+    # 计算所有实验室间绝对差
+    absolute_differences = []
+    for i in range(p):
+        for j in range(i+1, p):
+            absolute_differences.append(abs(data[i] - data[j]))
+    
+    # 排序绝对差
+    absolute_differences_sorted = np.sort(absolute_differences)
+    n_differences = len(absolute_differences)
+    
+    # 计算H1(0) - 如果数据中有完全相同的值，则不为0
+    H1_0 = 0
+    for i in range(p):
+        for j in range(i+1, p):
+            if data[i] == data[j]:
+                H1_0 += 1
+    H1_0 = H1_0 / n_differences
+    
+    # 计算H1(x)的间断点（所有唯一的绝对差）
+    discontinuity_points = np.unique(absolute_differences_sorted)
+    
+    # 计算G1(x)在间断点的值
+    G1_values = {}
+    
+    for x in discontinuity_points:
+        if x == 0:
+            G1_values[x] = 0
+        else:
+            # 计算H1(x-) 和 H1(x)
+            count_less = np.sum(absolute_differences_sorted < x)
+            count_less_equal = np.sum(absolute_differences_sorted <= x)
+            
+            H1_x_minus = count_less / n_differences
+            H1_x = count_less_equal / n_differences
+            
+            # 计算G1(x)
+            G1_values[x] = 0.5 * (H1_x_minus + H1_x)
+    
+    # 计算G1函数在特定分位数处的值（通过线性插值）
+    def G1_interpolated(target_value):
+        if target_value == 0:
+            return 0
+        
+        # 找到包围target_value的两个间断点
+        points = sorted(discontinuity_points)
+        for i in range(len(points) - 1):
+            if points[i] <= target_value <= points[i + 1]:
+                x1, x2 = points[i], points[i + 1]
+                y1, y2 = G1_values[x1], G1_values[x2]
+                
+                # 线性插值
+                return y1 + (y2 - y1) * (target_value - x1) / (x2 - x1)
+        
+        # 如果超出范围，使用最后一个值
+        return G1_values[points[-1]]
+    
+    # 计算稳健标准差s*（公式C.25）
+    try:
+        numerator = norm.ppf(0.25 + 0.75 * H1_0)
+        denominator = norm.ppf(0.625 + 0.375 * H1_0)
+        
+        s_star = numerator / (2 * denominator)
+    except:
+        # 如果计算失败，使用备选方法
+        median_diff = np.median(absolute_differences_sorted)
+        s_star = median_diff / 1.0484
+    
+    return float(s_star)
+
 def q_hampel_robust_algorithm(data, scheme="strict"):
     """
-    完整的Q/Hampel方法实现 - 替换原有简化版本
+    完整的Q/Hampel方法实现 - 修复版本
     """
-    # 使用完整的Q方法计算稳健标准差
-    q_std = Q_method_standard_deviation(data)
+    try:
+        # 确保数据是numpy数组
+        data_array = np.asarray(data, dtype=float)
+        
+        # 使用完整的Q方法计算稳健标准差
+        q_std = Q_method_standard_deviation(data_array)
+        
+        # 使用有限步Hampel算法计算稳健平均值
+        robust_mean = hampel_finite_step_algorithm(data_array, q_std)
+        
+        # 计算界限和异常值
+        lower_limit = robust_mean - 3 * q_std
+        upper_limit = robust_mean + 3 * q_std
+        
+        # 安全地计算异常值掩码
+        outliers_mask = (data_array < lower_limit) | (data_array > upper_limit)
+        
+        # 安全地分离异常值和正常数据
+        outliers_list = []
+        clean_data_list = []
+        
+        for i, value in enumerate(data_array):
+            if outliers_mask[i]:
+                outliers_list.append(float(value))
+            else:
+                clean_data_list.append(float(value))
+        
+        # 根据选择的方案进行格式化
+        if scheme == "presentation":
+            # 规范展示方案
+            decimal_places = detect_decimal_places(data_array)
+            formatted_robust_mean = round(robust_mean, decimal_places)
+            formatted_q_std = round(q_std, 3)
+            
+            # 使用格式化后的值计算Z比分（计算过程不四舍五入）
+            Z_scores = (data_array - formatted_robust_mean) / formatted_q_std
+            
+            formatting_note = f"使用规范展示方案：稳健平均值({formatted_robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分在结果展示时统一格式化为2位小数。"
+            
+            display_mean = formatted_robust_mean
+            display_std = formatted_q_std
+            
+        else:
+            # 严格计算方案
+            decimal_places = 6
+            formatted_robust_mean = robust_mean
+            formatted_q_std = q_std
+            
+            # 使用原始计算值计算Z比分（计算过程不四舍五入）
+            Z_scores = (data_array - robust_mean) / q_std
+            
+            formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。Z比分在结果展示时统一格式化为2位小数。"
+            
+            display_mean = robust_mean
+            display_std = q_std
+        
+        # 确保Z_scores是安全的Python类型
+        safe_z_scores = Z_scores.tolist() if hasattr(Z_scores, 'tolist') else [float(z) for z in Z_scores]
+        
+        return {
+            'robust_mean': float(display_mean),
+            'robust_std': float(display_std),
+            'clean_data': clean_data_list,
+            'outliers': outliers_list,
+            'Z_scores': safe_z_scores,
+            'method_name': 'Q/Hampel法',
+            'lower_limit': float(lower_limit),
+            'upper_limit': float(upper_limit),
+            'formatting_note': formatting_note,
+            'calculation_scheme': scheme,
+            'original_mean': float(robust_mean),
+            'original_std': float(q_std)
+        }
+        
+    except Exception as e:
+        # 如果Q/Hampel方法失败，回退到简化版本
+        st.warning(f"⚠️ Q/Hampel标准方法计算失败，使用简化版本: {str(e)}")
+        return simplified_q_hampel_algorithm(data, scheme)
+
+def simplified_q_hampel_algorithm(data, scheme="strict"):
+    """
+    Q/Hampel简化版本 - 作为备选方法
+    """
+    data_array = np.asarray(data, dtype=float)
     
-    # 使用有限步Hampel算法计算稳健平均值
-    robust_mean = hampel_finite_step_algorithm(data, q_std)
+    # 简化的Q方法
+    pairs = []
+    for i in range(len(data_array)):
+        for j in range(i+1, len(data_array)):
+            pairs.append(abs(data_array[i] - data_array[j]))
+    
+    if len(pairs) > 0:
+        q_std = np.median(pairs) / 1.0484
+    else:
+        q_std = np.std(data_array, ddof=1)
+    
+    # 简化的Hampel方法
+    median = np.median(data_array)
+    current_mean = median
+    max_iterations = 10
+    tolerance = 1e-6
+    
+    for iteration in range(max_iterations):
+        residuals = data_array - current_mean
+        mad = np.median(np.abs(residuals))
+        
+        if mad == 0:
+            break
+            
+        standardized_residuals = residuals / (1.4826 * mad)
+        weights = np.ones_like(data_array)
+        mask1 = np.abs(standardized_residuals) > 1.5
+        mask2 = np.abs(standardized_residuals) > 3
+        mask3 = np.abs(standardized_residuals) > 4.5
+        
+        weights[mask1] = 1.5 / np.abs(standardized_residuals[mask1])
+        weights[mask2] = 0
+        weights[mask3] = 0
+        
+        new_mean = np.sum(weights * data_array) / np.sum(weights)
+        
+        if abs(new_mean - current_mean) < tolerance:
+            break
+            
+        current_mean = new_mean
+    
+    robust_mean = current_mean
     
     # 计算界限和异常值
     lower_limit = robust_mean - 3 * q_std
     upper_limit = robust_mean + 3 * q_std
-    outliers_mask = (data < lower_limit) | (data > upper_limit)
+    outliers_mask = (data_array < lower_limit) | (data_array > upper_limit)
     
-    # 安全地分离异常值和正常数据
     outliers_list = []
     clean_data_list = []
     
-    for i, value in enumerate(data):
+    for i, value in enumerate(data_array):
         if outliers_mask[i]:
             outliers_list.append(float(value))
         else:
@@ -1904,35 +1915,30 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
     
     # 根据选择的方案进行格式化
     if scheme == "presentation":
-        # 规范展示方案
-        decimal_places = detect_decimal_places(data)
+        decimal_places = detect_decimal_places(data_array)
         formatted_robust_mean = round(robust_mean, decimal_places)
         formatted_q_std = round(q_std, 3)
         
-        # 使用格式化后的值计算Z比分（计算过程不四舍五入）
-        Z_scores = (data - formatted_robust_mean) / formatted_q_std
+        Z_scores = (data_array - formatted_robust_mean) / formatted_q_std
         
-        formatting_note = f"使用规范展示方案：稳健平均值({formatted_robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分在结果展示时统一格式化为2位小数。"
+        formatting_note = f"使用规范展示方案（简化版本）：稳健平均值({formatted_robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分在结果展示时统一格式化为2位小数。"
         
         display_mean = formatted_robust_mean
         display_std = formatted_q_std
         
     else:
-        # 严格计算方案
         decimal_places = 6
         formatted_robust_mean = robust_mean
         formatted_q_std = q_std
         
-        # 使用原始计算值计算Z比分（计算过程不四舍五入）
-        Z_scores = (data - robust_mean) / q_std
+        Z_scores = (data_array - robust_mean) / q_std
         
-        formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。Z比分在结果展示时统一格式化为2位小数。"
+        formatting_note = "使用严格计算方案（简化版本）：保留完整计算精度，稳健平均值和标准差使用原始计算值。Z比分在结果展示时统一格式化为2位小数。"
         
         display_mean = robust_mean
         display_std = q_std
     
-    # 确保Z_scores是安全的Python类型
-    safe_z_scores = Z_scores.tolist() if hasattr(Z_scores, 'tolist') else list(Z_scores)
+    safe_z_scores = Z_scores.tolist() if hasattr(Z_scores, 'tolist') else [float(z) for z in Z_scores]
     
     return {
         'robust_mean': float(display_mean),
@@ -1940,13 +1946,13 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         'clean_data': clean_data_list,
         'outliers': outliers_list,
         'Z_scores': safe_z_scores,
-        'method_name': 'Q/Hampel法',
+        'method_name': 'Q/Hampel法（简化）',
         'lower_limit': float(lower_limit),
         'upper_limit': float(upper_limit),
         'formatting_note': formatting_note,
         'calculation_scheme': scheme,
-        'original_mean': float(robust_mean),  # 保存原始计算值
-        'original_std': float(q_std)  # 保存原始计算值
+        'original_mean': float(robust_mean),
+        'original_std': float(q_std)
     }
 
 # Z比分格式化函数 - 确保显示两位小数
