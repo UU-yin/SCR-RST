@@ -1751,264 +1751,309 @@ def hampel_finite_step_algorithm(data, s_star):
 
 def q_hampel_robust_algorithm(data, scheme="strict"):
     """
-    修复后的Q/Hampel方法实现
+    基于简化版本的Q/Hampel稳健统计方法
+    修复离群值检测和Z比分分类问题
     """
     try:
         # 确保数据是numpy数组
         data_array = np.asarray(data, dtype=float)
+        n = len(data_array)
         
-        if len(data_array) < 2:
-            # 如果数据点太少，使用简单方法
-            robust_mean = float(np.mean(data_array))
-            robust_std = 0.0
-            clean_data_list = data_array.tolist()
-            outliers_list = []
-            
-            return {
-                'robust_mean': robust_mean,
-                'robust_std': robust_std,
-                'clean_data': clean_data_list,
-                'outliers': outliers_list,
-                'Z_scores': [0.0] * len(data_array),
-                'method_name': 'Q/Hampel法（数据点不足）',
-                'lower_limit': robust_mean,
-                'upper_limit': robust_mean,
-                'formatting_note': "数据点不足，使用简单平均值",
-                'calculation_scheme': scheme,
-                'original_mean': robust_mean,
-                'original_std': robust_std
-            }
+        # 处理边界情况
+        if n == 0:
+            return _create_empty_result(scheme)
+        elif n == 1:
+            return _create_single_point_result(data_array[0], scheme)
         
-        # 使用修复后的Q方法计算稳健标准差
-        q_std = Q_method_standard_deviation(data_array)
+        # 1. 计算Q方法的稳健标准差（基于成对绝对差的中位数）
+        q_std = _calculate_q_standard_deviation(data_array)
         
-        # 确保标准差不为负
-        q_std = max(0.0, q_std)
+        # 2. 计算Hampel方法的稳健平均值（迭代加权法）
+        robust_mean, weights, iterations = _calculate_hampel_mean(data_array, q_std)
         
-        # 如果标准差为0，所有数据相同
-        if q_std == 0:
-            robust_mean = float(np.mean(data_array))
-            clean_data_list = data_array.tolist()
-            outliers_list = []
-            
-            return {
-                'robust_mean': robust_mean,
-                'robust_std': 0.0,
-                'clean_data': clean_data_list,
-                'outliers': outliers_list,
-                'Z_scores': [0.0] * len(data_array),
-                'method_name': 'Q/Hampel法（零方差）',
-                'lower_limit': robust_mean,
-                'upper_limit': robust_mean,
-                'formatting_note': "所有数据值相同，方差为零",
-                'calculation_scheme': scheme,
-                'original_mean': robust_mean,
-                'original_std': 0.0
-            }
+        # 3. 计算正常值范围和识别离群值
+        lower_limit, upper_limit, outliers_mask = _calculate_limits_and_outliers(
+            data_array, robust_mean, q_std
+        )
         
-        # 使用有限步Hampel算法计算稳健平均值
-        robust_mean = hampel_finite_step_algorithm(data_array, q_std)
+        # 4. 分离正常数据和离群值
+        clean_data, outliers = _separate_data(data_array, outliers_mask)
         
-        # 计算界限和异常值
-        lower_limit = robust_mean - 3 * q_std
-        upper_limit = robust_mean + 3 * q_std
+        # 5. 计算Z比分
+        Z_scores = _calculate_z_scores(data_array, robust_mean, q_std)
         
-        # 安全地计算异常值掩码
-        outliers_mask = (data_array < lower_limit) | (data_array > upper_limit)
-        
-        # 安全地分离异常值和正常数据
-        outliers_list = []
-        clean_data_list = []
-        
-        for i, value in enumerate(data_array):
-            if outliers_mask[i]:
-                outliers_list.append(float(value))
-            else:
-                clean_data_list.append(float(value))
-        
-        # 根据选择的方案进行格式化
-        if scheme == "presentation":
-            # 规范展示方案
-            decimal_places = detect_decimal_places(data_array)
-            formatted_robust_mean = round(robust_mean, decimal_places)
-            formatted_q_std = round(q_std, 3)
-            
-            # 使用格式化后的值计算Z比分（计算过程不四舍五入）
-            Z_scores = (data_array - formatted_robust_mean) / formatted_q_std
-            
-            formatting_note = f"使用规范展示方案：稳健平均值({formatted_robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分在结果展示时统一格式化为2位小数。"
-            
-            display_mean = formatted_robust_mean
-            display_std = formatted_q_std
-            
-        else:
-            # 严格计算方案
-            decimal_places = 6
-            formatted_robust_mean = robust_mean
-            formatted_q_std = q_std
-            
-            # 使用原始计算值计算Z比分（计算过程不四舍五入）
-            Z_scores = (data_array - robust_mean) / q_std
-            
-            formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。Z比分在结果展示时统一格式化为2位小数。"
-            
-            display_mean = robust_mean
-            display_std = q_std
-        
-        # 确保Z_scores是安全的Python类型
-        safe_z_scores = Z_scores.tolist() if hasattr(Z_scores, 'tolist') else [float(z) for z in Z_scores]
-        
-        return {
-            'robust_mean': float(display_mean),
-            'robust_std': float(display_std),
-            'clean_data': clean_data_list,
-            'outliers': outliers_list,
-            'Z_scores': safe_z_scores,
-            'method_name': 'Q/Hampel法',
-            'lower_limit': float(lower_limit),
-            'upper_limit': float(upper_limit),
-            'formatting_note': formatting_note,
-            'calculation_scheme': scheme,
-            'original_mean': float(robust_mean),
-            'original_std': float(q_std)
-        }
+        # 6. 根据计算方案格式化结果
+        return _format_results(
+            data_array, robust_mean, q_std, clean_data, outliers, Z_scores,
+            lower_limit, upper_limit, weights, iterations, scheme
+        )
         
     except Exception as e:
-        # 如果Q/Hampel方法失败，回退到简化版本
-        st.warning(f"⚠️ Q/Hampel标准方法计算失败，使用简化版本: {str(e)}")
-        return simplified_q_hampel_algorithm(data, scheme)
+        st.warning(f"⚠️ Q/Hampel方法计算失败: {str(e)}")
+        # 回退到最基本的统计方法
+        return _fallback_method(data, scheme)
 
-def simplified_q_hampel_algorithm(data, scheme="strict"):
-    """
-    Q/Hampel简化版本 - 作为备选方法
-    """
-    try:
-        data_array = np.asarray(data, dtype=float)
+
+def _calculate_q_standard_deviation(data):
+    """计算Q方法的稳健标准差"""
+    n = len(data)
+    
+    # 计算所有成对绝对差
+    pairs = []
+    for i in range(n):
+        for j in range(i+1, n):
+            pairs.append(abs(data[i] - data[j]))
+    
+    # 如果有成对差，使用中位数方法
+    if len(pairs) > 0:
+        median_diff = np.median(pairs)
+        # 调整系数将中位数差转换为标准差估计
+        q_std = median_diff / 1.0484
+    else:
+        # 如果没有成对差（n=1的情况已经在外部处理），使用传统标准差
+        q_std = np.std(data, ddof=1) if len(data) > 1 else 0.0
+    
+    # 确保标准差不为负
+    return max(0.0, q_std)
+
+
+def _calculate_hampel_mean(data, robust_std, max_iterations=20, tolerance=1e-6):
+    """计算Hampel稳健平均值"""
+    n = len(data)
+    
+    # 使用中位数作为初始估计
+    current_mean = np.median(data)
+    iterations = 0
+    
+    # 如果标准差为0，所有数据相同，直接返回中位数
+    if robust_std <= 0:
+        return float(current_mean), np.ones_like(data), 0
+    
+    for iteration in range(max_iterations):
+        iterations += 1
         
-        # 简化的Q方法 - 使用MAD作为稳健标准差估计
-        median = np.median(data_array)
-        mad = np.median(np.abs(data_array - median))
+        # 计算残差
+        residuals = data - current_mean
         
-        # 如果MAD为0，所有数据相同
+        # 计算MAD（中位数绝对偏差）
+        mad = np.median(np.abs(residuals))
+        
+        # 如果MAD为0，说明所有残差相同，已收敛
         if mad == 0:
-            robust_mean = float(median)
-            robust_std = 0.0
-            clean_data_list = data_array.tolist()
-            outliers_list = []
-            
-            return {
-                'robust_mean': robust_mean,
-                'robust_std': robust_std,
-                'clean_data': clean_data_list,
-                'outliers': outliers_list,
-                'Z_scores': [0.0] * len(data_array),
-                'method_name': 'Q/Hampel法（简化，零方差）',
-                'lower_limit': robust_mean,
-                'upper_limit': robust_mean,
-                'formatting_note': "所有数据值相同，方差为零",
-                'calculation_scheme': scheme,
-                'original_mean': robust_mean,
-                'original_std': robust_std
-            }
+            break
         
-        # 使用1.4826将MAD转换为标准差估计
-        robust_std = 1.4826 * mad
+        # 标准化残差
+        standardized_residuals = residuals / (1.4826 * mad)
         
-        # 简化的Hampel方法 - 使用加权平均
-        residuals = data_array - median
-        standardized_residuals = residuals / robust_std
+        # Hampel权重函数 - 三部分权重函数
+        weights = np.ones_like(data)
         
-        # 计算权重
-        weights = np.ones_like(data_array)
+        # 第一部分：|u| ≤ 1.5，权重为1
+        # 权重已经是1，不需要修改
+        
+        # 第二部分：1.5 < |u| ≤ 3.0，权重为 1.5/|u|
         mask1 = np.abs(standardized_residuals) > 1.5
-        mask2 = np.abs(standardized_residuals) > 3.0
-        mask3 = np.abs(standardized_residuals) > 4.5
+        mask2 = np.abs(standardized_residuals) <= 3.0
+        mask_1_5_to_3 = mask1 & mask2
+        weights[mask_1_5_to_3] = 1.5 / np.abs(standardized_residuals[mask_1_5_to_3])
         
-        # Hampel权重函数
-        weights[mask1] = 1.5 / np.abs(standardized_residuals[mask1])
-        weights[mask2] = 0
-        weights[mask3] = 0
+        # 第三部分：3.0 < |u| ≤ 4.5，权重为递减函数
+        mask3 = np.abs(standardized_residuals) > 3.0
+        mask4 = np.abs(standardized_residuals) <= 4.5
+        mask_3_to_4_5 = mask3 & mask4
+        weights[mask_3_to_4_5] = (4.5 - np.abs(standardized_residuals[mask_3_to_4_5])) / 1.5
         
-        # 计算加权平均值
-        robust_mean = np.sum(weights * data_array) / np.sum(weights)
+        # 第四部分：|u| > 4.5，权重为0
+        mask5 = np.abs(standardized_residuals) > 4.5
+        weights[mask5] = 0
         
-        # 计算界限和异常值
-        lower_limit = robust_mean - 3 * robust_std
-        upper_limit = robust_mean + 3 * robust_std
-        outliers_mask = (data_array < lower_limit) | (data_array > upper_limit)
+        # 更新均值（加权平均）
+        weighted_sum = np.sum(weights * data)
+        total_weight = np.sum(weights)
         
-        outliers_list = []
-        clean_data_list = []
-        
-        for i, value in enumerate(data_array):
-            if outliers_mask[i]:
-                outliers_list.append(float(value))
-            else:
-                clean_data_list.append(float(value))
-        
-        # 根据选择的方案进行格式化
-        if scheme == "presentation":
-            decimal_places = detect_decimal_places(data_array)
-            formatted_robust_mean = round(robust_mean, decimal_places)
-            formatted_robust_std = round(robust_std, 3)
-            
-            Z_scores = (data_array - formatted_robust_mean) / formatted_robust_std
-            
-            formatting_note = f"使用规范展示方案（简化版本）：稳健平均值({formatted_robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分在结果展示时统一格式化为2位小数。"
-            
-            display_mean = formatted_robust_mean
-            display_std = formatted_robust_std
-            
+        # 防止除零
+        if total_weight == 0:
+            new_mean = current_mean
         else:
-            decimal_places = 6
-            formatted_robust_mean = robust_mean
-            formatted_robust_std = robust_std
+            new_mean = weighted_sum / total_weight
+        
+        # 检查收敛
+        if abs(new_mean - current_mean) < tolerance:
+            break
             
-            Z_scores = (data_array - robust_mean) / robust_std
-            
-            formatting_note = "使用严格计算方案（简化版本）：保留完整计算精度，稳健平均值和标准差使用原始计算值。Z比分在结果展示时统一格式化为2位小数。"
-            
-            display_mean = robust_mean
-            display_std = robust_std
+        current_mean = new_mean
+    
+    return float(current_mean), weights, iterations
+
+
+def _calculate_limits_and_outliers(data, robust_mean, robust_std):
+    """计算正常值范围和识别离群值"""
+    # 使用3σ原则计算正常值范围
+    lower_limit = robust_mean - 3 * robust_std
+    upper_limit = robust_mean + 3 * robust_std
+    
+    # 识别离群值
+    outliers_mask = (data < lower_limit) | (data > upper_limit)
+    
+    return float(lower_limit), float(upper_limit), outliers_mask
+
+
+def _separate_data(data, outliers_mask):
+    """分离正常数据和离群值"""
+    outliers = data[outliers_mask].tolist()
+    clean_data = data[~outliers_mask].tolist()
+    return clean_data, outliers
+
+
+def _calculate_z_scores(data, robust_mean, robust_std):
+    """计算Z比分"""
+    if robust_std > 0:
+        Z_scores = ((data - robust_mean) / robust_std).tolist()
+    else:
+        # 如果标准差为0，所有Z比分设为0
+        Z_scores = [0.0] * len(data)
+    return Z_scores
+
+
+def _format_results(data, robust_mean, robust_std, clean_data, outliers, Z_scores,
+                   lower_limit, upper_limit, weights, iterations, scheme):
+    """根据计算方案格式化结果"""
+    
+    # 检测数据的小数位数
+    decimal_places = detect_decimal_places(data)
+    
+    if scheme == "presentation":
+        # 规范展示方案
+        formatted_robust_mean = round(robust_mean, decimal_places)
+        formatted_robust_std = round(robust_std, 3)
         
-        safe_z_scores = Z_scores.tolist() if hasattr(Z_scores, 'tolist') else [float(z) for z in Z_scores]
+        # 使用格式化后的值重新计算Z比分（用于展示）
+        if formatted_robust_std > 0:
+            formatted_Z_scores = ((data - formatted_robust_mean) / formatted_robust_std).tolist()
+        else:
+            formatted_Z_scores = [0.0] * len(data)
         
-        return {
-            'robust_mean': float(display_mean),
-            'robust_std': float(display_std),
-            'clean_data': clean_data_list,
-            'outliers': outliers_list,
-            'Z_scores': safe_z_scores,
-            'method_name': 'Q/Hampel法（简化）',
-            'lower_limit': float(lower_limit),
-            'upper_limit': float(upper_limit),
-            'formatting_note': formatting_note,
-            'calculation_scheme': scheme,
-            'original_mean': float(robust_mean),
-            'original_std': float(robust_std)
-        }
+        formatting_note = f"使用规范展示方案：稳健平均值({formatted_robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。"
         
-    except Exception as e:
-        # 如果简化版本也失败，使用最基本的统计量
-        st.error(f"❌ Q/Hampel简化方法也失败: {str(e)}")
-        data_array = np.asarray(data, dtype=float)
-        mean_val = float(np.mean(data_array))
-        std_val = float(np.std(data_array, ddof=1)) if len(data_array) > 1 else 0.0
+        display_mean = formatted_robust_mean
+        display_std = formatted_robust_std
+        display_Z_scores = formatted_Z_scores
         
-        return {
-            'robust_mean': mean_val,
-            'robust_std': std_val,
-            'clean_data': data_array.tolist(),
-            'outliers': [],
-            'Z_scores': [0.0] * len(data_array),
-            'method_name': 'Q/Hampel法（回退）',
-            'lower_limit': mean_val - 3 * std_val,
-            'upper_limit': mean_val + 3 * std_val,
-            'formatting_note': "方法失败，使用传统平均值和标准差",
-            'calculation_scheme': scheme,
-            'original_mean': mean_val,
-            'original_std': std_val
-        }
+    else:
+        # 严格计算方案
+        formatting_note = "使用严格计算方案：保留完整计算精度。"
+        
+        display_mean = robust_mean
+        display_std = robust_std
+        display_Z_scores = Z_scores
+    
+    # 格式化Z比分为两位小数用于显示
+    formatted_Z_scores_display = [format_z_score_display(z) for z in display_Z_scores]
+    
+    return {
+        'robust_mean': float(display_mean),
+        'robust_std': float(display_std),
+        'clean_data': clean_data,
+        'outliers': outliers,
+        'Z_scores': display_Z_scores,  # 原始Z比分（用于计算）
+        'formatted_Z_scores': formatted_Z_scores_display,  # 格式化后的Z比分（用于显示）
+        'method_name': 'Q/Hampel法',
+        'lower_limit': float(lower_limit),
+        'upper_limit': float(upper_limit),
+        'weights': weights.tolist() if hasattr(weights, 'tolist') else weights,
+        'iterations': iterations,
+        'formatting_note': formatting_note,
+        'calculation_scheme': scheme,
+        'decimal_places': decimal_places,
+        'original_mean': float(robust_mean),  # 保存原始计算值
+        'original_std': float(robust_std)     # 保存原始计算值
+    }
+
+
+def _create_empty_result(scheme):
+    """创建空数据结果"""
+    return {
+        'robust_mean': 0.0,
+        'robust_std': 0.0,
+        'clean_data': [],
+        'outliers': [],
+        'Z_scores': [],
+        'formatted_Z_scores': [],
+        'method_name': 'Q/Hampel法（空数据）',
+        'lower_limit': 0.0,
+        'upper_limit': 0.0,
+        'weights': [],
+        'iterations': 0,
+        'formatting_note': "输入数据为空",
+        'calculation_scheme': scheme,
+        'decimal_places': 0,
+        'original_mean': 0.0,
+        'original_std': 0.0
+    }
+
+
+def _create_single_point_result(value, scheme):
+    """创建单数据点结果"""
+    return {
+        'robust_mean': float(value),
+        'robust_std': 0.0,
+        'clean_data': [float(value)],
+        'outliers': [],
+        'Z_scores': [0.0],
+        'formatted_Z_scores': ["0.00"],
+        'method_name': 'Q/Hampel法（单数据点）',
+        'lower_limit': float(value),
+        'upper_limit': float(value),
+        'weights': [1.0],
+        'iterations': 0,
+        'formatting_note': "只有一个数据点，无法计算标准差",
+        'calculation_scheme': scheme,
+        'decimal_places': detect_decimal_places([value]),
+        'original_mean': float(value),
+        'original_std': 0.0
+    }
+
+
+def _fallback_method(data, scheme):
+    """回退方法 - 使用传统统计量"""
+    data_array = np.asarray(data, dtype=float)
+    mean_val = float(np.mean(data_array))
+    std_val = float(np.std(data_array, ddof=1)) if len(data_array) > 1 else 0.0
+    
+    # 计算Z比分
+    if std_val > 0:
+        Z_scores = ((data_array - mean_val) / std_val).tolist()
+    else:
+        Z_scores = [0.0] * len(data_array)
+    
+    # 识别离群值（基于3σ原则）
+    lower_limit = mean_val - 3 * std_val
+    upper_limit = mean_val + 3 * std_val
+    outliers_mask = (data_array < lower_limit) | (data_array > upper_limit)
+    outliers = data_array[outliers_mask].tolist()
+    clean_data = data_array[~outliers_mask].tolist()
+    
+    # 格式化Z比分显示
+    formatted_Z_scores = [format_z_score_display(z) for z in Z_scores]
+    
+    return {
+        'robust_mean': mean_val,
+        'robust_std': std_val,
+        'clean_data': clean_data,
+        'outliers': outliers,
+        'Z_scores': Z_scores,
+        'formatted_Z_scores': formatted_Z_scores,
+        'method_name': 'Q/Hampel法（回退到传统方法）',
+        'lower_limit': float(lower_limit),
+        'upper_limit': float(upper_limit),
+        'weights': np.ones_like(data_array).tolist(),
+        'iterations': 0,
+        'formatting_note': "Q/Hampel方法失败，使用传统平均值和标准差",
+        'calculation_scheme': scheme,
+        'decimal_places': detect_decimal_places(data_array),
+        'original_mean': mean_val,
+        'original_std': std_val
+    }
 
 # Z比分格式化函数 - 确保显示两位小数
 def format_z_scores(z_scores):
