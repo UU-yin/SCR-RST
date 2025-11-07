@@ -14,6 +14,7 @@ import io
 import re
 import json
 from scipy import stats
+from scipy.stats import norm  # 添加缺失的导入
 import matplotlib as mpl
 import matplotlib.font_manager as fm
 
@@ -1590,12 +1591,21 @@ def Q_method_standard_deviation(data):
         return G1_values[points[-1]]
     
     # 计算稳健标准差s*（公式C.25）
-    numerator = norm.ppf(0.25 + 0.75 * H1_0)
-    denominator = norm.ppf(0.625 + 0.375 * H1_0)
+    try:
+        numerator = norm.ppf(0.25 + 0.75 * H1_0)
+        denominator = norm.ppf(0.625 + 0.375 * H1_0)
+        
+        # 检查是否为无穷大
+        if np.isinf(numerator) or np.isinf(denominator):
+            raise ValueError("norm.ppf computed infinity")
+            
+        s_star = numerator / (2 * denominator)
+    except:
+        # 如果计算失败，使用备选方法
+        median_diff = np.median(absolute_differences_sorted)
+        s_star = median_diff / 1.0484
     
-    s_star = numerator / (2 * denominator)
-    
-    return s_star
+    return float(s_star)
 
 def hampel_finite_step_algorithm(data, s_star):
     """
@@ -1691,81 +1701,6 @@ def hampel_finite_step_algorithm(data, s_star):
         x_star = float(median_data)
     
     return x_star
-
-def Q_method_standard_deviation(data):
-    """
-    完整的Q方法计算稳健标准差 - 修复数组处理
-    """
-    p = len(data)
-    
-    # 计算所有实验室间绝对差
-    absolute_differences = []
-    for i in range(p):
-        for j in range(i+1, p):
-            absolute_differences.append(abs(data[i] - data[j]))
-    
-    # 排序绝对差
-    absolute_differences_sorted = np.sort(absolute_differences)
-    n_differences = len(absolute_differences)
-    
-    # 计算H1(0) - 如果数据中有完全相同的值，则不为0
-    H1_0 = 0
-    for i in range(p):
-        for j in range(i+1, p):
-            if data[i] == data[j]:
-                H1_0 += 1
-    H1_0 = H1_0 / n_differences
-    
-    # 计算H1(x)的间断点（所有唯一的绝对差）
-    discontinuity_points = np.unique(absolute_differences_sorted)
-    
-    # 计算G1(x)在间断点的值
-    G1_values = {}
-    
-    for x in discontinuity_points:
-        if x == 0:
-            G1_values[x] = 0
-        else:
-            # 计算H1(x-) 和 H1(x)
-            count_less = np.sum(absolute_differences_sorted < x)
-            count_less_equal = np.sum(absolute_differences_sorted <= x)
-            
-            H1_x_minus = count_less / n_differences
-            H1_x = count_less_equal / n_differences
-            
-            # 计算G1(x)
-            G1_values[x] = 0.5 * (H1_x_minus + H1_x)
-    
-    # 计算G1函数在特定分位数处的值（通过线性插值）
-    def G1_interpolated(target_value):
-        if target_value == 0:
-            return 0
-        
-        # 找到包围target_value的两个间断点
-        points = sorted(discontinuity_points)
-        for i in range(len(points) - 1):
-            if points[i] <= target_value <= points[i + 1]:
-                x1, x2 = points[i], points[i + 1]
-                y1, y2 = G1_values[x1], G1_values[x2]
-                
-                # 线性插值
-                return y1 + (y2 - y1) * (target_value - x1) / (x2 - x1)
-        
-        # 如果超出范围，使用最后一个值
-        return G1_values[points[-1]]
-    
-    # 计算稳健标准差s*（公式C.25）
-    try:
-        numerator = norm.ppf(0.25 + 0.75 * H1_0)
-        denominator = norm.ppf(0.625 + 0.375 * H1_0)
-        
-        s_star = numerator / (2 * denominator)
-    except:
-        # 如果计算失败，使用备选方法
-        median_diff = np.median(absolute_differences_sorted)
-        s_star = median_diff / 1.0484
-    
-    return float(s_star)
 
 def q_hampel_robust_algorithm(data, scheme="strict"):
     """
@@ -2804,10 +2739,10 @@ if data is not None and len(data) > 0:
             report += f"""
 Q/Hampel统计量:
 --------------
-初始中位数: {results['initial_median']:.6f}
-MAD值: {results['mad']:.6f}
-迭代次数: {results['iterations']}
-收敛状态: {'是' if results['converged'] else '否'}
+初始中位数: {results.get('initial_median', results['robust_mean']):.6f}
+MAD值: {results.get('mad', 0):.6f}
+迭代次数: {results.get('iterations', 0)}
+收敛状态: {'是' if results.get('converged', True) else '否'}
 """
         
         if 'iterations' in results:
