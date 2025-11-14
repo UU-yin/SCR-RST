@@ -14,7 +14,7 @@ import io
 import re
 import json
 from scipy import stats
-from scipy.stats import norm  # 添加缺失的导入
+from scipy.stats import norm
 import matplotlib as mpl
 import matplotlib.font_manager as fm
 
@@ -22,14 +22,57 @@ import matplotlib.font_manager as fm
 def set_chinese_font():
     """设置中文字体支持"""
     try:
-        # 使用支持中文的字体
         plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial Unicode MS', 'SimHei']
         plt.rcParams['axes.unicode_minus'] = False
     except:
         pass
 
 # =============================================
-# 修改后的数据验证和错误处理模块
+# Z比分分类和格式化函数
+# =============================================
+
+def classify_z_score(z_score):
+    """
+    根据Z比分进行分类
+    满意 (|Z| ≤ 2), 可疑(2 < |Z| < 3), 不满意 (|Z| ≥ 3)
+    """
+    try:
+        z_abs = abs(float(z_score))
+        if z_abs <= 2:
+            return "满意"
+        elif 2 < z_abs < 3:
+            return "可疑"
+        else:  # z_abs >= 3
+            return "不满意"
+    except (ValueError, TypeError):
+        return "未知"
+
+def format_z_score_display(z_score):
+    """将单个Z比分格式化为两位小数显示"""
+    if z_score is None or pd.isna(z_score):
+        return ""
+    try:
+        return f"{float(z_score):.2f}"
+    except (ValueError, TypeError):
+        return "0.00"
+
+def format_z_scores(z_scores):
+    """将Z比分列表统一格式化为两位小数"""
+    if z_scores is None:
+        return None
+    
+    formatted_scores = []
+    for score in z_scores:
+        try:
+            formatted_score = format_z_score_display(score)
+            formatted_scores.append(formatted_score)
+        except (ValueError, TypeError):
+            formatted_scores.append("0.00")
+    
+    return formatted_scores
+
+# =============================================
+# 数据验证和错误处理模块
 # =============================================
 
 class DataValidator:
@@ -307,7 +350,7 @@ class DataValidator:
         except Exception as e:
             # 如果出现任何错误，返回空列表和错误信息
             return [], [f"异常值检测过程中发生错误: {str(e)}"]
-        
+
 # =============================================
 # 两列数据输入验证函数
 # =============================================
@@ -375,7 +418,7 @@ def validate_two_column_data(two_column_input, calculation_scheme):
         return [], [], [f"数据处理错误: {str(e)}"], {}
 
 # =============================================
-# 修复后的文件格式处理模块
+# 文件格式处理模块
 # =============================================
 
 class FileProcessor:
@@ -655,7 +698,6 @@ class FileProcessor:
         
         return np.array(clean_data), original_data, blank_count, decimal_info
 
-
 # =============================================
 # 初始化会话状态
 # =============================================
@@ -749,7 +791,7 @@ st.markdown("""
 """)
 
 # =============================================
-# 修改侧边栏方法选择
+# 侧边栏方法选择
 # =============================================
 
 # 在侧边栏 - 参数设置和方法选择部分
@@ -789,7 +831,7 @@ elif method == "Q/Hampel法":
     st.sidebar.info("Q/Hampel法使用标准参数计算")
 elif method == "Z比分计算模块":
     # Z比分计算模块的特殊参数
-    st.sidebar.info("Z比分计算模块：直接输入稳健统计量")
+    st.sidebar.info("Z比分计算模块：下方直接输入稳健统计量，并在右侧选择测试数据输入方式")
     
     # 稳健统计量输入
     robust_mean_input = st.sidebar.text_input(
@@ -1078,7 +1120,7 @@ elif input_method == "带编号数据输入":
         data = st.session_state.processed_data
         
 # =============================================
-# 修复文件上传模块的数据处理
+# 文件上传模块的数据处理
 # =============================================
 
 elif input_method == "文件上传":
@@ -1143,9 +1185,7 @@ elif input_method == "文件上传":
                     recommended_scheme, recommendation_reason = DataValidator.get_recommended_scheme(decimal_info)
                     validation_report.append(f"💡 推荐计算方案: {recommended_scheme} - {recommendation_reason}")
                     
-                    # =============================================
-                    # 修复：设置正确的会话状态，确保使用文件数据
-                    # =============================================
+                    # 设置正确的会话状态，确保使用文件数据
                     st.session_state.file_processed_data = processed_data
                     st.session_state.file_original_data = original_data
                     st.session_state.file_blank_count = blank_count
@@ -1262,7 +1302,7 @@ else:  # 示例数据
     # 保存小数位数信息
     st.session_state.decimal_info = decimal_info
 
-# 方法描述（保持不变）
+# 方法描述
 st.sidebar.header("📚 方法说明")
 if method == "迭代稳健统计法":
     st.sidebar.info("""
@@ -1274,14 +1314,20 @@ elif method == "四分位稳健统计法":
     **四分位稳健统计法**以数据排序为基础，使用数据集中段50%的数据，
     崩溃点为25%，具有易于计算、操作简单的特点。
     """)
-else:  # Q/Hampel法
+    
+elif method == "Q/Hampel法":
     st.sidebar.info("""
     **Q/Hampel法**结合Q方法计算的稳健标准差和Hampel方法计算的
     稳健平均值，具有较好的抗异常值干扰能力。
+    """)    
+    
+else:  # Z比分计算模块
+    st.sidebar.info("""
+    **Z比分计算模块**Z比分 = （测试数据-稳健平均值）/稳健标准差
     """)
 
 # =============================================
-# 修改后的统计方法实现
+# 统计方法实现 - 修改版本
 # =============================================
 
 def detect_decimal_places(data):
@@ -1308,7 +1354,7 @@ def detect_decimal_places(data):
     return max_decimal_places
 
 def iterative_robust_algorithm(data, max_iterations=50, k=1.5, scheme="strict"):
-    """迭代稳健统计法 - 支持两种计算方案"""
+    """迭代稳健统计法 - 支持两种计算方案和新的Z比分分类"""
     n = len(data)
     X_star = np.median(data)
     abs_deviations = np.abs(data - X_star)
@@ -1350,37 +1396,33 @@ def iterative_robust_algorithm(data, max_iterations=50, k=1.5, scheme="strict"):
         formatted_X_star = round(X_star, decimal_places)
         formatted_S_star = round(S_star, 3)
         
-        # 使用格式化后的值计算Z比分（计算过程不四舍五入）
-        Z_scores = (data - formatted_X_star) / formatted_S_star
+        # 使用格式化后的值计算Z比分
+        Z_scores_high_precision = (data - formatted_X_star) / formatted_S_star
+        Z_scores_rounded = np.round(Z_scores_high_precision, 2)
         
-        # 计算界限
-        final_delta = k * formatted_S_star
-        lower_limit = formatted_X_star - final_delta
-        upper_limit = formatted_X_star + final_delta
-        
-        formatting_note = f"使用规范展示方案：稳健平均值({formatted_X_star})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分计算使用格式化后的均值和标准差，但计算过程中不进行四舍五入。"
+        formatting_note = f"使用规范展示方案：稳健平均值({formatted_X_star})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分计算使用格式化后的均值和标准差。"
         
         robust_mean = formatted_X_star
         robust_std = formatted_S_star
         
     else:
         # 严格计算方案：使用原始计算值
-        decimal_places = 6  # 高精度显示
         formatted_X_star = X_star
         formatted_S_star = S_star
         
         # 使用原始计算值计算Z比分
-        Z_scores = (data - X_star) / S_star
+        Z_scores_high_precision = (data - X_star) / S_star
+        Z_scores_rounded = np.round(Z_scores_high_precision, 2)
         
-        # 计算界限
-        final_delta = k * S_star
-        lower_limit = X_star - final_delta
-        upper_limit = X_star + final_delta
-        
-        formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。Z比分计算过程中不进行四舍五入。"
+        formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。"
         
         robust_mean = X_star
         robust_std = S_star
+    
+    # 计算界限
+    final_delta = k * robust_std
+    lower_limit = robust_mean - final_delta
+    upper_limit = robust_mean + final_delta
     
     outliers_mask = (data < lower_limit) | (data > upper_limit)
     
@@ -1413,13 +1455,15 @@ def iterative_robust_algorithm(data, max_iterations=50, k=1.5, scheme="strict"):
             except (ValueError, TypeError):
                 continue
     
-    # === 修复：确保 Z_scores 是安全的Python类型 ===
-    if hasattr(Z_scores, 'tolist'):
-        safe_z_scores = Z_scores.tolist()
-    elif hasattr(Z_scores, '__iter__') and not isinstance(Z_scores, (str, dict)):
-        safe_z_scores = list(Z_scores)
-    else:
-        safe_z_scores = [Z_scores] if Z_scores is not None else []
+    # 确保Z_scores是安全的Python类型
+    safe_z_scores_high_precision = Z_scores_high_precision.tolist() if hasattr(Z_scores_high_precision, 'tolist') else [float(z) for z in Z_scores_high_precision]
+    safe_z_scores_rounded = Z_scores_rounded.tolist() if hasattr(Z_scores_rounded, 'tolist') else [float(z) for z in Z_scores_rounded]
+    
+    # 格式化Z比分为两位小数用于显示
+    formatted_Z_scores = format_z_scores(safe_z_scores_rounded)
+    
+    # 为每个数据点生成分类
+    z_score_classifications = [classify_z_score(z) for z in safe_z_scores_rounded]
     
     # 确保返回标准Python类型
     return {
@@ -1427,7 +1471,10 @@ def iterative_robust_algorithm(data, max_iterations=50, k=1.5, scheme="strict"):
         'robust_std': float(robust_std) if not np.isnan(robust_std) else 0.0,
         'clean_data': clean_data_list,
         'outliers': outliers_list,
-        'Z_scores': safe_z_scores,  # 使用修复后的变量
+        'Z_scores_high_precision': safe_z_scores_high_precision,  # 高精度Z比分
+        'Z_scores_rounded': safe_z_scores_rounded,  # 保留两位小数的Z比分
+        'formatted_Z_scores': formatted_Z_scores,  # 格式化显示的Z比分
+        'z_score_classifications': z_score_classifications,  # Z比分分类
         'iterations': iteration,
         'converged': converged,
         'lower_limit': float(lower_limit) if not np.isnan(lower_limit) else 0.0,
@@ -1442,7 +1489,7 @@ def iterative_robust_algorithm(data, max_iterations=50, k=1.5, scheme="strict"):
     }
 
 def quartile_robust_algorithm(data, scheme="strict"):
-    """四分位稳健统计法 - 支持两种计算方案"""
+    """四分位稳健统计法 - 支持两种计算方案和新的Z比分分类"""
     sorted_data = np.sort(data)
     n = len(sorted_data)
     
@@ -1498,10 +1545,11 @@ def quartile_robust_algorithm(data, scheme="strict"):
         formatted_median = round(median, decimal_places)
         formatted_niqr = round(niqr, 3)
         
-        # 使用格式化后的值计算Z比分（计算过程不四舍五入）
-        Z_scores = (data - formatted_median) / formatted_niqr
+        # 使用格式化后的值计算Z比分
+        Z_scores_high_precision = (data - formatted_median) / formatted_niqr
+        Z_scores_rounded = np.round(Z_scores_high_precision, 2)
         
-        formatting_note = f"使用规范展示方案：稳健平均值({formatted_median})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分计算使用格式化后的均值和标准差，但计算过程中不进行四舍五入。"
+        formatting_note = f"使用规范展示方案：稳健平均值({formatted_median})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分计算使用格式化后的均值和标准差。"
         
         robust_mean = formatted_median
         robust_std = formatted_niqr
@@ -1512,20 +1560,23 @@ def quartile_robust_algorithm(data, scheme="strict"):
         formatted_niqr = niqr
         
         # 使用原始计算值计算Z比分
-        Z_scores = (data - median) / niqr
+        Z_scores_high_precision = (data - median) / niqr
+        Z_scores_rounded = np.round(Z_scores_high_precision, 2)
         
-        formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。Z比分计算过程中不进行四舍五入。"
+        formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。"
         
         robust_mean = median
         robust_std = niqr
     
-    # === 修复：确保 Z_scores 在所有分支中都是安全的Python类型 ===
-    if hasattr(Z_scores, 'tolist'):
-        safe_z_scores = Z_scores.tolist()
-    elif hasattr(Z_scores, '__iter__') and not isinstance(Z_scores, (str, dict)):
-        safe_z_scores = list(Z_scores)
-    else:
-        safe_z_scores = [Z_scores] if Z_scores is not None else []
+    # 确保Z_scores是安全的Python类型
+    safe_z_scores_high_precision = Z_scores_high_precision.tolist() if hasattr(Z_scores_high_precision, 'tolist') else [float(z) for z in Z_scores_high_precision]
+    safe_z_scores_rounded = Z_scores_rounded.tolist() if hasattr(Z_scores_rounded, 'tolist') else [float(z) for z in Z_scores_rounded]
+
+    # 格式化Z比分为两位小数用于显示
+    formatted_Z_scores = format_z_scores(safe_z_scores_rounded)
+    
+    # 为每个数据点生成分类
+    z_score_classifications = [classify_z_score(z) for z in safe_z_scores_rounded]
 
     # 确保返回标准Python类型
     return {
@@ -1533,7 +1584,10 @@ def quartile_robust_algorithm(data, scheme="strict"):
         'robust_std': float(robust_std) if not np.isnan(robust_std) else 0.0,
         'clean_data': clean_data_list,
         'outliers': outliers_list,
-        'Z_scores': safe_z_scores,  # 使用修复后的变量
+        'Z_scores_high_precision': safe_z_scores_high_precision,  # 高精度Z比分
+        'Z_scores_rounded': safe_z_scores_rounded,  # 保留两位小数的Z比分
+        'formatted_Z_scores': formatted_Z_scores,  # 格式化显示的Z比分
+        'z_score_classifications': z_score_classifications,  # Z比分分类
         'q1': float(q1) if not np.isnan(q1) else 0.0,
         'q3': float(q3) if not np.isnan(q3) else 0.0,
         'iqr': float(iqr) if not np.isnan(iqr) else 0.0,
@@ -1549,12 +1603,13 @@ def quartile_robust_algorithm(data, scheme="strict"):
     }
 
 # =============================================
-# 新增：Z比分计算方法
+# Z比分计算模块 - 完整实现
 # =============================================
 
 def z_score_calculation_algorithm(data, robust_mean, robust_std, scheme="strict"):
     """
     Z比分计算方法 - 使用用户提供的稳健统计量
+    完整实现严格计算方案和规范展示方案
     """
     try:
         # 确保数据是numpy数组
@@ -1573,9 +1628,41 @@ def z_score_calculation_algorithm(data, robust_mean, robust_std, scheme="strict"
         except ValueError:
             raise ValueError("稳健标准差格式错误，请输入有效的数字")
         
+        # 检测数据的小数位数
+        decimal_places = detect_decimal_places(data_array)
+        
+        # 根据选择的方案进行格式化
+        if scheme == "presentation":
+            # 规范展示方案
+            formatted_robust_mean = round(robust_mean_val, decimal_places)
+            formatted_robust_std = round(robust_std_val, 3)
+            
+            # 使用格式化后的值计算Z比分（计算过程不四舍五入）
+            Z_scores_high_precision = (data_array - formatted_robust_mean) / formatted_robust_std
+            Z_scores_rounded = np.round(Z_scores_high_precision, 2)
+            
+            formatting_note = f"使用规范展示方案：稳健平均值({formatted_robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分计算使用格式化后的均值和标准差。"
+            
+            robust_mean_display = formatted_robust_mean
+            robust_std_display = formatted_robust_std
+            
+        else:
+            # 严格计算方案
+            formatted_robust_mean = robust_mean_val
+            formatted_robust_std = robust_std_val
+            
+            # 使用原始计算值计算Z比分
+            Z_scores_high_precision = (data_array - robust_mean_val) / robust_std_val
+            Z_scores_rounded = np.round(Z_scores_high_precision, 2)
+            
+            formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。"
+            
+            robust_mean_display = robust_mean_val
+            robust_std_display = robust_std_val
+        
         # 计算正常值范围
-        lower_limit = robust_mean_val - 3 * robust_std_val
-        upper_limit = robust_mean_val + 3 * robust_std_val
+        lower_limit = robust_mean_display - 3 * robust_std_display
+        upper_limit = robust_mean_display + 3 * robust_std_display
         
         # 识别离群值
         outliers_mask = (data_array < lower_limit) | (data_array > upper_limit)
@@ -1590,55 +1677,25 @@ def z_score_calculation_algorithm(data, robust_mean, robust_std, scheme="strict"
             else:
                 clean_data_list.append(float(value))
         
-        # 计算Z比分
-        if robust_std_val > 0:
-            Z_scores = ((data_array - robust_mean_val) / robust_std_val).tolist()
-        else:
-            Z_scores = [0.0] * len(data_array)
-        
-        # 检测数据的小数位数
-        decimal_places = detect_decimal_places(data_array)
-        
-        # 根据选择的方案进行格式化
-        if scheme == "presentation":
-            # 规范展示方案
-            formatted_robust_mean = round(robust_mean_val, decimal_places)
-            formatted_robust_std = round(robust_std_val, 3)
-            
-            # 使用格式化后的值计算Z比分（计算过程不四舍五入）
-            Z_scores = (data_array - formatted_robust_mean) / formatted_robust_std
-            
-            formatting_note = f"使用规范展示方案：稳健平均值({formatted_robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分计算使用格式化后的均值和标准差，但计算过程中不进行四舍五入。"
-            
-            robust_mean_display = formatted_robust_mean
-            robust_std_display = formatted_robust_std
-            
-        else:
-            # 严格计算方案
-            formatted_robust_mean = robust_mean_val
-            formatted_robust_std = robust_std_val
-            
-            # 使用原始计算值计算Z比分
-            Z_scores = (data_array - robust_mean_val) / robust_std_val
-            
-            formatting_note = "使用严格计算方案：保留完整计算精度，稳健平均值和标准差使用原始计算值。Z比分计算过程中不进行四舍五入。"
-            
-            robust_mean_display = robust_mean_val
-            robust_std_display = robust_std_val
-        
         # 确保Z_scores是安全的Python类型
-        safe_z_scores = Z_scores.tolist() if hasattr(Z_scores, 'tolist') else [float(z) for z in Z_scores]
+        safe_z_scores_high_precision = Z_scores_high_precision.tolist() if hasattr(Z_scores_high_precision, 'tolist') else [float(z) for z in Z_scores_high_precision]
+        safe_z_scores_rounded = Z_scores_rounded.tolist() if hasattr(Z_scores_rounded, 'tolist') else [float(z) for z in Z_scores_rounded]
         
         # 格式化Z比分为两位小数用于显示
-        formatted_Z_scores = [format_z_score_display(z) for z in safe_z_scores]
+        formatted_Z_scores = format_z_scores(safe_z_scores_rounded)
+        
+        # 为每个数据点生成分类
+        z_score_classifications = [classify_z_score(z) for z in safe_z_scores_rounded]
         
         return {
             'robust_mean': float(robust_mean_display),
             'robust_std': float(robust_std_display),
             'clean_data': clean_data_list,
             'outliers': outliers_list,
-            'Z_scores': safe_z_scores,
-            'formatted_Z_scores': formatted_Z_scores,
+            'Z_scores_high_precision': safe_z_scores_high_precision,  # 高精度Z比分
+            'Z_scores_rounded': safe_z_scores_rounded,  # 保留两位小数的Z比分
+            'formatted_Z_scores': formatted_Z_scores,  # 格式化显示的Z比分
+            'z_score_classifications': z_score_classifications,  # Z比分分类
             'method_name': 'Z比分计算模块',
             'lower_limit': float(lower_limit),
             'upper_limit': float(upper_limit),
@@ -1651,6 +1708,10 @@ def z_score_calculation_algorithm(data, robust_mean, robust_std, scheme="strict"
         
     except Exception as e:
         raise e
+
+# =============================================
+# Q/Hampel法实现
+# =============================================
 
 def Q_method_standard_deviation(data):
     """
@@ -1904,11 +1965,13 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         clean_data, outliers = _separate_data(data_array, outliers_mask)
         
         # 5. 计算Z比分
-        Z_scores = _calculate_z_scores(data_array, robust_mean, q_std)
+        Z_scores_high_precision = _calculate_z_scores(data_array, robust_mean, q_std)
+        Z_scores_rounded = np.round(Z_scores_high_precision, 2)
         
         # 6. 根据计算方案格式化结果
         return _format_results(
-            data_array, robust_mean, q_std, clean_data, outliers, Z_scores,
+            data_array, robust_mean, q_std, clean_data, outliers, 
+            Z_scores_high_precision, Z_scores_rounded,
             lower_limit, upper_limit, weights, iterations, scheme
         )
         
@@ -1916,7 +1979,6 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         st.warning(f"⚠️ Q/Hampel方法计算失败: {str(e)}")
         # 回退到最基本的统计方法
         return _fallback_method(data, scheme)
-
 
 def _calculate_q_standard_deviation(data):
     """计算Q方法的稳健标准差"""
@@ -1939,7 +2001,6 @@ def _calculate_q_standard_deviation(data):
     
     # 确保标准差不为负
     return max(0.0, q_std)
-
 
 def _calculate_hampel_mean(data, robust_std, max_iterations=20, tolerance=1e-6):
     """计算Hampel稳健平均值"""
@@ -1983,7 +2044,7 @@ def _calculate_hampel_mean(data, robust_std, max_iterations=20, tolerance=1e-6):
         
         # 第三部分：3.0 < |u| ≤ 4.5，权重为递减函数
         mask3 = np.abs(standardized_residuals) > 3.0
-        mask4 = np.abs(standardized_residuals) <= 4.5
+        mask4 = np.abs(standardized_residuals) >= 4.5
         mask_3_to_4_5 = mask3 & mask4
         weights[mask_3_to_4_5] = (4.5 - np.abs(standardized_residuals[mask_3_to_4_5])) / 1.5
         
@@ -2009,7 +2070,6 @@ def _calculate_hampel_mean(data, robust_std, max_iterations=20, tolerance=1e-6):
     
     return float(current_mean), weights, iterations
 
-
 def _calculate_limits_and_outliers(data, robust_mean, robust_std):
     """计算正常值范围和识别离群值"""
     # 使用3σ原则计算正常值范围
@@ -2021,13 +2081,11 @@ def _calculate_limits_and_outliers(data, robust_mean, robust_std):
     
     return float(lower_limit), float(upper_limit), outliers_mask
 
-
 def _separate_data(data, outliers_mask):
     """分离正常数据和离群值"""
     outliers = data[outliers_mask].tolist()
     clean_data = data[~outliers_mask].tolist()
     return clean_data, outliers
-
 
 def _calculate_z_scores(data, robust_mean, robust_std):
     """计算Z比分"""
@@ -2038,8 +2096,8 @@ def _calculate_z_scores(data, robust_mean, robust_std):
         Z_scores = [0.0] * len(data)
     return Z_scores
 
-
-def _format_results(data, robust_mean, robust_std, clean_data, outliers, Z_scores,
+def _format_results(data, robust_mean, robust_std, clean_data, outliers, 
+                   Z_scores_high_precision, Z_scores_rounded,
                    lower_limit, upper_limit, weights, iterations, scheme):
     """根据计算方案格式化结果"""
     
@@ -2053,15 +2111,16 @@ def _format_results(data, robust_mean, robust_std, clean_data, outliers, Z_score
         
         # 使用格式化后的值重新计算Z比分（用于展示）
         if formatted_robust_std > 0:
-            formatted_Z_scores = ((data - formatted_robust_mean) / formatted_robust_std).tolist()
+            Z_scores_high_precision = ((data - formatted_robust_mean) / formatted_robust_std).tolist()
+            Z_scores_rounded = np.round(Z_scores_high_precision, 2).tolist()
         else:
-            formatted_Z_scores = [0.0] * len(data)
+            Z_scores_high_precision = [0.0] * len(data)
+            Z_scores_rounded = [0.0] * len(data)
         
         formatting_note = f"使用规范展示方案：稳健平均值({formatted_robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。"
         
         display_mean = formatted_robust_mean
         display_std = formatted_robust_std
-        display_Z_scores = formatted_Z_scores
         
     else:
         # 严格计算方案
@@ -2069,18 +2128,22 @@ def _format_results(data, robust_mean, robust_std, clean_data, outliers, Z_score
         
         display_mean = robust_mean
         display_std = robust_std
-        display_Z_scores = Z_scores
     
     # 格式化Z比分为两位小数用于显示
-    formatted_Z_scores_display = [format_z_score_display(z) for z in display_Z_scores]
+    formatted_Z_scores = format_z_scores(Z_scores_rounded)
+    
+    # 为每个数据点生成分类
+    z_score_classifications = [classify_z_score(z) for z in Z_scores_rounded]
     
     return {
         'robust_mean': float(display_mean),
         'robust_std': float(display_std),
         'clean_data': clean_data,
         'outliers': outliers,
-        'Z_scores': display_Z_scores,  # 原始Z比分（用于计算）
-        'formatted_Z_scores': formatted_Z_scores_display,  # 格式化后的Z比分（用于显示）
+        'Z_scores_high_precision': Z_scores_high_precision,  # 高精度Z比分
+        'Z_scores_rounded': Z_scores_rounded,  # 保留两位小数的Z比分
+        'formatted_Z_scores': formatted_Z_scores,  # 格式化后的Z比分（用于显示）
+        'z_score_classifications': z_score_classifications,  # Z比分分类
         'method_name': 'Q/Hampel法',
         'lower_limit': float(lower_limit),
         'upper_limit': float(upper_limit),
@@ -2093,7 +2156,6 @@ def _format_results(data, robust_mean, robust_std, clean_data, outliers, Z_score
         'original_std': float(robust_std)     # 保存原始计算值
     }
 
-
 def _create_empty_result(scheme):
     """创建空数据结果"""
     return {
@@ -2101,8 +2163,10 @@ def _create_empty_result(scheme):
         'robust_std': 0.0,
         'clean_data': [],
         'outliers': [],
-        'Z_scores': [],
+        'Z_scores_high_precision': [],
+        'Z_scores_rounded': [],
         'formatted_Z_scores': [],
+        'z_score_classifications': [],
         'method_name': 'Q/Hampel法（空数据）',
         'lower_limit': 0.0,
         'upper_limit': 0.0,
@@ -2115,7 +2179,6 @@ def _create_empty_result(scheme):
         'original_std': 0.0
     }
 
-
 def _create_single_point_result(value, scheme):
     """创建单数据点结果"""
     return {
@@ -2123,8 +2186,10 @@ def _create_single_point_result(value, scheme):
         'robust_std': 0.0,
         'clean_data': [float(value)],
         'outliers': [],
-        'Z_scores': [0.0],
+        'Z_scores_high_precision': [0.0],
+        'Z_scores_rounded': [0.0],
         'formatted_Z_scores': ["0.00"],
+        'z_score_classifications': ["满意"],
         'method_name': 'Q/Hampel法（单数据点）',
         'lower_limit': float(value),
         'upper_limit': float(value),
@@ -2137,7 +2202,6 @@ def _create_single_point_result(value, scheme):
         'original_std': 0.0
     }
 
-
 def _fallback_method(data, scheme):
     """回退方法 - 使用传统统计量"""
     data_array = np.asarray(data, dtype=float)
@@ -2146,9 +2210,11 @@ def _fallback_method(data, scheme):
     
     # 计算Z比分
     if std_val > 0:
-        Z_scores = ((data_array - mean_val) / std_val).tolist()
+        Z_scores_high_precision = ((data_array - mean_val) / std_val).tolist()
+        Z_scores_rounded = np.round(Z_scores_high_precision, 2).tolist()
     else:
-        Z_scores = [0.0] * len(data_array)
+        Z_scores_high_precision = [0.0] * len(data_array)
+        Z_scores_rounded = [0.0] * len(data_array)
     
     # 识别离群值（基于3σ原则）
     lower_limit = mean_val - 3 * std_val
@@ -2158,15 +2224,20 @@ def _fallback_method(data, scheme):
     clean_data = data_array[~outliers_mask].tolist()
     
     # 格式化Z比分显示
-    formatted_Z_scores = [format_z_score_display(z) for z in Z_scores]
+    formatted_Z_scores = format_z_scores(Z_scores_rounded)
+    
+    # 为每个数据点生成分类
+    z_score_classifications = [classify_z_score(z) for z in Z_scores_rounded]
     
     return {
         'robust_mean': mean_val,
         'robust_std': std_val,
         'clean_data': clean_data,
         'outliers': outliers,
-        'Z_scores': Z_scores,
+        'Z_scores_high_precision': Z_scores_high_precision,
+        'Z_scores_rounded': Z_scores_rounded,
         'formatted_Z_scores': formatted_Z_scores,
+        'z_score_classifications': z_score_classifications,
         'method_name': 'Q/Hampel法（回退到传统方法）',
         'lower_limit': float(lower_limit),
         'upper_limit': float(upper_limit),
@@ -2179,32 +2250,218 @@ def _fallback_method(data, scheme):
         'original_std': std_val
     }
 
-# Z比分格式化函数 - 确保显示两位小数
-def format_z_scores(z_scores):
-    """将Z比分统一格式化为两位小数（确保显示两位小数，如56.60）"""
-    if z_scores is None:
-        return None
-    
-    formatted_scores = []
-    for score in z_scores:
-        try:
-            # 确保是数值类型，然后格式化为两位小数
-            formatted_score = float(score)
-            # 使用格式化字符串确保显示两位小数
-            formatted_scores.append(formatted_score)
-        except (ValueError, TypeError):
-            formatted_scores.append(0.0)  # 如果转换失败，返回默认值
-    
-    return formatted_scores
+# =============================================
+# Z比分对比表格功能
+# =============================================
 
-def format_z_score_display(z_score):
-    """将单个Z比分格式化为两位小数显示（确保显示两位小数）"""
-    if z_score is None or pd.isna(z_score):
-        return ""
+def display_z_score_comparison_table(results, original_labels=None):
+    """
+    显示高精度和保留两位小数后Z比分数的对比表格
+    """
+    st.subheader("📊 Z比分数对比表格")
+    
+    # 创建对比数据
+    comparison_data = []
+    
+    # 获取数据点数量
+    n_points = len(results['Z_scores_high_precision'])
+    
+    # 生成标签（如果没有提供原始标签）
+    if original_labels is None or len(original_labels) != n_points:
+        labels = [f"数据点 {i+1:03d}" for i in range(n_points)]
+    else:
+        labels = original_labels
+    
+    # 构建对比数据
+    for i in range(n_points):
+        high_precision_z = results['Z_scores_high_precision'][i]
+        rounded_z = results['Z_scores_rounded'][i]
+        classification = results['z_score_classifications'][i]
+        
+        comparison_data.append({
+            '数据点': labels[i],
+            '高精度Z比分数': f"{high_precision_z:.6f}",
+            '保留两位小数Z比分数': f"{rounded_z:.2f}",
+            '分类结果': classification
+        })
+    
+    # 创建DataFrame
+    comparison_df = pd.DataFrame(comparison_data)
+    
+    # 显示表格
+    st.dataframe(comparison_df, use_container_width=True)
+    
+    # 添加分类统计
+    st.subheader("📈 Z比分数分类统计")
+    
+    # 统计各类别的数量
+    classification_counts = Counter(results['z_score_classifications'])
+    total_count = len(results['z_score_classifications'])
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        satisfactory_count = classification_counts.get('满意', 0)
+        satisfactory_percent = (satisfactory_count / total_count * 100) if total_count > 0 else 0
+        st.metric(
+            "满意 (|Z| ≤ 2)", 
+            f"{satisfactory_count} 个", 
+            f"{satisfactory_percent:.1f}%"
+        )
+    
+    with col2:
+        questionable_count = classification_counts.get('可疑', 0)
+        questionable_percent = (questionable_count / total_count * 100) if total_count > 0 else 0
+        st.metric(
+            "可疑 (2 < |Z| < 3)", 
+            f"{questionable_count} 个", 
+            f"{questionable_percent:.1f}%"
+        )
+    
+    with col3:
+        unsatisfactory_count = classification_counts.get('不满意', 0)
+        unsatisfactory_percent = (unsatisfactory_count / total_count * 100) if total_count > 0 else 0
+        st.metric(
+            "不满意 (|Z| ≥ 3)", 
+            f"{unsatisfactory_count} 个", 
+            f"{unsatisfactory_percent:.1f}%"
+        )
+    
+    return comparison_df
+
+# =============================================
+# 可视化部分修改 - 使用新的分类标准
+# =============================================
+
+def create_z_score_chart(results, original_labels=None):
+    """
+    创建Z比分分布图表 - 使用新的分类标准
+    """
     try:
-        return f"{float(z_score):.2f}"
-    except (ValueError, TypeError):
-        return "0.00"
+        set_chinese_font()
+        
+        # 获取数据
+        z_scores = results['Z_scores_rounded']
+        classifications = results['z_score_classifications']
+        
+        # 生成标签
+        n_points = len(z_scores)
+        if original_labels is None or len(original_labels) != n_points:
+            labels = [f"{i+1:03d}" for i in range(n_points)]
+        else:
+            labels = original_labels
+        
+        # 创建数据框
+        chart_data = pd.DataFrame({
+            'Label': labels,
+            'Z_Score': z_scores,
+            'Classification': classifications
+        })
+        
+        # 按Z比分排序
+        chart_data = chart_data.sort_values('Z_Score', ascending=False)
+        
+        # 创建图表
+        chart_height = max(10, len(chart_data) * 0.4)
+        fig, ax = plt.subplots(figsize=(14, chart_height))
+        
+        # 设置类别对应的颜色
+        color_map = {
+            '满意': '#00FF00',    # 绿色
+            '可疑': '#FFA500',    # 橙色
+            '不满意': '#FF0000',   # 红色
+            '未知': '#808080'     # 灰色
+        }
+        
+        # 创建颜色列表
+        colors = [color_map.get(cat, '#808080') for cat in chart_data['Classification']]
+        
+        # 绘制柱状图
+        y_positions = range(len(chart_data))
+        bars = ax.barh(
+            y_positions, 
+            chart_data['Z_Score'], 
+            color=colors, 
+            alpha=0.6,
+            height=0.8,
+            edgecolor='white',
+            linewidth=0.5
+        )
+        
+        # 在柱状图上标注Z值
+        for i, (bar, z_value) in enumerate(zip(bars, chart_data['Z_Score'])):
+            try:
+                text_color = 'black'
+                z_display = f"{z_value:.2f}"
+                
+                ax.text(
+                    bar.get_width() + 0.05 * (1 if bar.get_width() >= 0 else -1), 
+                    bar.get_y() + bar.get_height()/2, 
+                    z_display, 
+                    ha='left' if bar.get_width() >= 0 else 'right', 
+                    va='center', 
+                    fontsize=9, 
+                    fontweight='bold',
+                    color=text_color
+                )
+            except:
+                continue
+        
+        # 设置图形属性
+        ax.set_xlabel('Z比分数', fontsize=14, fontweight='bold')
+        ax.set_ylabel('数据点编号', fontsize=14, fontweight='bold')
+        ax.set_title('Z比分数分布图 (按新的分类标准)', fontsize=18, fontweight='bold', pad=40)
+        
+        # 添加图例
+        from matplotlib.patches import Patch
+        legend_elements = [
+            Patch(facecolor=color_map['满意'], alpha=0.6, label='满意 (|Z| ≤ 2)'),
+            Patch(facecolor=color_map['可疑'], alpha=0.6, label='可疑 (2 < |Z| < 3)'),
+            Patch(facecolor=color_map['不满意'], alpha=0.6, label='不满意 (|Z| ≥ 3)')
+        ]
+        
+        ax.legend(
+            handles=legend_elements, 
+            title='分类', 
+            title_fontsize=12, 
+            fontsize=11, 
+            loc='upper center', 
+            bbox_to_anchor=(0.5, 1.00), 
+            ncol=3, 
+            frameon=True
+        )
+        
+        # 设置Y轴刻度
+        ax.set_yticks(y_positions)
+        ax.set_yticklabels(chart_data['Label'])
+        
+        # 添加参考线
+        ax.axvline(x=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
+        ax.axvline(x=-2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
+        ax.axvline(x=2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
+        ax.axvline(x=-3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
+        ax.axvline(x=3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
+        
+        # 添加网格和背景
+        ax.grid(axis='x', alpha=0.3, linestyle='--')
+        ax.set_facecolor('white')
+        
+        # 反转Y轴，使最大的Z值在顶部
+        ax.invert_yaxis()
+        
+        # 调整布局
+        plt.subplots_adjust(top=0.88)
+        plt.tight_layout()
+        
+        return fig
+        
+    except Exception as e:
+        st.error(f"创建图表时发生错误: {str(e)}")
+        return None
+
+# =============================================
+# 主程序分析部分
+# =============================================
 
 # 执行分析
 if data is not None and len(data) > 0:
@@ -2225,7 +2482,7 @@ if data is not None and len(data) > 0:
         scheme_display = "规范展示方案" if calculation_scheme == "规范展示方案" else "严格计算方案"
         st.info(f"当前使用: **{scheme_display}**")
         
-        # 显示数据小数位数分析（如果可用）- 修复：使用正确的数据源
+        # 显示数据小数位数分析（如果可用）
         current_decimal_info = None
         if input_method == "文件上传" and hasattr(st.session_state, 'file_decimal_info'):
             current_decimal_info = st.session_state.file_decimal_info
@@ -2237,10 +2494,6 @@ if data is not None and len(data) > 0:
                 st.write(f"**小数位数分布:** {', '.join([f'{places}位({count}个)' for places, count in current_decimal_info['decimal_places_count'].items()])}")
                 st.write(f"**最常出现的小数位数:** {current_decimal_info['detected_decimal_places']}位")
                 st.write(f"**小数位数一致性:** {'是' if current_decimal_info['consistent_decimals'] else '否'}")
-        
-        # =============================================
-        # 修复：确保使用正确的原始数据
-        # =============================================
         
         # 确定当前使用的原始数据
         if input_method == "文件上传":
@@ -2255,9 +2508,7 @@ if data is not None and len(data) > 0:
             current_original_data = data.tolist() if hasattr(data, 'tolist') else list(data)
             current_blank_count = 0
         
-        # =============================================
         # 输入数据正态分布分析
-        # =============================================
         st.subheader("输入数据正态分布分析")
         
         dist_col1, dist_col2 = st.columns([1, 2])
@@ -2303,11 +2554,7 @@ if data is not None and len(data) > 0:
             plt.tight_layout()
             st.pyplot(fig_dist)
         
-        # =============================================
         # 执行稳健统计分析
-        # =============================================
-        # 根据选择的方法执行分析
-
         with st.spinner(f"正在执行{method}分析..."):
             # 将方案选择转换为参数
             scheme_param = "presentation" if calculation_scheme == "规范展示方案" else "strict"
@@ -2327,19 +2574,14 @@ if data is not None and len(data) > 0:
                 
                 results = z_score_calculation_algorithm(data, robust_mean_input, robust_std_input, scheme=scheme_param)
 
-            # 统一格式化Z比分为两位小数（仅用于展示和导出）
-            results['formatted_Z_scores'] = format_z_scores(results['Z_scores'])
-
-        # =============================================
         # 显示计算方案说明
-        # =============================================
         with st.expander("ℹ️ 计算方案说明", expanded=True):
             st.info(results['formatting_note'])
-            st.success("💡 **Z比分处理说明**: 无论使用哪种计算方案，Z比分在计算过程中都保持完整精度，只在最后展示和导出时统一格式化为两位小数。")
+            st.success("💡 **Z比分处理说明**: Z比分在计算过程中保持完整精度，展示和导出时统一格式化为两位小数。分类基于保留两位小数后的Z比分数进行计算。")
             if calculation_scheme == "规范展示方案":
                 st.warning("注意：规范展示方案会引入微小计算误差，但结果呈现更规范")
             else:
-                st.success("严格计算方案确保计算精度，Z比分计算过程中不进行四舍五入")
+                st.success("严格计算方案确保计算精度")
         
         # 显示主要结果
         col1, col2 = st.columns(2)
@@ -2391,9 +2633,7 @@ if data is not None and len(data) > 0:
                 # 显示数据小数位数
                 st.metric("数据小数位数", results.get('decimal_places', '未知'))
         
-        # =============================================
-        # 显示详细结果 - 使用原有模块
-        # =============================================
+        # 显示详细结果
         st.subheader("📋 详细结果")
         st.write(f"**正常值范围**: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]")
         
@@ -2423,18 +2663,18 @@ if data is not None and len(data) > 0:
                     
                     for outlier in outliers_list:
                         z_score = abs((outlier - robust_mean) / robust_std) if robust_std > 0 else float('inf')
-                        if 2 < z_score <= 3:
+                        if 2 < z_score < 3:
                             questionable_outliers.append((outlier, z_score))
-                        elif z_score > 3:
+                        elif z_score >= 3:
                             unsatisfactory_outliers.append((outlier, z_score))
                     
                     # 显示可疑离群值
                     if questionable_outliers:
-                        st.write(f"  - 可疑离群值 (2<|Z|≤3): {[f'{val[0]} (Z={val[1]:.2f})' for val in questionable_outliers]}")
+                        st.write(f"  - 可疑离群值 (2<|Z|<3): {[f'{val[0]} (Z={val[1]:.2f})' for val in questionable_outliers]}")
                     
                     # 显示不满意离群值
                     if unsatisfactory_outliers:
-                        st.write(f"  - 不满意离群值 (|Z|>3): {[f'{val[0]} (Z={val[1]:.2f})' for val in unsatisfactory_outliers]}")
+                        st.write(f"  - 不满意离群值 (|Z|≥3): {[f'{val[0]} (Z={val[1]:.2f})' for val in unsatisfactory_outliers]}")
                         
                 except (ValueError, TypeError):
                     st.write("**离群值**: [无法显示]")
@@ -2444,15 +2684,15 @@ if data is not None and len(data) > 0:
             st.success("✅ **离群值**: 无检测到离群值")
         
         # Z比分数分类统计
-        z_scores_data = results['Z_scores']
+        z_scores_data = results['Z_scores_rounded']
         
         if z_scores_data is not None:
             try:
                 z_scores = np.array(z_scores_data)
                 z_scores_abs = np.abs(z_scores)
                 satisfactory = np.sum(z_scores_abs <= 2)
-                questionable = np.sum((z_scores_abs > 2) & (z_scores_abs <= 3))
-                unsatisfactory = np.sum(z_scores_abs > 3)
+                questionable = np.sum((z_scores_abs > 2) & (z_scores_abs < 3))
+                unsatisfactory = np.sum(z_scores_abs >= 3)
                 
                 st.write("**Z比分数分类**:")
                 col1, col2, col3 = st.columns(3)
@@ -2463,11 +2703,11 @@ if data is not None and len(data) > 0:
                 with col2:
                     # 计算可疑数据的百分比
                     quest_percent = questionable/len(z_scores)*100 if len(z_scores) > 0 else 0
-                    st.metric("可疑 (2 < |Z| ≤ 3)", f"{questionable} 个", f"{quest_percent:.1f}%")
+                    st.metric("可疑 (2 < |Z| < 3)", f"{questionable} 个", f"{quest_percent:.1f}%")
                 with col3:
                     # 计算不满意数据的百分比
                     unsat_percent = unsatisfactory/len(z_scores)*100 if len(z_scores) > 0 else 0
-                    st.metric("不满意 (|Z| > 3)", f"{unsatisfactory} 个", f"{unsat_percent:.1f}%")
+                    st.metric("不满意 (|Z| ≥ 3)", f"{unsatisfactory} 个", f"{unsat_percent:.1f}%")
                     
                 # 显示Z比分统计摘要
                 if len(z_scores) > 0:
@@ -2494,227 +2734,32 @@ if data is not None and len(data) > 0:
                     pass  
         
         # =============================================
-        # 数据可视化 - 使用原有的可视化模块
+        # 显示Z比分对比表格
         # =============================================
-        st.subheader("数据可视化")
+        st.markdown("---")
         
-        # 创建数据框用于可视化 - 使用原有的逻辑
-        try:
-            if input_method == "带编号数据输入" and st.session_state.label_data_pairs:
-                # 使用两列数据的原始标签
-                valid_labels = []
-                valid_data = []
-                valid_z_scores = []
-                
-                # 确保Z_scores与有效数据正确对应
-                if st.session_state.valid_pairs:
-                    # 获取有效数据对应的标签和数值
-                    valid_labels = [pair[0] for pair in st.session_state.valid_pairs]
-                    valid_data = [float(pair[1]) for pair in st.session_state.valid_pairs]  # 确保转换为float
-                    
-                    # 使用格式化后的Z比分
-                    if len(results['formatted_Z_scores']) == len(valid_data):
-                        valid_z_scores = results['formatted_Z_scores']
-                    else:
-                        st.error(f"Z分数数量({len(results['formatted_Z_scores'])})与有效数据数量({len(valid_data)})不匹配")
-                        # 使用前n个Z分数或填充
-                        valid_z_scores = results['formatted_Z_scores'][:len(valid_data)] + [0] * max(0, len(valid_data) - len(results['formatted_Z_scores']))
-                
-                df_clean = pd.DataFrame({
-                    'Original_Label': valid_labels,
-                    'Original_Data': valid_data,
-                    'Z_Score': valid_z_scores
-                })
-                
-            else:
-                # 其他输入方式：使用自动生成的三位数字标签
-                # 确保数据是安全的Python类型
-                safe_data = []
-                if hasattr(data, 'tolist'):
-                    safe_data = data.tolist()
-                elif hasattr(data, '__iter__') and not isinstance(data, (str, dict)):
-                    safe_data = list(data)
-                else:
-                    safe_data = [data] if data is not None else []
-                
-                # 使用格式化后的Z比分
-                safe_z_scores = results['formatted_Z_scores']
-                
-                df_clean = pd.DataFrame({
-                    'Original_Data': safe_data,
-                    'Z_Score': safe_z_scores
-                })
-                
-                # 生成三位数字标签 - 仅对有效数据
-                valid_labels = []
-                if st.session_state.original_data:
-                    valid_count = 0
-                    for i, value in enumerate(st.session_state.original_data):
-                        if value is not None:  # 有效数据
-                            label = f"{str(valid_count+1).zfill(3)}"  # 001, 002, ...
-                            valid_labels.append(label)
-                            valid_count += 1
-                else:
-                    # 如果没有原始数据，使用简单编号
-                    valid_labels = [f"{str(i+1).zfill(3)}" for i in range(len(safe_data))]
-                
-                # 将标签添加到数据框
-                df_clean['Original_Label'] = valid_labels[:len(df_clean)]  # 确保长度匹配
+        # 获取原始标签
+        original_labels = None
+        if input_method == "带编号数据输入" and st.session_state.label_data_pairs:
+            original_labels = [pair[0] for pair in st.session_state.valid_pairs]
+        else:
+            # 生成三位数字标签
+            n_points = len(data)
+            original_labels = [f"{i+1:03d}" for i in range(n_points)]
         
-            # 检查数据框是否为空
-            if df_clean.empty:
-                st.warning("没有有效数据可用于可视化")
-                # 跳过图表创建
-                chart_created = False
-            else:
-                chart_created = True
-        
-        except Exception as e:
-            st.error(f"创建数据框时发生错误: {str(e)}")
-            chart_created = False
-            
-        # 只有在成功创建数据框时才继续创建图表
-        if chart_created:
-            try:
-                set_chinese_font()
-                
-                # 根据Z值进行分类 - 使用原有的分类函数
-                def classify_data(row):
-                    try:
-                        z_score = float(row['Z_Score'])
-                        if abs(z_score) <= 2:
-                            return 'Satisfactory'
-                        elif 2 < abs(z_score) <= 3:
-                            return 'Questionable'
-                        else:
-                            return 'Unsatisfactory'
-                    except (ValueError, TypeError):
-                        return 'Unknown'
-            
-                df_clean['Category'] = df_clean.apply(classify_data, axis=1)
-            
-                # 按照Z值从大到小排序 - 安全排序
-                try:
-                    df_sorted = df_clean.sort_values('Z_Score', ascending=False)
-                except:
-                    # 如果排序失败，使用原始顺序
-                    df_sorted = df_clean.copy()
-                    st.warning("数据排序失败，使用原始顺序")
-            
-                # 创建Z值柱状图 - 使用原有的图表创建逻辑
-                chart_height = max(10, len(df_sorted) * 0.4)
-                fig, ax = plt.subplots(figsize=(14, chart_height))
-            
-                # 设置类别对应的颜色
-                color_map = {
-                    'Satisfactory': '#00FF00',    # 绿色
-                    'Questionable': '#FFA500',    # 橙色
-                    'Unsatisfactory': '#FF0000',   # 红色
-                    'Unknown': '#808080'          # 灰色（未知类别）
-                }
-            
-                # 创建颜色列表
-                colors = []
-                for cat in df_sorted['Category']:
-                    colors.append(color_map.get(cat, '#808080'))  # 默认灰色
-            
-                # 绘制所有数据点的柱状图，按Z值排序
-                y_positions = range(len(df_sorted))
-                
-                # 安全获取Z分数
-                z_scores_to_plot = []
-                for z in df_sorted['Z_Score']:
-                    try:
-                        z_scores_to_plot.append(float(z))
-                    except (ValueError, TypeError):
-                        z_scores_to_plot.append(0.0)  # 默认值
-            
-                bars = ax.barh(y_positions, 
-                               z_scores_to_plot, 
-                               color=colors, 
-                               alpha=0.6,
-                               height=0.8,
-                               edgecolor='white',
-                               linewidth=0.5)
-            
-                # 在柱状图上标注Z值 - 使用格式化后的两位小数（确保显示两位小数）
-                for i, (bar, z_value) in enumerate(zip(bars, df_sorted['Z_Score'])):
-                    try:
-                        text_color = 'black'
-                        
-                        # Z比分统一显示两位小数，确保显示56.60而不是56.6
-                        z_display = format_z_score_display(z_value)
-                        
-                        ax.text(bar.get_width() + 0.05 * (1 if bar.get_width() >= 0 else -1), 
-                                bar.get_y() + bar.get_height()/2, 
-                                z_display, 
-                                ha='left' if bar.get_width() >= 0 else 'right', 
-                                va='center', fontsize=9, fontweight='bold',
-                                color=text_color)
-                    except:
-                        continue  # 如果标注失败，跳过这个数据点
-            
-                # 设置图形属性 - 包含计算方案信息
-                ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
-                ax.set_ylabel('Original Data ID', fontsize=14, fontweight='bold')
-                ax.set_title(f'Z-Score Distribution (Sorted)', fontsize=18, fontweight='bold', pad=40)
-            
-                # 添加图例
-                from matplotlib.patches import Patch
-                legend_elements = [
-                    Patch(facecolor=color_map['Satisfactory'], alpha=0.6, label='Satisfactory (|Z| ≤ 2)'),
-                    Patch(facecolor=color_map['Questionable'], alpha=0.6, label='Questionable (2 < |Z| ≤ 3)'),
-                    Patch(facecolor=color_map['Unsatisfactory'], alpha=0.6, label='Unsatisfactory (|Z| > 3)')
-                ]
-            
-                ax.legend(handles=legend_elements, title=f'Category', title_fontsize=12, fontsize=11, 
-                          loc='upper center', bbox_to_anchor=(0.5, 1.00), ncol=3, frameon=True)
-            
-                # 设置Y轴刻度 - 使用原始标签
-                ax.set_yticks(y_positions)
-                
-                # 安全获取标签
-                y_labels = []
-                for label in df_sorted['Original_Label']:
-                    try:
-                        y_labels.append(str(label))
-                    except:
-                        y_labels.append("")
-                
-                ax.set_yticklabels(y_labels)
-            
-                # 添加参考线
-                ax.axvline(x=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
-                ax.axvline(x=-2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
-                ax.axvline(x=2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
-                ax.axvline(x=-3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
-                ax.axvline(x=3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
-            
-                # 添加网格
-                ax.grid(axis='x', alpha=0.3, linestyle='--')
-            
-                # 反转Y轴，使最大的Z值在顶部
-                ax.invert_yaxis()
-            
-                # 设置背景色
-                ax.set_facecolor('white')
-            
-                # 调整布局
-                plt.subplots_adjust(top=0.88)
-                plt.tight_layout()
-            
-                # 显示图表
-                st.pyplot(fig)
-                
-                # 在图表下方添加计算方案说明
-                st.info("📝 **Z比分显示说明**: 仅在展示和导出时统一格式化为两位小数")
-                    
-            except Exception as e:
-                st.error(f"创建图表时发生错误: {str(e)}")
-                st.info("这可能是因为数据格式问题，请检查输入数据的有效性")
+        # 显示Z比分对比表格
+        comparison_df = display_z_score_comparison_table(results, original_labels)
         
         # =============================================
-        # 方案比较功能 - 使用原有模块
+        # 数据可视化 - 使用新的分类标准
+        # =============================================
+        st.subheader("📊 Z比分数可视化 (新分类标准)")
+        fig = create_z_score_chart(results, original_labels)
+        if fig is not None:
+            st.pyplot(fig)
+        
+        # =============================================
+        # 方案比较功能
         # =============================================
         if show_scheme_comparison and method != "Z比分计算模块":  # Z比分计算模块不支持方案比较
             st.markdown("---")
@@ -2731,10 +2776,6 @@ if data is not None and len(data) > 0:
                 else:  # Q/Hampel法
                     strict_results = q_hampel_robust_algorithm(data, scheme="strict")
                     presentation_results = q_hampel_robust_algorithm(data, scheme="presentation")
-                
-                # 格式化Z比分为两位小数用于比较显示
-                strict_results['formatted_Z_scores'] = format_z_scores(strict_results['Z_scores'])
-                presentation_results['formatted_Z_scores'] = format_z_scores(presentation_results['Z_scores'])
             
             col1, col2 = st.columns(2)
             
@@ -2743,8 +2784,8 @@ if data is not None and len(data) > 0:
                 st.write(f"稳健平均值: {strict_results['robust_mean']:.6f}")
                 st.write(f"稳健标准差: {strict_results['robust_std']:.6f}")
                 # 使用格式化后的Z比分显示范围
-                z_min_strict = min(strict_results['formatted_Z_scores']) if strict_results['formatted_Z_scores'] else 0
-                z_max_strict = max(strict_results['formatted_Z_scores']) if strict_results['formatted_Z_scores'] else 0
+                z_min_strict = min(strict_results['Z_scores_rounded']) if strict_results['Z_scores_rounded'] else 0
+                z_max_strict = max(strict_results['Z_scores_rounded']) if strict_results['Z_scores_rounded'] else 0
                 st.write(f"Z比分范围: [{z_min_strict:.2f}, {z_max_strict:.2f}]")
                 if 'iterations' in strict_results:
                     st.write(f"迭代次数: {strict_results['iterations']}")
@@ -2755,8 +2796,8 @@ if data is not None and len(data) > 0:
                 st.write(f"稳健平均值: {presentation_results['robust_mean']}")
                 st.write(f"稳健标准差: {presentation_results['robust_std']:.3f}")
                 # 使用格式化后的Z比分显示范围
-                z_min_pres = min(presentation_results['formatted_Z_scores']) if presentation_results['formatted_Z_scores'] else 0
-                z_max_pres = max(presentation_results['formatted_Z_scores']) if presentation_results['formatted_Z_scores'] else 0
+                z_min_pres = min(presentation_results['Z_scores_rounded']) if presentation_results['Z_scores_rounded'] else 0
+                z_max_pres = max(presentation_results['Z_scores_rounded']) if presentation_results['Z_scores_rounded'] else 0
                 st.write(f"Z比分范围: [{z_min_pres:.2f}, {z_max_pres:.2f}]")
                 if 'iterations' in presentation_results:
                     st.write(f"迭代次数: {presentation_results['iterations']}")
@@ -2771,7 +2812,7 @@ if data is not None and len(data) > 0:
             """)
         
         # =============================================
-        # 导出结果模块 - 使用原有的导出模块
+        # 导出结果模块
         # =============================================
         st.subheader("💾 导出结果")
         
@@ -2804,6 +2845,7 @@ if data is not None and len(data) > 0:
                 z_score = None
                 if value is not None and valid_data_count < len(results['formatted_Z_scores']):
                     z_score = results['formatted_Z_scores'][valid_data_count]
+                    classification = results['z_score_classifications'][valid_data_count]
                     valid_data_count += 1
                 
                 # 使用检测到的小数位数格式化
@@ -2814,7 +2856,8 @@ if data is not None and len(data) > 0:
                 result_data.append({
                     '标签原始标号': label,  # 使用用户提供的标签
                     '输入数据': formatted_value,
-                    'Z比分数': formatted_z_score
+                    'Z比分数': formatted_z_score,
+                    '分类结果': classification
                 })
             
             total_data_count = len(st.session_state.label_data_pairs)
@@ -2832,6 +2875,7 @@ if data is not None and len(data) > 0:
                     
                     if value is not None:  # 有效数据
                         z_score = results['formatted_Z_scores'][valid_data_count] if valid_data_count < len(results['formatted_Z_scores']) else None
+                        classification = results['z_score_classifications'][valid_data_count] if valid_data_count < len(results['z_score_classifications']) else "未知"
                         # 使用检测到的小数位数格式化
                         formatted_value = format_number(value, detected_decimal_places)
                         # 使用新的格式化函数确保显示两位小数
@@ -2840,14 +2884,16 @@ if data is not None and len(data) > 0:
                         result_data.append({
                             '标签原始标号': original_label,
                             '输入数据': formatted_value,
-                            'Z比分数': formatted_z_score
+                            'Z比分数': formatted_z_score,
+                            '分类结果': classification
                         })
                         valid_data_count += 1
                     else:  # 空白数据
                         result_data.append({
                             '标签原始标号': original_label,
                             '输入数据': None,
-                            'Z比分数': ""
+                            'Z比分数': "",
+                            '分类结果': ""
                         })
                 
                 total_data_count = len(current_original_data)
@@ -2858,6 +2904,7 @@ if data is not None and len(data) > 0:
                 for i, value in enumerate(data):
                     original_label = f"{str(i+1).zfill(3)}"
                     z_score = results['formatted_Z_scores'][i] if i < len(results['formatted_Z_scores']) else None
+                    classification = results['z_score_classifications'][i] if i < len(results['z_score_classifications']) else "未知"
                     
                     # 使用检测到的小数位数格式化
                     formatted_value = format_number(value, detected_decimal_places)
@@ -2867,7 +2914,8 @@ if data is not None and len(data) > 0:
                     result_data.append({
                         '标签原始标号': original_label,
                         '输入数据': formatted_value,
-                        'Z比分数': formatted_z_score
+                        'Z比分数': formatted_z_score,
+                        '分类结果': classification
                     })
                 
                 total_data_count = len(data)
@@ -2886,7 +2934,8 @@ if data is not None and len(data) > 0:
                     result_data.append({
                         '标签原始标号': f"{str(len(result_data)+1).zfill(3)}",
                         '输入数据': None,
-                        'Z比分数': ""
+                        'Z比分数': "",
+                        '分类结果': ""
                     })
         
         result_df = pd.DataFrame(result_data)
@@ -2928,8 +2977,8 @@ if data is not None and len(data) > 0:
             st.success("✅ 数据一致性验证通过")
         
         st.write("**统计量摘要:**")
-        st.dataframe(stats_df, use_container_width=True)                                             
-                       
+        st.dataframe(stats_df, use_container_width=True)
+        
         # 在文本报告开头添加方案说明和小数位数说明
         scheme_text = "严格计算方案" if calculation_scheme == "严格计算方案" else "规范展示方案"
         report = f"""                
@@ -2954,7 +3003,7 @@ if data is not None and len(data) > 0:
 
 数据表格:
 --------
-标签原始标号\t输入数据\tZ比分数
+标签原始标号\t输入数据\tZ比分数\t分类结果
 """
         
         # 添加数据行 - 确保数值格式与预览一致
@@ -2972,7 +3021,8 @@ if data is not None and len(data) > 0:
             
             # 处理Z比分数格式 - 使用与预览相同的格式化
             z_score = row['Z比分数']
-            report += f"{row['标签原始标号']}\t{input_data}\t{z_score}\n"
+            classification = row['分类结果']
+            report += f"{row['标签原始标号']}\t{input_data}\t{z_score}\t{classification}\n"
         
         report += f"""
 统计量摘要:
@@ -3013,17 +3063,17 @@ MAD值: {results.get('mad', 0):.6f}
             report += f"迭代次数: {results['iterations']}\n"
         
         # Z比分数分类统计
-        z_scores_abs = np.abs(results['formatted_Z_scores'])
+        z_scores_abs = np.abs(results['Z_scores_rounded'])
         satisfactory = np.sum(z_scores_abs <= 2)
-        questionable = np.sum((z_scores_abs > 2) & (z_scores_abs <= 3))
-        unsatisfactory = np.sum(z_scores_abs > 3)
+        questionable = np.sum((z_scores_abs > 2) & (z_scores_abs < 3))
+        unsatisfactory = np.sum(z_scores_abs >= 3)
         
         report += f"""
 Z比分数分类（仅有效数据）:
 -------------------------
 满意 (|Z| ≤ 2): {satisfactory} 个数据点
-可疑 (2 < |Z| ≤ 3): {questionable} 个数据点  
-不满意 (|Z| > 3): {unsatisfactory} 个数据点
+可疑 (2 < |Z| < 3): {questionable} 个数据点  
+不满意 (|Z| ≥ 3): {unsatisfactory} 个数据点
 
 离群值列表:
 ----------
@@ -3035,7 +3085,7 @@ Z比分数分类（仅有效数据）:
         else:
             report += "无"
         
-        # 创建多格式导出选项 - 使用原有的导出模块
+        # 创建多格式导出选项
         export_col1, export_col2, export_col3, export_col4 = st.columns(4)
         
         with export_col1:
@@ -3152,6 +3202,16 @@ Z比分数分类（仅有效数据）:
         # 添加小数位数说明
         st.info(f"💡 **小数位数说明**: 导出的数据使用 {detected_decimal_places} 位小数（基于输入数据的最大小数位数）。Z比分统一格式化为两位小数，空白数据会保留标签但数据为空。")
         
+        # 添加分类标准说明
+        st.info("""
+        **📝 新的Z比分分类标准:**
+        - **满意**: |Z| ≤ 2
+        - **可疑**: 2 < |Z| < 3  
+        - **不满意**: |Z| ≥ 3
+        
+        **注意**: 分类基于保留两位小数后的Z比分数进行计算。
+        """)
+        
     except Exception as e:
         st.error(f"❌ 统计分析过程中发生错误: {str(e)}")
         st.info("💡 这可能是因为数据特征不适合所选的分析方法，请尝试其他统计方法或检查数据质量")
@@ -3166,6 +3226,12 @@ st.markdown("""
 - **迭代稳健统计法**: 通过迭代过程逐步修正异常值影响
 - **四分位稳健统计法**: 基于数据排序，使用中段50%数据，崩溃点25%
 - **Q/Hampel法**: 结合Q方法稳健标准差和Hampel方法稳健平均值
+- **Z比分计算模块**: 使用用户提供的稳健统计量计算Z比分
+
+**Z比分分类标准:**
+- **满意**: |Z| ≤ 2
+- **可疑**: 2 < |Z| < 3  
+- **不满意**: |Z| ≥ 3
 """)
 
 # 用户反馈
