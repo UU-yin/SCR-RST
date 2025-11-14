@@ -775,7 +775,7 @@ def initialize_session_state():
 
 # 设置页面
 st.set_page_config(
-    page_title="统计分析工具",
+    page_title="稳健统计分析工具 (Robust Statistical Analysis Tool)",
     page_icon="📊",
     layout="wide"
 )
@@ -784,7 +784,7 @@ st.set_page_config(
 initialize_session_state()
 
 # 标题和说明
-st.title("📊 统计分析工具")
+st.title("📊 稳健统计分析工具 (Robust Statistical Analysis Tool)")
 st.markdown("""
 提供多种稳健统计分析方法，用于处理包含异常值的数据集。
 支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
