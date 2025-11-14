@@ -775,7 +775,7 @@ def initialize_session_state():
 
 # 设置页面
 st.set_page_config(
-    page_title="稳健统计分析工具 (Robust Statistical Analysis Tool)",
+    page_title="稳健统计分析工具 ",
     page_icon="📊",
     layout="wide"
 )
@@ -784,7 +784,7 @@ st.set_page_config(
 initialize_session_state()
 
 # 标题和说明
-st.title("📊 稳健统计分析工具 (Robust Statistical Analysis Tool)")
+st.title("📊 稳健统计分析工具")
 st.markdown("""
 提供多种稳健统计分析方法，用于处理包含异常值的数据集。
 支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
@@ -3037,6 +3037,7 @@ if data is not None and len(data) > 0:
 ================
 
 分析时间: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
+工具版本: 稳健统计分析工具 (Robust Statistical Analysis Tool)
 计算方案: {scheme_text}
 数据小数位数: {detected_decimal_places}位（基于输入数据的最大小数位数）
 
