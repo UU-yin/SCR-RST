@@ -1333,28 +1333,66 @@ else:  # Z比分计算模块
 def detect_decimal_places(data):
     """检测数据的小数位数 - 返回最大小数位数"""
     max_decimal_places = 0
-    for value in data:
-        if isinstance(value, (int, float)) and not np.isnan(value):
-            # 将数值转换为字符串
-            str_value = str(value)
-            
-            # 处理科学计数法
-            if 'e' in str_value.lower():
-                # 如果是科学计数法，转换为普通小数表示
-                str_value = format(value, '.15f')
-            
-            # 分割整数和小数部分
-            if '.' in str_value:
-                decimal_part = str_value.split('.')[1]
-                # 去除末尾的零（如果有的话）
-                decimal_part = decimal_part.rstrip('0')
-                current_decimal_places = len(decimal_part)
-                max_decimal_places = max(max_decimal_places, current_decimal_places)
     
-    return max_decimal_places
+    # 确保数据是可迭代的
+    if data is None or (hasattr(data, '__len__') and len(data) == 0):
+        return 0  # 如果数据为空，返回0
+    
+    try:
+        for value in data:
+            if isinstance(value, (int, float)) and not np.isnan(value):
+                # 将数值转换为字符串
+                str_value = str(value)
+                
+                # 处理科学计数法
+                if 'e' in str_value.lower():
+                    # 如果是科学计数法，转换为普通小数表示
+                    str_value = format(value, '.15f')
+                
+                # 分割整数和小数部分
+                if '.' in str_value:
+                    decimal_part = str_value.split('.')[1]
+                    # 去除末尾的零（如果有的话）
+                    decimal_part = decimal_part.rstrip('0')
+                    current_decimal_places = len(decimal_part)
+                    max_decimal_places = max(max_decimal_places, current_decimal_places)
+        
+        return max_decimal_places
+        
+    except Exception as e:
+        # 如果出现任何错误，返回默认值0
+        return 0
 
 def iterative_robust_algorithm(data, max_iterations=50, k=1.5, scheme="strict"):
-    """迭代稳健统计法 - 支持两种计算方案和新的Z比分分类"""
+    """迭代稳健统计法 - 修复 decimal_places 问题"""
+    # 在函数开头确保 decimal_places 有默认值
+    decimal_places = 0
+    
+    # 确保数据有效
+    if data is None or len(data) == 0:
+        # 返回空的但完整的结果结构
+        return {
+            'robust_mean': 0.0,
+            'robust_std': 0.0,
+            'clean_data': [],
+            'outliers': [],
+            'Z_scores_high_precision': [],
+            'Z_scores_rounded': [],
+            'formatted_Z_scores': [],
+            'z_score_classifications': [],
+            'iterations': 0,
+            'converged': False,
+            'lower_limit': 0.0,
+            'upper_limit': 0.0,
+            'history': [],
+            'method_name': '迭代稳健统计法',
+            'decimal_places': 0,  # 确保有值
+            'calculation_scheme': scheme,
+            'formatting_note': "输入数据为空",
+            'original_mean': 0.0,
+            'original_std': 0.0
+        }
+    
     n = len(data)
     X_star = np.median(data)
     abs_deviations = np.abs(data - X_star)
@@ -1389,10 +1427,15 @@ def iterative_robust_algorithm(data, max_iterations=50, k=1.5, scheme="strict"):
             int(prev_S_star * 1000) == int(S_star * 1000)):
             converged = True
     
+    # 检测数据的小数位数 - 确保在任何情况下都有值
+    try:
+        decimal_places = detect_decimal_places(data)
+    except:
+        decimal_places = 0  # 如果检测失败，使用默认值
+    
     # 根据选择的方案进行格式化
     if scheme == "presentation":
         # 规范展示方案：使用四舍五入后的均值和标准差
-        decimal_places = detect_decimal_places(data)
         formatted_X_star = round(X_star, decimal_places)
         formatted_S_star = round(S_star, 3)
         
@@ -1481,7 +1524,7 @@ def iterative_robust_algorithm(data, max_iterations=50, k=1.5, scheme="strict"):
         'upper_limit': float(upper_limit) if not np.isnan(upper_limit) else 0.0,
         'history': history,
         'method_name': '迭代稳健统计法',
-        'decimal_places': decimal_places,
+        'decimal_places': decimal_places,  # 确保这个字段总是有值
         'calculation_scheme': scheme,
         'formatting_note': formatting_note,
         'original_mean': float(X_star) if not np.isnan(X_star) else 0.0,  # 始终保存原始计算值
@@ -2004,7 +2047,10 @@ def _calculate_q_standard_deviation(data):
 
 def _calculate_hampel_mean(data, robust_std, max_iterations=20, tolerance=1e-6):
     """计算Hampel稳健平均值"""
-    n = len(data)
+    
+    # 确保数据是numpy数组
+    data_array = np.asarray(data, dtype=float)
+    n = len(data_array)
     
     # 使用中位数作为初始估计
     current_mean = np.median(data)
@@ -2032,6 +2078,8 @@ def _calculate_hampel_mean(data, robust_std, max_iterations=20, tolerance=1e-6):
         
         # Hampel权重函数 - 三部分权重函数
         weights = np.ones_like(data)
+        
+        abs_std_residuals = np.abs(standardized_residuals)
         
         # 第一部分：|u| ≤ 1.5，权重为1
         # 权重已经是1，不需要修改
@@ -2335,7 +2383,7 @@ def display_z_score_comparison_table(results, original_labels=None):
 
 def create_z_score_chart(results, original_labels=None):
     """
-    创建Z比分分布图表 - 使用新的分类标准
+    创建Z比分分布图表
     """
     try:
         set_chinese_font()
@@ -2343,7 +2391,10 @@ def create_z_score_chart(results, original_labels=None):
         # 获取数据
         z_scores = results['Z_scores_rounded']
         classifications = results['z_score_classifications']
-        
+        if not z_scores or not classifications:
+            st.warning("无法创建图表：缺少Z比分数据")
+            return None
+          
         # 生成标签
         n_points = len(z_scores)
         if original_labels is None or len(original_labels) != n_points:
@@ -2408,21 +2459,21 @@ def create_z_score_chart(results, original_labels=None):
                 continue
         
         # 设置图形属性
-        ax.set_xlabel('Z比分数', fontsize=14, fontweight='bold')
-        ax.set_ylabel('数据点编号', fontsize=14, fontweight='bold')
-        ax.set_title('Z比分数分布图 (按新的分类标准)', fontsize=18, fontweight='bold', pad=40)
+        ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Original Data ID', fontsize=14, fontweight='bold')
+        ax.set_title('Z-Score Distribution (Sorted)', fontsize=18, fontweight='bold', pad=40)
         
         # 添加图例
         from matplotlib.patches import Patch
         legend_elements = [
-            Patch(facecolor=color_map['满意'], alpha=0.6, label='满意 (|Z| ≤ 2)'),
-            Patch(facecolor=color_map['可疑'], alpha=0.6, label='可疑 (2 < |Z| < 3)'),
-            Patch(facecolor=color_map['不满意'], alpha=0.6, label='不满意 (|Z| ≥ 3)')
+            Patch(facecolor=color_map['满意'], alpha=0.6, label='Satisfactory (|Z| ≤ 2)'),
+            Patch(facecolor=color_map['可疑'], alpha=0.6, label='Questionable (2 < |Z| < 3)'),
+            Patch(facecolor=color_map['不满意'], alpha=0.6, label='Unsatisfactory (|Z| ≥ 3)')
         ]
         
         ax.legend(
             handles=legend_elements, 
-            title='分类', 
+            title='Category', 
             title_fontsize=12, 
             fontsize=11, 
             loc='upper center', 
