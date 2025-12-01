@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Oct 23 15:51:46 2025
-
-@author: ypan1
-"""
-
 import streamlit as st
 import numpy as np
 from collections import Counter
@@ -769,6 +762,112 @@ def initialize_session_state():
         
     if 'file_validation_passed' not in st.session_state:
         st.session_state.file_validation_passed = False
+        
+    if 'file_decimal_info' not in st.session_state:
+        st.session_state.file_decimal_info = {}
+        
+    if 'two_column_decimal_info' not in st.session_state:
+        st.session_state.two_column_decimal_info = {}
+
+# =============================================
+# 缺失的函数定义
+# =============================================
+
+def analyze_data():
+    """分析手动输入的数据"""
+    try:
+        # 获取当前输入的数据
+        data_string = st.session_state.manual_data
+        
+        # 进行数据验证
+        is_valid, original_data, clean_data, blank_count, validation_report, decimal_info = \
+            DataValidator.comprehensive_validation(data_string, calculation_scheme)
+        
+        if is_valid:
+            st.session_state.processed_data = np.array(clean_data)
+            st.session_state.original_data = original_data
+            st.session_state.blank_count = blank_count
+            st.session_state.validation_report = validation_report
+            st.session_state.validation_passed = True
+            st.session_state.decimal_info = decimal_info
+            st.session_state.data_loaded = True
+            
+            # 保存到历史记录
+            st.session_state.data_history.append(data_string)
+            
+            st.success(f"✅ 数据验证通过！成功加载 {len(clean_data)} 个有效数据点")
+            if blank_count > 0:
+                st.warning(f"⚠️ 检测到 {blank_count} 个空白数据点，这些数据将被忽略")
+        else:
+            st.error("❌ 数据验证失败，请检查输入格式")
+            st.session_state.validation_passed = False
+            
+    except Exception as e:
+        st.error(f"❌ 数据分析错误: {str(e)}")
+
+def clear_data():
+    """清除手动输入的数据"""
+    st.session_state.manual_data = ""
+    st.session_state.reset_counter += 1
+    st.session_state.data_loaded = False
+    st.rerun()
+
+def undo_data():
+    """撤销到上一次的数据状态"""
+    if st.session_state.data_history:
+        # 移除当前状态
+        current_data = st.session_state.data_history.pop()
+        # 恢复上一个状态
+        if st.session_state.data_history:
+            previous_data = st.session_state.data_history[-1]
+            st.session_state.manual_data = previous_data
+            st.session_state.reset_counter += 1
+            st.rerun()
+
+def analyze_two_column_data():
+    """分析两列数据"""
+    try:
+        # 获取输入数据
+        two_column_input = st.session_state.two_column_data
+        
+        # 验证两列数据
+        label_data_pairs, valid_pairs, invalid_lines, decimal_info = \
+            validate_two_column_data(two_column_input, calculation_scheme)
+        
+        if invalid_lines:
+            st.error("❌ 数据格式错误:")
+            for error in invalid_lines:
+                st.error(f"  - {error}")
+            return
+            
+        if not valid_pairs:
+            st.error("❌ 未找到有效数据")
+            return
+        
+        # 提取数据
+        data = np.array([value for _, value in valid_pairs])
+        labels = [label for label, _ in valid_pairs]
+        
+        # 存储到会话状态
+        st.session_state.label_data_pairs = label_data_pairs
+        st.session_state.valid_pairs = valid_pairs
+        st.session_state.processed_data = data
+        st.session_state.original_labels = labels
+        st.session_state.two_column_processed = True
+        st.session_state.two_column_decimal_info = decimal_info
+        
+        st.success(f"✅ 成功加载 {len(data)} 个有效数据点")
+        
+    except Exception as e:
+        st.error(f"❌ 两列数据分析错误: {str(e)}")
+
+def clear_two_column_data():
+    """清除两列数据"""
+    st.session_state.two_column_data = ""
+    st.session_state.two_column_processed = False
+    st.session_state.label_data_pairs = []
+    st.session_state.valid_pairs = []
+    st.rerun()
 
 # =============================================
 # 主程序开始
@@ -883,6 +982,10 @@ if input_method == "手动输入":
         undo_disabled = len(st.session_state.data_history) == 0
         if st.button("↶ 撤销", use_container_width=True, disabled=undo_disabled):
             undo_data()
+    
+    # 如果已经处理了数据，则设置data变量
+    if st.session_state.data_loaded and st.session_state.processed_data is not None:
+        data = st.session_state.processed_data
 
 elif input_method == "带编号数据输入":
     st.subheader("📝 带编号数据输入")
@@ -912,71 +1015,15 @@ elif input_method == "带编号数据输入":
     
     # 分析按钮
     if st.button("分析两列数据", type="primary", use_container_width=True):
-        # 原有的两列数据分析逻辑
-        pass
+        analyze_two_column_data()
     
     # 清除按钮
     if st.button("清除两列数据", type="secondary", use_container_width=True):
-        # 原有的清除逻辑
-        pass
-
-elif input_method == "文件上传":
-    st.subheader("📁 上传数据文件")
+        clear_two_column_data()
     
-    uploaded_file = st.file_uploader(
-        "选择数据文件 (支持 CSV、TXT、Excel、JSON)", 
-        type=['csv', 'txt', 'xlsx', 'xls', 'json'],
-        help="支持多种文件格式，空白数据会自动识别并忽略。"
-    )
-    
-    # 文件处理逻辑保持不变
-    # ...
-
-else:  # 示例数据
-    st.subheader("🎯 示例数据分析")
-    
-    # 示例数据逻辑保持不变
-    # ...
-
-# =============================================
-# Z比分计算模块的数据输入（只在主界面显示）
-# =============================================
-
-if method == "Z比分计算模块":
-    st.markdown("---")
-    st.subheader("🔢 Z比分计算参数")
-    
-    # 在主界面显示稳健统计量输入
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        robust_mean_input = st.text_input(
-            "稳健平均值:",
-            value="54.4",
-            help="请输入稳健平均值",
-            key="robust_mean_input"
-        )
-    
-    with col2:
-        robust_std_input = st.text_input(
-            "稳健标准差:",
-            value="0.3",
-            help="请输入稳健标准差",
-            key="robust_std_input"
-        )
-    
-    # 添加说明
-    st.info("""
-    **Z比分计算公式：**
-    ```
-    Z比分 = (测试数据 - 稳健平均值) / 稳健标准差
-    ```
-    请确保输入的稳健统计量准确无误。
-    """)
-        
-# =============================================
-# 文件上传模块的数据处理
-# =============================================
+    # 如果已经处理了两列数据，则设置data变量
+    if st.session_state.two_column_processed and st.session_state.processed_data is not None:
+        data = st.session_state.processed_data
 
 elif input_method == "文件上传":
     st.subheader("📁 上传数据文件")
@@ -1094,6 +1141,10 @@ elif input_method == "文件上传":
         except Exception as e:
             st.error(f"❌ 文件处理错误: {str(e)}")
             st.info("💡 请确保文件格式正确且包含有效的数值数据")
+    
+    # 如果已经处理了文件数据，则设置data变量
+    if st.session_state.file_validation_passed and st.session_state.file_processed_data is not None:
+        data = st.session_state.file_processed_data
 
 else:  # 示例数据
     st.subheader("🎯 示例数据分析")
@@ -1180,6 +1231,64 @@ else:  # Z比分计算模块
     st.sidebar.info("""
     **Z比分计算模块**Z比分 = （测试数据-稳健平均值）/稳健标准差
     """)
+
+# =============================================
+# Z比分计算模块的数据输入（只在主界面显示）
+# =============================================
+
+if method == "Z比分计算模块":
+    st.markdown("---")
+    st.subheader("🔢 Z比分计算参数")
+    
+    # 在主界面显示稳健统计量输入
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        robust_mean_input = st.text_input(
+            "稳健平均值:",
+            value="54.4",
+            help="请输入稳健平均值",
+            key="robust_mean_input"
+        )
+    
+    with col2:
+        robust_std_input = st.text_input(
+            "稳健标准差:",
+            value="0.3",
+            help="请输入稳健标准差",
+            key="robust_std_input"
+        )
+    
+    # 添加说明
+    st.info("""
+    **Z比分计算公式：**
+    ```
+    Z比分 = (测试数据 - 稳健平均值) / 稳健标准差
+    ```
+    请确保输入的稳健统计量准确无误。
+    """)
+
+# =============================================
+# 根据输入方式重新设置data变量
+# =============================================
+
+if input_method == "手动输入":
+    if st.session_state.data_loaded and st.session_state.processed_data is not None:
+        data = st.session_state.processed_data
+    else:
+        data = None
+elif input_method == "带编号数据输入":
+    if st.session_state.two_column_processed and st.session_state.processed_data is not None:
+        data = st.session_state.processed_data
+    else:
+        data = None
+elif input_method == "文件上传":
+    if st.session_state.file_validation_passed and st.session_state.file_processed_data is not None:
+        data = st.session_state.file_processed_data
+    else:
+        data = None
+else:  # 示例数据
+    data = example_data  # 确保example_data已经被定义
 
 # =============================================
 # 统一结果显示组件
@@ -2140,7 +2249,7 @@ def _fallback_method(data, scheme, error_message=""):
 
 def display_z_score_comparison_table(results, original_labels=None):
     """
-    显示高精度和保留两位小数后Z比分数的对比表格
+    显示高精度和保留两位小数后Z比分数对比表格
     """
     st.subheader("📊 Z比分数对比表格")
     
@@ -2498,6 +2607,22 @@ if data is not None and len(data) > 0:
             if decimal_places == 0:
                 return int(value)  # 如果是整数，返回整数形式
             return round(value, decimal_places)
+        
+        # 根据输入方式选择正确的数据源
+        if input_method == "文件上传":
+            current_original_data = st.session_state.file_original_data
+            current_decimal_info = st.session_state.file_decimal_info
+            current_blank_count = st.session_state.file_blank_count
+        elif input_method == "带编号数据输入":
+            # 对于两列数据，需要特殊处理
+            current_original_data = [value for _, value in st.session_state.valid_pairs]
+            current_decimal_info = st.session_state.two_column_decimal_info
+            current_blank_count = 0  # 两列数据已经过滤了无效数据
+        else:
+            # 手动输入或示例数据
+            current_original_data = st.session_state.original_data
+            current_decimal_info = st.session_state.decimal_info
+            current_blank_count = st.session_state.blank_count
         
         # 获取检测到的小数位数 - 使用正确的数据源
         detected_decimal_places = results.get('decimal_places', 2)
