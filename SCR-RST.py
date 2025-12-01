@@ -1756,231 +1756,173 @@ def z_score_calculation_algorithm(data, robust_mean, robust_std, scheme="strict"
 # Q/Hampel法实现
 # =============================================
 
-def Q_method_standard_deviation(data):
-    """
-    修复后的Q方法计算稳健标准差 - 基于ISO 13528:2022 C.5.2.2
-    确保不会返回负值
-    """
-    try:
-        p = len(data)
-        if p < 2:
-            return 0.0
+def perform_Q_estimate_corrected(x_data):
+    '''
+    修正后的Q方法实现，确保G1值计算正确
+    '''
+    if isinstance(x_data, pd.Series):
+        x_values = x_data.astype('float').values
+    else:
+        x_values = np.asarray(x_data, dtype=float)
+    
+    x_values = x_values[~np.isnan(x_values)]
+    p = len(x_values)
+    
+    # 计算所有成对绝对差值
+    d_arr = []
+    for i in range(p-1):
+        for j in range(i+1, p):
+            d = np.abs(x_values[i] - x_values[j])
+            d_arr.append(d)
+    
+    d_arr = np.array(d_arr)
+    
+    # 计算H(0)
+    H1_0 = np.mean(d_arr <= 0)
+    
+    # 找到不连续点
+    discontinuity_points = np.unique(d_arr)
+    
+    # 计算每个不连续点的H1值
+    H1_values = [np.mean(d_arr <= point) for point in discontinuity_points]
+    
+    # 修正G1值计算 - 严格按照ISO标准
+    G1_values = []
+    G1_points = []
+    
+    # 首先添加G1(0)=0
+    G1_points.append(0.0)
+    G1_values.append(0.0)
+    
+    # 计算每个间断点的G1值
+    for i, point in enumerate(discontinuity_points):
+        if i == 0 and point > 0:
+            # i=1, x_1>0: G1(x_1) = 0.5 * H1(x_1)
+            G1_val = 0.5 * H1_values[i]
+            G1_points.append(point)
+            G1_values.append(G1_val)
+        elif i >= 1:
+            # i≥2: G1(x_i) = 0.5 * [H1(x_i) + H1(x_{i-1})]
+            G1_val = 0.5 * (H1_values[i] + H1_values[i-1])
+            G1_points.append(point)
+            G1_values.append(G1_val)
+        # 如果i=0且point=0，我们已经添加了G1(0)=0，不需要重复添加
+    
+    # 确保G1_points是排序的
+    G1_points = np.array(G1_points)
+    G1_values = np.array(G1_values)
+    
+    # 线性插值 + 边界外推
+    if len(G1_points) > 1:
+        # 创建密集的插值点
+        n_interp = 10000
+        x_interp = np.linspace(G1_points[0], G1_points[-1], n_interp)
         
-        # 计算所有实验室间绝对差
-        absolute_differences = []
-        for i in range(p):
-            for j in range(i+1, p):
-                diff = abs(data[i] - data[j])
-                absolute_differences.append(diff)
+        # 使用线性插值，允许外推
+        G1_interp_func = interpolate.interp1d(
+            G1_points, G1_values, 
+            kind='linear', 
+            bounds_error=False,
+            fill_value=(G1_values[0], G1_values[-1]),
+            assume_sorted=True
+        )
+        G1_interp = G1_interp_func(x_interp)
+    else:
+        x_interp = G1_points
+        G1_interp = G1_values
+    
+    # 计算分子
+    target_G1 = 0.25 + 0.75 * H1_0
+    
+    # 寻找G1反函数 - 精确方法
+    # 找到跨越目标值的区间
+    idx_above = np.where(G1_interp >= target_G1)[0]
+    idx_below = np.where(G1_interp <= target_G1)[0]
+    
+    if len(idx_above) > 0 and len(idx_below) > 0:
+        idx_high = idx_above[0]
+        idx_low = idx_below[-1]
         
-        # 如果没有差异，返回0
-        if not absolute_differences:
-            return 0.0
-        
-        # 排序绝对差
-        absolute_differences_sorted = np.sort(absolute_differences)
-        n_differences = len(absolute_differences)
-        
-        # 计算H1(0) - 如果数据中有完全相同的值，则不为0
-        H1_0 = 0
-        for i in range(p):
-            for j in range(i+1, p):
-                if data[i] == data[j]:
-                    H1_0 += 1
-        H1_0 = H1_0 / n_differences if n_differences > 0 else 0
-        
-        # 如果所有数据都相同，返回0
-        if H1_0 == 1.0:
-            return 0.0
-        
-        # 计算H1(x)的间断点（所有唯一的绝对差）
-        discontinuity_points = np.unique(absolute_differences_sorted)
-        
-        # 计算G1(x)在间断点的值
-        G1_values = {}
-        
-        for x in discontinuity_points:
-            if x == 0:
-                G1_values[x] = 0
-            else:
-                # 计算H1(x-) 和 H1(x)
-                count_less = np.sum(absolute_differences_sorted < x)
-                count_less_equal = np.sum(absolute_differences_sorted <= x)
-                
-                H1_x_minus = count_less / n_differences
-                H1_x = count_less_equal / n_differences
-                
-                # 计算G1(x)
-                G1_values[x] = 0.5 * (H1_x_minus + H1_x)
-        
-        # 计算G1函数在特定分位数处的值（通过线性插值）
-        def G1_interpolated(target_value):
-            if target_value == 0:
-                return 0
-            
-            # 找到包围target_value的两个间断点
-            points = sorted(discontinuity_points)
-            for i in range(len(points) - 1):
-                if points[i] <= target_value <= points[i + 1]:
-                    x1, x2 = points[i], points[i + 1]
-                    y1, y2 = G1_values[x1], G1_values[x2]
-                    
-                    # 线性插值
-                    return y1 + (y2 - y1) * (target_value - x1) / (x2 - x1)
-            
-            # 如果超出范围，使用最后一个值
-            return G1_values[points[-1]]
-        
-        # 计算稳健标准差s*（公式C.25）
-        try:
-            # 确保参数在(0,1)范围内
-            param1 = max(0.001, min(0.999, 0.25 + 0.75 * H1_0))
-            param2 = max(0.001, min(0.999, 0.625 + 0.375 * H1_0))
-            
-            numerator = norm.ppf(param1)
-            denominator = norm.ppf(param2)
-            
-            # 检查分母是否为0或无穷大
-            if denominator == 0 or np.isinf(denominator) or np.isnan(denominator):
-                raise ValueError("分母无效")
-                
-            s_star = numerator / (2 * denominator)
-            
-            # 确保结果不为负
-            if s_star < 0:
-                # 使用备选方法计算
-                median_diff = np.median(absolute_differences_sorted)
-                s_star = median_diff / 1.0484
-            
-        except (ValueError, ZeroDivisionError):
-            # 如果计算失败，使用备选方法
-            median_diff = np.median(absolute_differences_sorted)
-            s_star = median_diff / 1.0484
-        
-        # 最终检查，确保不为负
-        s_star = max(0.0, float(s_star))
-        
-        return s_star
-        
-    except Exception as e:
-        # 如果所有方法都失败，使用简化的MAD方法
-        try:
-            median_val = np.median(data)
-            mad = np.median(np.abs(data - median_val))
-            return max(0.0, 1.4826 * mad)
-        except:
-            return 0.0
-
-def hampel_finite_step_algorithm(data, s_star):
-    """
-    修复后的Hampel有限步算法
-    """
-    try:
-        p = len(data)
-        if p == 0:
-            return 0.0
-        
-        median_data = np.median(data)
-        
-        # 如果标准差为0，直接返回中位数
-        if s_star <= 0:
-            return float(median_data)
-        
-        # 计算所有插值节点
-        interpolation_nodes = []
-        for y in data:
-            nodes = [
-                y - 4.5 * s_star,
-                y - 3.0 * s_star,
-                y - 1.5 * s_star,
-                y + 1.5 * s_star,
-                y + 3.0 * s_star,
-                y + 4.5 * s_star
-            ]
-            interpolation_nodes.extend(nodes)
-        
-        # 排序插值节点
-        interpolation_nodes_sorted = np.sort(interpolation_nodes)
-        
-        # 定义ψ函数（公式C.30）- 修复数组处理
-        def psi_function(q):
-            # 确保处理数组输入
-            q_array = np.asarray(q)
-            abs_q = np.abs(q_array)
-            sign_q = np.sign(q_array)
-            
-            # 使用numpy的向量化操作替代标量条件判断
-            result = np.zeros_like(q_array)
-            
-            # 条件1: |q| ≤ 1.5
-            mask1 = abs_q <= 1.5
-            result[mask1] = q_array[mask1]
-            
-            # 条件2: 1.5 < |q| ≤ 3.0
-            mask2 = (abs_q > 1.5) & (abs_q <= 3.0)
-            result[mask2] = 1.5 * sign_q[mask2]
-            
-            # 条件3: 3.0 < |q| ≤ 4.5
-            mask3 = (abs_q > 3.0) & (abs_q <= 4.5)
-            result[mask3] = (4.5 - abs_q[mask3]) * 1.5 / 1.5 * sign_q[mask3]
-            
-            # 条件4: |q| > 4.5
-            mask4 = abs_q > 4.5
-            result[mask4] = 0
-            
-            return result
-        
-        # 寻找解
-        solutions = []
-        
-        for m in range(len(interpolation_nodes_sorted) - 1):
-            d_m = interpolation_nodes_sorted[m]
-            d_m1 = interpolation_nodes_sorted[m + 1]
-            
-            try:
-                # 计算pm - 确保结果是标量
-                pm = np.sum(psi_function((data - d_m) / s_star))
-                
-                # 计算pm+1 - 确保结果是标量
-                pm1 = np.sum(psi_function((data - d_m1) / s_star))
-                
-                # 检查条件 - 使用标量比较
-                if abs(pm) < 1e-10:  # pm = 0
-                    solutions.append(float(d_m))
-                elif abs(pm1) < 1e-10:  # pm+1 = 0
-                    solutions.append(float(d_m1))
-                elif pm * pm1 < 0:  # pm和pm+1异号
-                    # 线性插值求根
-                    x_solution = d_m - pm * (d_m1 - d_m) / (pm1 - pm)
-                    solutions.append(float(x_solution))
-            except Exception:
-                continue
-        
-        # 选择最接近中位数的解
-        if solutions:
-            distances = [abs(sol - median_data) for sol in solutions]
-            min_distance = min(distances)
-            best_solutions = [sol for sol, dist in zip(solutions, distances) if abs(dist - min_distance) < 1e-10]
-            
-            if len(best_solutions) == 1:
-                x_star = best_solutions[0]
-            else:
-                # 如果有多个解同样接近中位数，使用中位数
-                x_star = float(median_data)
+        if idx_high == idx_low:
+            numerator = x_interp[idx_high]
         else:
-            # 如果没有解，使用中位数
-            x_star = float(median_data)
-        
-        return x_star
-        
-    except Exception:
-        # 如果失败，返回中位数
-        return float(np.median(data))
+            # 线性插值
+            x1, x2 = x_interp[idx_low], x_interp[idx_high]
+            y1, y2 = G1_interp[idx_low], G1_interp[idx_high]
+            
+            if abs(y2 - y1) > 1e-12:
+                numerator = x1 + (x2 - x1) * (target_G1 - y1) / (y2 - y1)
+            else:
+                numerator = (x1 + x2) / 2
+    else:
+        # 边界情况 - 使用外推
+        if len(idx_above) == 0:  # 所有点都小于目标值
+            numerator = x_interp[-1]
+        else:  # 所有点都大于目标值
+            numerator = x_interp[0]
+    
+    # 计算分母
+    target_phi = 0.625 + 0.375 * H1_0
+    target_phi = np.clip(target_phi, 0.001, 0.999)
+    denominator = np.sqrt(2) * norm.ppf(target_phi)
+    
+    Q = numerator / denominator if denominator > 1e-12 else 0.0
+    
+    return Q
+
+def hampel_median_estimate(data):
+    """
+    Hampel方法计算稳健平均值
+    基于中位数的稳健估计
+    """
+    if len(data) == 0:
+        return 0.0
+    
+    # 使用中位数作为初始估计
+    median_val = np.median(data)
+    
+    # 计算MAD（中位数绝对偏差）
+    mad = np.median(np.abs(data - median_val))
+    
+    # 如果MAD为0，说明所有数据相同，直接返回中位数
+    if mad == 0:
+        return float(median_val)
+    
+    # 计算标准化残差
+    standardized_residuals = (data - median_val) / (1.4826 * mad)
+    
+    # Hampel权重函数
+    weights = np.ones_like(data)
+    abs_std_residuals = np.abs(standardized_residuals)
+    
+    # 三部分权重函数
+    # 第一部分：|u| ≤ 1.5，权重为1（已经是1）
+    
+    # 第二部分：1.5 < |u| ≤ 3.0，权重为 1.5/|u|
+    mask1 = (abs_std_residuals > 1.5) & (abs_std_residuals <= 3.0)
+    weights[mask1] = 1.5 / abs_std_residuals[mask1]
+    
+    # 第三部分：3.0 < |u| ≤ 4.5，权重为递减函数
+    mask2 = (abs_std_residuals > 3.0) & (abs_std_residuals <= 4.5)
+    weights[mask2] = (4.5 - abs_std_residuals[mask2]) / 1.5
+    
+    # 第四部分：|u| > 4.5，权重为0
+    mask3 = abs_std_residuals > 4.5
+    weights[mask3] = 0
+    
+    # 计算加权平均值
+    weighted_sum = np.sum(weights * data)
+    total_weight = np.sum(weights)
+    
+    if total_weight == 0:
+        return float(median_val)
+    
+    return float(weighted_sum / total_weight)
 
 def q_hampel_robust_algorithm(data, scheme="strict"):
     """
-    基于简化版本的Q/Hampel稳健统计方法
-    修复离群值检测和Z比分分类问题
+    基于标准Q/Hampel法的稳健统计方法
+    使用Q方法计算稳健标准差，Hampel方法计算稳健平均值
     """
     try:
         # 确保数据是numpy数组
@@ -1993,29 +1935,35 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         elif n == 1:
             return _create_single_point_result(data_array[0], scheme)
         
-        # 1. 计算Q方法的稳健标准差（基于成对绝对差的中位数）
-        q_std = _calculate_q_standard_deviation(data_array)
+        # 1. 使用Q方法计算稳健标准差
+        robust_std = perform_Q_estimate_corrected(data_array)
         
-        # 2. 计算Hampel方法的稳健平均值（迭代加权法）
-        robust_mean, weights, iterations = _calculate_hampel_mean(data_array, q_std)
+        # 2. 使用Hampel方法计算稳健平均值
+        robust_mean = hampel_median_estimate(data_array)
         
         # 3. 计算正常值范围和识别离群值
-        lower_limit, upper_limit, outliers_mask = _calculate_limits_and_outliers(
-            data_array, robust_mean, q_std
-        )
+        lower_limit = robust_mean - 3 * robust_std
+        upper_limit = robust_mean + 3 * robust_std
+        
+        outliers_mask = (data_array < lower_limit) | (data_array > upper_limit)
         
         # 4. 分离正常数据和离群值
-        clean_data, outliers = _separate_data(data_array, outliers_mask)
+        clean_data = data_array[~outliers_mask].tolist()
+        outliers = data_array[outliers_mask].tolist()
         
         # 5. 计算Z比分
-        Z_scores_high_precision = _calculate_z_scores(data_array, robust_mean, q_std)
-        Z_scores_rounded = np.round(Z_scores_high_precision, 2)
+        if robust_std > 0:
+            Z_scores_high_precision = ((data_array - robust_mean) / robust_std).tolist()
+            Z_scores_rounded = np.round(Z_scores_high_precision, 2).tolist()
+        else:
+            Z_scores_high_precision = [0.0] * n
+            Z_scores_rounded = [0.0] * n
         
         # 6. 根据计算方案格式化结果
-        return _format_results(
-            data_array, robust_mean, q_std, clean_data, outliers, 
+        return _format_q_hampel_results(
+            data_array, robust_mean, robust_std, clean_data, outliers, 
             Z_scores_high_precision, Z_scores_rounded,
-            lower_limit, upper_limit, weights, iterations, scheme
+            lower_limit, upper_limit, scheme
         )
         
     except Exception as e:
@@ -2023,131 +1971,10 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         # 回退到最基本的统计方法
         return _fallback_method(data, scheme)
 
-def _calculate_q_standard_deviation(data):
-    """计算Q方法的稳健标准差"""
-    n = len(data)
-    
-    # 计算所有成对绝对差
-    pairs = []
-    for i in range(n):
-        for j in range(i+1, n):
-            pairs.append(abs(data[i] - data[j]))
-    
-    # 如果有成对差，使用中位数方法
-    if len(pairs) > 0:
-        median_diff = np.median(pairs)
-        # 调整系数将中位数差转换为标准差估计
-        q_std = median_diff / 1.0484
-    else:
-        # 如果没有成对差（n=1的情况已经在外部处理），使用传统标准差
-        q_std = np.std(data, ddof=1) if len(data) > 1 else 0.0
-    
-    # 确保标准差不为负
-    return max(0.0, q_std)
-
-def _calculate_hampel_mean(data, robust_std, max_iterations=20, tolerance=1e-6):
-    """计算Hampel稳健平均值"""
-    
-    # 确保数据是numpy数组
-    data_array = np.asarray(data, dtype=float)
-    n = len(data_array)
-    
-    # 使用中位数作为初始估计
-    current_mean = np.median(data)
-    iterations = 0
-    
-    # 如果标准差为0，所有数据相同，直接返回中位数
-    if robust_std <= 0:
-        return float(current_mean), np.ones_like(data), 0
-    
-    for iteration in range(max_iterations):
-        iterations += 1
-        
-        # 计算残差
-        residuals = data - current_mean
-        
-        # 计算MAD（中位数绝对偏差）
-        mad = np.median(np.abs(residuals))
-        
-        # 如果MAD为0，说明所有残差相同，已收敛
-        if mad == 0:
-            break
-        
-        # 标准化残差
-        standardized_residuals = residuals / (1.4826 * mad)
-        
-        # Hampel权重函数 - 三部分权重函数
-        weights = np.ones_like(data)
-        
-        abs_std_residuals = np.abs(standardized_residuals)
-        
-        # 第一部分：|u| ≤ 1.5，权重为1
-        # 权重已经是1，不需要修改
-        
-        # 第二部分：1.5 < |u| ≤ 3.0，权重为 1.5/|u|
-        mask1 = np.abs(standardized_residuals) > 1.5
-        mask2 = np.abs(standardized_residuals) <= 3.0
-        mask_1_5_to_3 = mask1 & mask2
-        weights[mask_1_5_to_3] = 1.5 / np.abs(standardized_residuals[mask_1_5_to_3])
-        
-        # 第三部分：3.0 < |u| ≤ 4.5，权重为递减函数
-        mask3 = np.abs(standardized_residuals) > 3.0
-        mask4 = np.abs(standardized_residuals) >= 4.5
-        mask_3_to_4_5 = mask3 & mask4
-        weights[mask_3_to_4_5] = (4.5 - np.abs(standardized_residuals[mask_3_to_4_5])) / 1.5
-        
-        # 第四部分：|u| > 4.5，权重为0
-        mask5 = np.abs(standardized_residuals) > 4.5
-        weights[mask5] = 0
-        
-        # 更新均值（加权平均）
-        weighted_sum = np.sum(weights * data)
-        total_weight = np.sum(weights)
-        
-        # 防止除零
-        if total_weight == 0:
-            new_mean = current_mean
-        else:
-            new_mean = weighted_sum / total_weight
-        
-        # 检查收敛
-        if abs(new_mean - current_mean) < tolerance:
-            break
-            
-        current_mean = new_mean
-    
-    return float(current_mean), weights, iterations
-
-def _calculate_limits_and_outliers(data, robust_mean, robust_std):
-    """计算正常值范围和识别离群值"""
-    # 使用3σ原则计算正常值范围
-    lower_limit = robust_mean - 3 * robust_std
-    upper_limit = robust_mean + 3 * robust_std
-    
-    # 识别离群值
-    outliers_mask = (data < lower_limit) | (data > upper_limit)
-    
-    return float(lower_limit), float(upper_limit), outliers_mask
-
-def _separate_data(data, outliers_mask):
-    """分离正常数据和离群值"""
-    outliers = data[outliers_mask].tolist()
-    clean_data = data[~outliers_mask].tolist()
-    return clean_data, outliers
-
-def _calculate_z_scores(data, robust_mean, robust_std):
-    """计算Z比分"""
-    if robust_std > 0:
-        Z_scores = ((data - robust_mean) / robust_std).tolist()
-    else:
-        # 如果标准差为0，所有Z比分设为0
-        Z_scores = [0.0] * len(data)
-    return Z_scores
-
-def _format_results(data, robust_mean, robust_std, clean_data, outliers, 
-                   Z_scores_high_precision, Z_scores_rounded,
-                   lower_limit, upper_limit, weights, iterations, scheme):
-    """根据计算方案格式化结果"""
+def _format_q_hampel_results(data, robust_mean, robust_std, clean_data, outliers, 
+                           Z_scores_high_precision, Z_scores_rounded,
+                           lower_limit, upper_limit, scheme):
+    """格式化Q/Hampel法结果"""
     
     # 检测数据的小数位数
     decimal_places = detect_decimal_places(data)
@@ -2188,22 +2015,23 @@ def _format_results(data, robust_mean, robust_std, clean_data, outliers,
         'robust_std': float(display_std),
         'clean_data': clean_data,
         'outliers': outliers,
-        'Z_scores_high_precision': Z_scores_high_precision,  # 高精度Z比分
-        'Z_scores_rounded': Z_scores_rounded,  # 保留两位小数的Z比分
-        'formatted_Z_scores': formatted_Z_scores,  # 格式化后的Z比分（用于显示）
-        'z_score_classifications': z_score_classifications,  # Z比分分类
+        'Z_scores_high_precision': Z_scores_high_precision,
+        'Z_scores_rounded': Z_scores_rounded,
+        'formatted_Z_scores': formatted_Z_scores,
+        'z_score_classifications': z_score_classifications,
         'method_name': 'Q/Hampel法',
         'lower_limit': float(lower_limit),
         'upper_limit': float(upper_limit),
-        'weights': weights.tolist() if hasattr(weights, 'tolist') else weights,
-        'iterations': iterations,
+        'weights': np.ones_like(data).tolist(),  # Q/Hampel法不返回权重
+        'iterations': 0,  # Q/Hampel法没有迭代
         'formatting_note': formatting_note,
         'calculation_scheme': scheme,
         'decimal_places': decimal_places,
-        'original_mean': float(robust_mean),  # 保存原始计算值
-        'original_std': float(robust_std)     # 保存原始计算值
+        'original_mean': float(robust_mean),
+        'original_std': float(robust_std)
     }
 
+# 保留原有的辅助函数
 def _create_empty_result(scheme):
     """创建空数据结果"""
     return {
