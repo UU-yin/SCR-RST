@@ -1753,7 +1753,7 @@ def z_score_calculation_algorithm(data, robust_mean, robust_std, scheme="strict"
         raise e
 
 # =============================================
-# Q/Hampel法实现 - 基于我们自己的Q方法和国标Hampel方法
+# Q/Hampel法实现 - 修正稳健平均值计算
 # =============================================
 
 def perform_Q_estimate_corrected(x_data):
@@ -1768,6 +1768,9 @@ def perform_Q_estimate_corrected(x_data):
     x_values = x_values[~np.isnan(x_values)]
     p = len(x_values)
     
+    print(f"数据点数: {p}")
+    print(f"数据范围: [{np.min(x_values)}, {np.max(x_values)}]")
+    
     # 计算所有成对绝对差值
     d_arr = []
     for i in range(p-1):
@@ -1776,12 +1779,16 @@ def perform_Q_estimate_corrected(x_data):
             d_arr.append(d)
     
     d_arr = np.array(d_arr)
+    print(f"成对差值数量: {len(d_arr)}")
+    print(f"差值范围: [{np.min(d_arr)}, {np.max(d_arr)}]")
     
     # 计算H(0)
     H1_0 = np.mean(d_arr <= 0)
+    print(f"H(0) = {H1_0}")
     
     # 找到不连续点
     discontinuity_points = np.unique(d_arr)
+    print(f"不连续点数量: {len(discontinuity_points)}")
     
     # 计算每个不连续点的H1值
     H1_values = [np.mean(d_arr <= point) for point in discontinuity_points]
@@ -1806,7 +1813,6 @@ def perform_Q_estimate_corrected(x_data):
             G1_val = 0.5 * (H1_values[i] + H1_values[i-1])
             G1_points.append(point)
             G1_values.append(G1_val)
-        # 如果i=0且point=0，我们已经添加了G1(0)=0，不需要重复添加
     
     # 确保G1_points是排序的
     G1_points = np.array(G1_points)
@@ -1827,12 +1833,15 @@ def perform_Q_estimate_corrected(x_data):
             assume_sorted=True
         )
         G1_interp = G1_interp_func(x_interp)
+        print("使用线性插值 + 边界外推")
     else:
         x_interp = G1_points
         G1_interp = G1_values
+        print("只有一个点，无需插值")
     
     # 计算分子
     target_G1 = 0.25 + 0.75 * H1_0
+    print(f"目标G1值: {target_G1}")
     
     # 寻找G1反函数 - 精确方法
     # 找到跨越目标值的区间
@@ -1854,73 +1863,97 @@ def perform_Q_estimate_corrected(x_data):
                 numerator = x1 + (x2 - x1) * (target_G1 - y1) / (y2 - y1)
             else:
                 numerator = (x1 + x2) / 2
+                
+        print(f"找到跨越区间: [{x_interp[idx_low]:.6f}, {x_interp[idx_high]:.6f}]")
+        print(f"对应G1值: [{G1_interp[idx_low]:.6f}, {G1_interp[idx_high]:.6f}]")
     else:
         # 边界情况 - 使用外推
         if len(idx_above) == 0:  # 所有点都小于目标值
             numerator = x_interp[-1]
+            print("目标值超出右边界，使用最大值")
         else:  # 所有点都大于目标值
             numerator = x_interp[0]
+            print("目标值超出左边界，使用最小值")
+    
+    print(f"分子: {numerator:.10f}")
     
     # 计算分母
     target_phi = 0.625 + 0.375 * H1_0
     target_phi = np.clip(target_phi, 0.001, 0.999)
     denominator = np.sqrt(2) * norm.ppf(target_phi)
     
+    print(f"目标Φ值: {target_phi:.10f}")
+    print(f"Φ^(-1)(目标Φ值): {norm.ppf(target_phi):.10f}")
+    print(f"分母: {denominator:.10f}")
+    
     Q = numerator / denominator if denominator > 1e-12 else 0.0
+    print(f"Q估计: {Q:.10f}")
     
     return Q
 
-def hampel_median_estimate(data):
+def hampel_robust_mean(data, max_iterations=50, tol=1e-8):
     """
-    国标推荐的Hampel方法计算稳健平均值
-    基于中位数和MAD的稳健估计
+    修正的Hampel稳健平均值计算方法
+    使用迭代重加权最小二乘法
     """
     if len(data) == 0:
         return 0.0
     
-    # 使用中位数作为初始估计
-    median_val = np.median(data)
+    # 初始估计使用中位数
+    x = np.median(data)
     
-    # 计算MAD（中位数绝对偏差）
-    mad = np.median(np.abs(data - median_val))
+    for iteration in range(max_iterations):
+        # 计算残差
+        residuals = data - x
+        
+        # 计算MAD（中位数绝对偏差）
+        mad = np.median(np.abs(residuals))
+        
+        # 如果MAD为0，说明所有数据相同，直接返回
+        if mad < 1e-12:
+            return float(x)
+        
+        # 标准化残差
+        u = residuals / (1.4826 * mad)
+        
+        # Hampel权重函数
+        weights = np.ones_like(data)
+        abs_u = np.abs(u)
+        
+        # 三部分权重函数
+        # 1. |u| ≤ 1.5: 权重 = 1
+        # 2. 1.5 < |u| ≤ 3.0: 权重 = 1.5/|u|
+        mask1 = (abs_u > 1.5) & (abs_u <= 3.0)
+        weights[mask1] = 1.5 / abs_u[mask1]
+        
+        # 3. 3.0 < |u| ≤ 4.5: 权重 = (4.5 - |u|)/1.5 * 0.5
+        mask2 = (abs_u > 3.0) & (abs_u <= 4.5)
+        weights[mask2] = (4.5 - abs_u[mask2]) / 1.5 * 0.5
+        
+        # 4. |u| > 4.5: 权重 = 0
+        mask3 = abs_u > 4.5
+        weights[mask3] = 0
+        
+        # 计算新的估计值
+        total_weight = np.sum(weights)
+        if total_weight < 1e-12:
+            # 如果所有权重都为0，返回当前估计
+            return float(x)
+        
+        x_new = np.sum(weights * data) / total_weight
+        
+        # 检查收敛
+        if abs(x_new - x) < tol:
+            return float(x_new)
+        
+        x = x_new
     
-    # 如果MAD为0，说明所有数据相同，直接返回中位数
-    if mad == 0:
-        return float(median_val)
-    
-    # 计算标准化残差
-    standardized_residuals = (data - median_val) / (1.4826 * mad)
-    
-    # Hampel权重函数 - 三部分权重函数
-    weights = np.ones_like(data)
-    abs_std_residuals = np.abs(standardized_residuals)
-    
-    # 第一部分：|u| ≤ 1.5，权重为1（已经是1）
-    
-    # 第二部分：1.5 < |u| ≤ 3.0，权重为 1.5/|u|
-    mask1 = (abs_std_residuals > 1.5) & (abs_std_residuals <= 3.0)
-    weights[mask1] = 1.5 / abs_std_residuals[mask1]
-    
-    # 第三部分：3.0 < |u| ≤ 4.5，权重为递减函数
-    mask2 = (abs_std_residuals > 3.0) & (abs_std_residuals <= 4.5)
-    weights[mask2] = (4.5 - abs_std_residuals[mask2]) / 1.5
-    
-    # 第四部分：|u| > 4.5，权重为0
-    mask3 = abs_std_residuals > 4.5
-    weights[mask3] = 0
-    
-    # 计算加权平均值
-    weighted_sum = np.sum(weights * data)
-    total_weight = np.sum(weights)
-    
-    if total_weight == 0:
-        return float(median_val)
-    
-    return float(weighted_sum / total_weight)
+    # 达到最大迭代次数，返回当前估计
+    return float(x)
 
 def q_hampel_robust_algorithm(data, scheme="strict"):
     """
-    基于我们自己的Q方法和国标Hampel方法的稳健统计方法
+    基于我们自己的Q方法和修正Hampel方法的稳健统计方法
     """
     try:
         # 确保数据是numpy数组
@@ -1936,8 +1969,8 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         # 1. 使用Q方法计算稳健标准差
         robust_std = perform_Q_estimate_corrected(data_array)
         
-        # 2. 使用Hampel方法计算稳健平均值
-        robust_mean = hampel_median_estimate(data_array)
+        # 2. 使用修正的Hampel方法计算稳健平均值
+        robust_mean = hampel_robust_mean(data_array)
         
         # 3. 计算正常值范围和识别离群值
         lower_limit = robust_mean - 3 * robust_std
@@ -1950,7 +1983,7 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         outliers = data_array[outliers_mask].tolist()
         
         # 5. 计算Z比分
-        if robust_std > 0:
+        if robust_std > 1e-12:
             Z_scores_high_precision = ((data_array - robust_mean) / robust_std).tolist()
             Z_scores_rounded = np.round(Z_scores_high_precision, 2).tolist()
         else:
@@ -1966,7 +1999,10 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         
     except Exception as e:
         # 如果计算失败，使用回退方法
-        return _fallback_method(data, scheme, str(e))
+        import traceback
+        error_msg = f"Q/Hampel方法计算失败: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
+        return _fallback_method(data, scheme, error_msg)
 
 def _format_q_hampel_results(data, robust_mean, robust_std, clean_data, outliers, 
                            Z_scores_high_precision, Z_scores_rounded,
@@ -1982,7 +2018,7 @@ def _format_q_hampel_results(data, robust_mean, robust_std, clean_data, outliers
         formatted_robust_std = round(robust_std, 3)
         
         # 使用格式化后的值重新计算Z比分（用于展示）
-        if formatted_robust_std > 0:
+        if formatted_robust_std > 1e-12:
             Z_scores_high_precision = ((data - formatted_robust_mean) / formatted_robust_std).tolist()
             Z_scores_rounded = np.round(Z_scores_high_precision, 2).tolist()
         else:
