@@ -1753,7 +1753,7 @@ def z_score_calculation_algorithm(data, robust_mean, robust_std, scheme="strict"
         raise e
 
 # =============================================
-# Q/Hampel法实现
+# Q/Hampel法实现 - 基于我们自己的Q方法和国标Hampel方法
 # =============================================
 
 def perform_Q_estimate_corrected(x_data):
@@ -1872,8 +1872,8 @@ def perform_Q_estimate_corrected(x_data):
 
 def hampel_median_estimate(data):
     """
-    Hampel方法计算稳健平均值
-    基于中位数的稳健估计
+    国标推荐的Hampel方法计算稳健平均值
+    基于中位数和MAD的稳健估计
     """
     if len(data) == 0:
         return 0.0
@@ -1891,11 +1891,10 @@ def hampel_median_estimate(data):
     # 计算标准化残差
     standardized_residuals = (data - median_val) / (1.4826 * mad)
     
-    # Hampel权重函数
+    # Hampel权重函数 - 三部分权重函数
     weights = np.ones_like(data)
     abs_std_residuals = np.abs(standardized_residuals)
     
-    # 三部分权重函数
     # 第一部分：|u| ≤ 1.5，权重为1（已经是1）
     
     # 第二部分：1.5 < |u| ≤ 3.0，权重为 1.5/|u|
@@ -1921,8 +1920,7 @@ def hampel_median_estimate(data):
 
 def q_hampel_robust_algorithm(data, scheme="strict"):
     """
-    基于标准Q/Hampel法的稳健统计方法
-    使用Q方法计算稳健标准差，Hampel方法计算稳健平均值
+    基于我们自己的Q方法和国标Hampel方法的稳健统计方法
     """
     try:
         # 确保数据是numpy数组
@@ -1967,9 +1965,8 @@ def q_hampel_robust_algorithm(data, scheme="strict"):
         )
         
     except Exception as e:
-        st.warning(f"⚠️ Q/Hampel方法计算失败: {str(e)}")
-        # 回退到最基本的统计方法
-        return _fallback_method(data, scheme)
+        # 如果计算失败，使用回退方法
+        return _fallback_method(data, scheme, str(e))
 
 def _format_q_hampel_results(data, robust_mean, robust_std, clean_data, outliers, 
                            Z_scores_high_precision, Z_scores_rounded,
@@ -2022,8 +2019,8 @@ def _format_q_hampel_results(data, robust_mean, robust_std, clean_data, outliers
         'method_name': 'Q/Hampel法',
         'lower_limit': float(lower_limit),
         'upper_limit': float(upper_limit),
-        'weights': np.ones_like(data).tolist(),  # Q/Hampel法不返回权重
-        'iterations': 0,  # Q/Hampel法没有迭代
+        'weights': np.ones_like(data).tolist(),
+        'iterations': 0,
         'formatting_note': formatting_note,
         'calculation_scheme': scheme,
         'decimal_places': decimal_places,
@@ -2031,7 +2028,6 @@ def _format_q_hampel_results(data, robust_mean, robust_std, clean_data, outliers
         'original_std': float(robust_std)
     }
 
-# 保留原有的辅助函数
 def _create_empty_result(scheme):
     """创建空数据结果"""
     return {
@@ -2078,7 +2074,7 @@ def _create_single_point_result(value, scheme):
         'original_std': 0.0
     }
 
-def _fallback_method(data, scheme):
+def _fallback_method(data, scheme, error_message=""):
     """回退方法 - 使用传统统计量"""
     data_array = np.asarray(data, dtype=float)
     mean_val = float(np.mean(data_array))
@@ -2105,6 +2101,9 @@ def _fallback_method(data, scheme):
     # 为每个数据点生成分类
     z_score_classifications = [classify_z_score(z) for z in Z_scores_rounded]
     
+    # 添加错误信息到格式化说明
+    formatting_note = f"Q/Hampel方法失败，使用传统平均值和标准差。错误信息: {error_message}" if error_message else "Q/Hampel方法失败，使用传统平均值和标准差"
+    
     return {
         'robust_mean': mean_val,
         'robust_std': std_val,
@@ -2119,7 +2118,7 @@ def _fallback_method(data, scheme):
         'upper_limit': float(upper_limit),
         'weights': np.ones_like(data_array).tolist(),
         'iterations': 0,
-        'formatting_note': "Q/Hampel方法失败，使用传统平均值和标准差",
+        'formatting_note': formatting_note,
         'calculation_scheme': scheme,
         'decimal_places': detect_decimal_places(data_array),
         'original_mean': mean_val,
