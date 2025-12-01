@@ -501,7 +501,7 @@ class FileProcessor:
             return None, None, []
     
     @staticmethod
-    def process_csv_file(uploaded_file):display_method_specific
+    def process_csv_file(uploaded_file):
         """处理CSV文件 - 统一使用空白数据处理逻辑"""
         try:
             # 使用na_filter=True自动识别空白值
