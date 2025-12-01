@@ -768,6 +768,10 @@ def initialize_session_state():
         
     if 'two_column_decimal_info' not in st.session_state:
         st.session_state.two_column_decimal_info = {}
+    
+    # 计算方案相关的会话状态
+    if 'calculation_scheme' not in st.session_state:
+        st.session_state.calculation_scheme = "严格计算方案"
 
 # =============================================
 # 缺失的函数定义
@@ -778,6 +782,9 @@ def analyze_data():
     try:
         # 获取当前输入的数据
         data_string = st.session_state.manual_data
+        
+        # 从会话状态获取计算方案
+        calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
         
         # 进行数据验证
         is_valid, original_data, clean_data, blank_count, validation_report, decimal_info = \
@@ -829,6 +836,9 @@ def analyze_two_column_data():
     try:
         # 获取输入数据
         two_column_input = st.session_state.two_column_data
+        
+        # 从会话状态获取计算方案
+        calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
         
         # 验证两列数据
         label_data_pairs, valid_pairs, invalid_lines, decimal_info = \
@@ -920,8 +930,12 @@ calculation_scheme = st.sidebar.radio(
     help="""
     严格计算方案：使用完整精度的计算结果，确保计算准确性
     规范展示方案：稳健平均值与原始数据小数位数一致，结果更规范但可能引入微小误差
-    """
+    """,
+    key="calculation_scheme_selector"  # 添加key
 )
+
+# 将计算方案保存到会话状态
+st.session_state.calculation_scheme = calculation_scheme
 
 # 高级选项
 st.sidebar.subheader("高级选项")
@@ -967,6 +981,9 @@ if input_method == "手动输入":
         help="支持空白数据自动忽略"
     )
 
+    # 更新会话状态
+    st.session_state.manual_data = current_data
+    
     # 操作按钮
     col1, col2, col3 = st.columns([2, 1, 1])
     
@@ -1012,6 +1029,9 @@ elif input_method == "带编号数据输入":
         key="two_column_input",
         help="格式：标签, 数值"
     )
+    
+    # 更新会话状态
+    st.session_state.two_column_data = two_column_input
     
     # 分析按钮
     if st.button("分析两列数据", type="primary", use_container_width=True):
@@ -1076,6 +1096,9 @@ elif input_method == "文件上传":
                         f"⚠️ 空白数据数: {blank_count}" if blank_count > 0 else "✅ 未发现空白数据",
                         f"📏 检测到的小数位数: {decimal_info['detected_decimal_places']}位"
                     ]
+                    
+                    # 获取计算方案
+                    calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
                     
                     # 计算方案兼容性验证
                     scheme_messages = DataValidator.validate_calculation_scheme_compatibility(
@@ -1155,6 +1178,9 @@ else:  # 示例数据
         54.5, 55.5, 55.6, 55.0, 54.3, 55.3, 54.3, 54.4, 54.3, 54.4, 
         54.5, 55.9, 53.2, 54.6
     ])
+    
+    # 获取计算方案
+    calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
     
     # 对示例数据进行验证 - 使用新的方法签名，包含计算方案
     example_data_str = ", ".join([str(x) for x in example_data])
@@ -1289,124 +1315,6 @@ elif input_method == "文件上传":
         data = None
 else:  # 示例数据
     data = example_data  # 确保example_data已经被定义
-
-# =============================================
-# 统一结果显示组件
-# =============================================
-
-def display_method_specific_info(results, method):
-    """显示各方法特有的统计信息"""
-    if method == "四分位稳健统计法":
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("下四分位数(Q1)", f"{results['q1']:.6f}")
-        with col2:
-            st.metric("上四分位数(Q3)", f"{results['q3']:.6f}")
-        with col3:
-            st.metric("四分位距(IQR)", f"{results['iqr']:.6f}")
-        with col4:
-            st.metric("标准化四分位距(NIQR)", f"{results['niqr']:.6f}")
-    
-    elif method == "Q/Hampel法":
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("初始中位数", f"{results.get('initial_median', results['robust_mean']):.6f}")
-        with col2:
-            st.metric("MAD", f"{results.get('mad', 0):.6f}")
-
-def display_core_results(results, method):
-    """显示核心结果 - 统一格式"""
-    # 主要统计量
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("稳健平均值", f"{results['robust_mean']:.6f}")
-    with col2:
-        st.metric("稳健标准差", f"{results['robust_std']:.6f}")
-    with col3:
-        st.metric("离群值数量", len(results['outliers']))
-    with col4:
-        if 'iterations' in results:
-            st.metric("迭代次数", results['iterations'])
-        else:
-            st.metric("计算方案", "规范展示" if results.get('calculation_scheme') == "presentation" else "严格计算")
-    
-    # 方法特定信息
-    display_method_specific_info(results, method)
-
-def display_z_score_analysis(results, original_labels=None):
-    """统一显示Z比分分析"""
-    # Z比分分类统计
-    st.subheader("📊 Z比分分析")
-    
-    z_scores_data = results['Z_scores_rounded']
-    if z_scores_data is not None:
-        try:
-            z_scores = np.array(z_scores_data)
-            z_scores_abs = np.abs(z_scores)
-            satisfactory = np.sum(z_scores_abs <= 2)
-            questionable = np.sum((z_scores_abs > 2) & (z_scores_abs < 3))
-            unsatisfactory = np.sum(z_scores_abs >= 3)
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                sat_percent = satisfactory/len(z_scores)*100 if len(z_scores) > 0 else 0
-                st.metric("满意 (|Z| ≤ 2)", f"{satisfactory} 个", f"{sat_percent:.1f}%")
-            with col2:
-                quest_percent = questionable/len(z_scores)*100 if len(z_scores) > 0 else 0
-                st.metric("可疑 (2 < |Z| < 3)", f"{questionable} 个", f"{quest_percent:.1f}%")
-            with col3:
-                unsat_percent = unsatisfactory/len(z_scores)*100 if len(z_scores) > 0 else 0
-                st.metric("不满意 (|Z| ≥ 3)", f"{unsatisfactory} 个", f"{unsat_percent:.1f}%")
-                
-        except Exception as e:
-            st.warning(f"无法计算Z比分分类: {str(e)}")
-
-def display_detailed_results(results, method, data, original_labels=None):
-    """显示详细结果 - 可折叠"""
-    with st.expander("📋 详细结果", expanded=False):
-        # 正常值范围
-        st.write(f"**正常值范围**: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]")
-        
-        # 格式化说明
-        if 'formatting_note' in results:
-            st.info(f"💡 {results['formatting_note']}")
-        
-        # 离群值显示
-        if len(results['outliers']) > 0:
-            outliers_list = results['outliers']
-            if hasattr(outliers_list, '__iter__') and not isinstance(outliers_list, str):
-                try:
-                    outliers_list = [float(x) for x in outliers_list]
-                    outliers_list = sorted(outliers_list)
-                    
-                    st.write(f"**离群值** ({len(outliers_list)}个):")
-                    
-                    # 按Z比分分类显示离群值
-                    robust_mean = results['robust_mean']
-                    robust_std = results['robust_std']
-                    
-                    questionable_outliers = []
-                    unsatisfactory_outliers = []
-                    
-                    for outlier in outliers_list:
-                        z_score = abs((outlier - robust_mean) / robust_std) if robust_std > 0 else float('inf')
-                        if 2 < z_score < 3:
-                            questionable_outliers.append((outlier, z_score))
-                        elif z_score >= 3:
-                            unsatisfactory_outliers.append((outlier, z_score))
-                    
-                    if questionable_outliers:
-                        st.write(f"  - 可疑离群值 (2<|Z|<3): {[f'{val[0]} (Z={val[1]:.2f})' for val in questionable_outliers]}")
-                    
-                    if unsatisfactory_outliers:
-                        st.write(f"  - 不满意离群值 (|Z|≥3): {[f'{val[0]} (Z={val[1]:.2f})' for val in unsatisfactory_outliers]}")
-                        
-                except (ValueError, TypeError):
-                    st.write("**离群值**: [无法显示]")
-            else:
-                st.write("**离群值**: 无")
-        else:
-            st.success("✅ **离群值**: 无检测到离群值")
 
 # =============================================
 # 统计方法实现 - 修改版本
@@ -2244,6 +2152,124 @@ def _fallback_method(data, scheme, error_message=""):
     }
 
 # =============================================
+# 统一结果显示组件
+# =============================================
+
+def display_method_specific_info(results, method):
+    """显示各方法特有的统计信息"""
+    if method == "四分位稳健统计法":
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("下四分位数(Q1)", f"{results['q1']:.6f}")
+        with col2:
+            st.metric("上四分位数(Q3)", f"{results['q3']:.6f}")
+        with col3:
+            st.metric("四分位距(IQR)", f"{results['iqr']:.6f}")
+        with col4:
+            st.metric("标准化四分位距(NIQR)", f"{results['niqr']:.6f}")
+    
+    elif method == "Q/Hampel法":
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("初始中位数", f"{results.get('initial_median', results['robust_mean']):.6f}")
+        with col2:
+            st.metric("MAD", f"{results.get('mad', 0):.6f}")
+
+def display_core_results(results, method):
+    """显示核心结果 - 统一格式"""
+    # 主要统计量
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("稳健平均值", f"{results['robust_mean']:.6f}")
+    with col2:
+        st.metric("稳健标准差", f"{results['robust_std']:.6f}")
+    with col3:
+        st.metric("离群值数量", len(results['outliers']))
+    with col4:
+        if 'iterations' in results:
+            st.metric("迭代次数", results['iterations'])
+        else:
+            st.metric("计算方案", "规范展示" if results.get('calculation_scheme') == "presentation" else "严格计算")
+    
+    # 方法特定信息
+    display_method_specific_info(results, method)
+
+def display_z_score_analysis(results, original_labels=None):
+    """统一显示Z比分分析"""
+    # Z比分分类统计
+    st.subheader("📊 Z比分分析")
+    
+    z_scores_data = results['Z_scores_rounded']
+    if z_scores_data is not None:
+        try:
+            z_scores = np.array(z_scores_data)
+            z_scores_abs = np.abs(z_scores)
+            satisfactory = np.sum(z_scores_abs <= 2)
+            questionable = np.sum((z_scores_abs > 2) & (z_scores_abs < 3))
+            unsatisfactory = np.sum(z_scores_abs >= 3)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                sat_percent = satisfactory/len(z_scores)*100 if len(z_scores) > 0 else 0
+                st.metric("满意 (|Z| ≤ 2)", f"{satisfactory} 个", f"{sat_percent:.1f}%")
+            with col2:
+                quest_percent = questionable/len(z_scores)*100 if len(z_scores) > 0 else 0
+                st.metric("可疑 (2 < |Z| < 3)", f"{questionable} 个", f"{quest_percent:.1f}%")
+            with col3:
+                unsat_percent = unsatisfactory/len(z_scores)*100 if len(z_scores) > 0 else 0
+                st.metric("不满意 (|Z| ≥ 3)", f"{unsatisfactory} 个", f"{unsat_percent:.1f}%")
+                
+        except Exception as e:
+            st.warning(f"无法计算Z比分分类: {str(e)}")
+
+def display_detailed_results(results, method, data, original_labels=None):
+    """显示详细结果 - 可折叠"""
+    with st.expander("📋 详细结果", expanded=False):
+        # 正常值范围
+        st.write(f"**正常值范围**: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]")
+        
+        # 格式化说明
+        if 'formatting_note' in results:
+            st.info(f"💡 {results['formatting_note']}")
+        
+        # 离群值显示
+        if len(results['outliers']) > 0:
+            outliers_list = results['outliers']
+            if hasattr(outliers_list, '__iter__') and not isinstance(outliers_list, str):
+                try:
+                    outliers_list = [float(x) for x in outliers_list]
+                    outliers_list = sorted(outliers_list)
+                    
+                    st.write(f"**离群值** ({len(outliers_list)}个):")
+                    
+                    # 按Z比分分类显示离群值
+                    robust_mean = results['robust_mean']
+                    robust_std = results['robust_std']
+                    
+                    questionable_outliers = []
+                    unsatisfactory_outliers = []
+                    
+                    for outlier in outliers_list:
+                        z_score = abs((outlier - robust_mean) / robust_std) if robust_std > 0 else float('inf')
+                        if 2 < z_score < 3:
+                            questionable_outliers.append((outlier, z_score))
+                        elif z_score >= 3:
+                            unsatisfactory_outliers.append((outlier, z_score))
+                    
+                    if questionable_outliers:
+                        st.write(f"  - 可疑离群值 (2<|Z|<3): {[f'{val[0]} (Z={val[1]:.2f})' for val in questionable_outliers]}")
+                    
+                    if unsatisfactory_outliers:
+                        st.write(f"  - 不满意离群值 (|Z|≥3): {[f'{val[0]} (Z={val[1]:.2f})' for val in unsatisfactory_outliers]}")
+                        
+                except (ValueError, TypeError):
+                    st.write("**离群值**: [无法显示]")
+            else:
+                st.write("**离群值**: 无")
+        else:
+            st.success("✅ **离群值**: 无检测到离群值")
+
+# =============================================
 # Z比分对比表格功能
 # =============================================
 
@@ -2473,6 +2499,9 @@ if data is not None and len(data) > 0:
         
         st.markdown("---")
         st.subheader(f"📈 {method}分析结果")
+        
+        # 从会话状态获取计算方案
+        calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
         
         # 显示当前选择的计算方案
         scheme_display = "规范展示方案" if calculation_scheme == "规范展示方案" else "严格计算方案"
