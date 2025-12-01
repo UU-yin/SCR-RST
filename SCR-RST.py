@@ -15,6 +15,7 @@ import re
 import json
 from scipy import stats
 from scipy.stats import norm
+from scipy import interpolate
 import matplotlib as mpl
 import matplotlib.font_manager as fm
 
@@ -3169,4 +3170,5 @@ with st.expander("💬 有问题或建议？点击这里联系我们", expanded=
     **联系人**：印博士
        
     感谢您帮助我们变得更好！
+
     """)
