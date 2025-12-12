@@ -898,7 +898,7 @@ with main_col:
     # 第一行：图标和主标题（水平排列）
     col_logo, col_title = st.columns([1, 5])
     with col_logo:
-        st.image("stataid.png", width=80)  
+        st.image("stataid.png", width=256)  
     with col_title:
         st.title("统计宝")  # 主标题
     
