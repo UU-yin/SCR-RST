@@ -892,12 +892,17 @@ st.set_page_config(
 
 initialize_session_state()
 
-# 标题和说明 - 使用自定义图标
-col_logo, col_title = st.columns([1, 5])
-with col_logo:
-    st.image("stataid.png", width=320) # 可以调整width来改变图标大小
-with col_title:
-    st.title("统计宝")
+# 创建主垂直布局
+main_col = st.columns([1])[0]  # 创建一个单列的容器
+with main_col:
+    # 第一行：图标和主标题（水平排列）
+    col_logo, col_title = st.columns([1, 5])
+    with col_logo:
+        st.image("stataid.png", width=80)  
+    with col_title:
+        st.title("统计宝")  # 主标题
+    
+    # 第二行：副标题（跨两列显示）
     st.markdown("""
     提供多种稳健统计分析方法，用于处理包含异常值的数据集。
     """)
