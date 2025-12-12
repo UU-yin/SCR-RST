@@ -890,34 +890,24 @@ st.set_page_config(
     layout="wide"
 )
 
-# 初始化会话状态
-initialize_session_state()
+col_main_left, col_main_right = st.columns([1, 5])
 
-import streamlit as st
+with col_main_left:
+    st.image("your_logo.png", width=80)
 
-# 使用自定义CSS让图标列的内容垂直居中
-st.markdown("""
-<style>
-    div[data-testid="column"]:nth-of-type(1) {
-        display: flex;
-        align-items: center;  /* 这是实现垂直居中的关键属性 */
-        justify-content: center;
-    }
-</style>
-""", unsafe_allow_html=True)
+with col_main_right:
+    # 创建一个内部的垂直列布局来手动控制“高度块”
+    col_inner_title, col_inner_subtitle = st.columns([1], vertical=True) # vertical=True创建垂直列
 
-# 创建两列的布局
-col_logo, col_title = st.columns([1, 5])
-with col_logo:
-    st.image("stataid.png", use_container_width=True)
-with col_title:
-    st.title("统计宝")
+    with col_inner_title:
+        st.title("统计宝") 
 
-# 下面的描述文字
-st.markdown("""
-提供多种稳健统计分析方法，用于处理包含异常值的数据集。
-支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
-""")
+    with col_inner_subtitle:
+        # 使用st.write或st.markdown来写入副标题，并利用<br>换行
+        st.markdown("""
+        提供多种稳健统计分析方法，用于处理包含异常值的数据集。<br>
+        支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
+        """, unsafe_allow_html=True)
 
 # =============================================
 # 优化侧边栏布局
