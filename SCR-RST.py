@@ -890,6 +890,8 @@ st.set_page_config(
     layout="wide"
 )
 
+initialize_session_state()
+
 # 标题和说明 - 使用自定义图标
 col_logo, col_title = st.columns([1, 5])
 with col_logo:
@@ -974,16 +976,13 @@ if input_method == "手动输入":
     st.subheader("📝 手动输入数据")
     
     # 简化的输入界面
-    current_data = st.text_area(
+    st.text_area(
         "请输入数据（每行一个数值或用逗号分隔）:",
         value=st.session_state.manual_data,
         height=150,
         key=f"manual_input_{st.session_state.reset_counter}",
         help="支持空白数据自动忽略"
     )
-
-    # 更新会话状态
-    st.session_state.manual_data = current_data
     
     # 操作按钮
     col1, col2, col3 = st.columns([2, 1, 1])
