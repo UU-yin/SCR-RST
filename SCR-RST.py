@@ -896,7 +896,7 @@ initialize_session_state()
 # 标题和说明 - 使用高清自定义图标
 col_logo, col_title = st.columns([1, 5])
 with col_logo:
-    st.image("stataid.png", use_column_width=True) # 自适应宽度，通常更清晰
+    st.image("stataid.png", use_container_width=True) # 自适应宽度，通常更清晰
 with col_title:
     st.title("统计宝")
     st.markdown("""
