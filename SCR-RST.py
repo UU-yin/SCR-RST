@@ -892,23 +892,40 @@ st.set_page_config(
 
 initialize_session_state()
 
-# 创建主垂直布局
-main_col = st.columns([1])[0]  # 创建一个单列的容器
-with main_col:
-    # 第一行：图标和主标题（水平排列）
-    col_logo, col_title = st.columns([1, 5])
-    with col_logo:
-        st.image("stataid.png", width=256)  
-    with col_title:
-        st.title("统计宝")  # 主标题
-    
-    # 第二行：副标题（跨两列显示）
-    st.markdown("""
-    提供多种稳健统计分析方法，用于处理包含异常值的数据集。
-    """)
-    st.markdown("""
-    支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
-    """)
+# 使用CSS实现水平居中布局
+st.markdown("""
+<style>
+    .header-container {
+        display: flex;
+        align-items: center; /* 垂直居中 */
+        justify-content: flex-start; /* 左对齐 */
+        gap: 15px; /* 图标与标题之间的间距 */
+        margin-bottom: 10px; /* 与副标题的间距 */
+    }
+    .header-title {
+        margin: 0; /* 移除默认标题边距 */
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# 创建包含图标和主标题的容器
+st.markdown('<div class="header-container">', unsafe_allow_html=True)
+
+# 添加图标
+st.image("stataid.png", width=256)
+
+# 添加主标题
+st.markdown('<h1 class="header-title">统计宝</h1>', unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# 添加副标题
+st.markdown("""
+提供多种稳健统计分析方法，用于处理包含异常值的数据集。
+""")
+st.markdown("""
+支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
+""")
 
 # =============================================
 # 优化侧边栏布局
