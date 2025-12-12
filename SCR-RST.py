@@ -893,8 +893,13 @@ st.set_page_config(
 # 初始化会话状态
 initialize_session_state()
 
-# 标题和说明
-st.title("📊 统计宝")
+# 标题和说明 - 图标与标题同行
+st.markdown("<div style='display: flex; align-items: center;'>", unsafe_allow_html=True)
+
+st.image("stataid_128.png", width=60)
+st.title("统计宝")
+st.markdown("</div>", unsafe_allow_html=True)
+
 st.markdown("""
 提供多种稳健统计分析方法，用于处理包含异常值的数据集。
 支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
