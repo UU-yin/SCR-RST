@@ -895,11 +895,13 @@ initialize_session_state()
 # 标题和说明 - 使用自定义图标
 col_logo, col_title = st.columns([1, 5])
 with col_logo:
-    st.image("stataid.png", width=80) # 可以调整width来改变图标大小
+    st.image("stataid.png", width=160) # 可以调整width来改变图标大小
 with col_title:
     st.title("统计宝")
     st.markdown("""
     提供多种稳健统计分析方法，用于处理包含异常值的数据集。
+    """)
+    st.markdown("""
     支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
     """)
 
