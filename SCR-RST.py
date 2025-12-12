@@ -890,24 +890,49 @@ st.set_page_config(
     layout="wide"
 )
 
-col_main_left, col_main_right = st.columns([1, 5])
+import streamlit as st
 
-with col_main_left:
-    st.image("stataid.png", width=80)
+# 核心：使用CSS Flexbox进行精准的垂直布局控制
+st.markdown("""
+<style>
+    /* 为主容器启用Flexbox，并设置一个基准高度（需与图标高度匹配） */
+    .title-container {
+        display: flex;
+        align-items: center; /* 垂直居中对齐 */
+        min-height: 80px; /* 此高度值应与图标视觉高度匹配，可调整 */
+        margin-bottom: 1rem;
+    }
+    /* 文字区域的样式 */
+    .title-text {
+        line-height: 1.4; /* 控制行高，影响视觉间距 */
+    }
+</style>
+""", unsafe_allow_html=True)
 
-with col_main_right:
-    # 创建一个内部的垂直列布局来手动控制“高度块”
-    col_inner_title, col_inner_subtitle = st.columns([1], vertical=True) # vertical=True创建垂直列
+# 创建布局：一个包含图标和文字的大容器
+col1, col2 = st.columns([1, 5])
 
-    with col_inner_title:
-        st.title("统计宝") 
+with col1:
+    # 请替换 `your_logo.png` 为你的图标文件名，width需与CSS中的min-height协调
+    st.image("stataid.png", width=80) # 固定图标宽度，高度会自动等比缩放
 
-    with col_inner_subtitle:
-        # 使用st.write或st.markdown来写入副标题，并利用<br>换行
-        st.markdown("""
-        提供多种稳健统计分析方法，用于处理包含异常值的数据集。<br>
-        支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
-        """, unsafe_allow_html=True)
+with col2:
+    # 将标题和副标题包裹在一个应用了CSS样式的容器内
+    st.markdown('<div class="title-container">', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="title-text">
+        <h1 style="margin: 0; padding: 0;">统计宝</h1>
+        <p style="margin: 0; padding: 0; font-size: 1em; color: #666;">
+            提供多种稳健统计分析方法，用于处理包含异常值的数据集。<br>
+            支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# 页面其余的描述内容
+st.markdown("---") # 可选：增加一个分隔线
+# ... 您页面后续的其他内容 ...
 
 # =============================================
 # 优化侧边栏布局
