@@ -893,12 +893,16 @@ st.set_page_config(
 # 初始化会话状态
 initialize_session_state()
 
-# 方案一：图标居中作为标题
-st.image("stataid.png", width=80) 
-st.markdown("""
-提供多种稳健统计分析方法，用于处理包含异常值的数据集。
-支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
-""")
+# 标题和说明 - 使用高清自定义图标
+col_logo, col_title = st.columns([1, 5])
+with col_logo:
+    st.image("stataid.png", use_container_width=True) # 自适应宽度，通常更清晰
+with col_title:
+    st.title("统计宝")
+    st.markdown("""
+    提供多种稳健统计分析方法，用于处理包含异常值的数据集。
+    支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
+    """)
 
 # =============================================
 # 优化侧边栏布局
