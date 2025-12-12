@@ -912,7 +912,7 @@ st.markdown("""
 st.markdown('<div class="header-container">', unsafe_allow_html=True)
 
 # 添加图标
-st.image("stataid.png", width=256)
+st.image("stataid.png", width=80)
 
 # 添加主标题
 st.markdown('<h1 class="header-title">统计宝</h1>', unsafe_allow_html=True)
