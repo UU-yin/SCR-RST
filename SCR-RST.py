@@ -893,7 +893,7 @@ st.set_page_config(
 col_main_left, col_main_right = st.columns([1, 5])
 
 with col_main_left:
-    st.image("your_logo.png", width=80)
+    st.image("stataid.png", width=80)
 
 with col_main_right:
     # 创建一个内部的垂直列布局来手动控制“高度块”
