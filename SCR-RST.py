@@ -886,24 +886,23 @@ def clear_two_column_data():
 # 设置页面
 st.set_page_config(
     page_title="统计宝 | 稳健统计分析工具 ",
-    page_icon="stataid_128.png",
+    page_icon="stataid.png",
     layout="wide"
 )
 
 # 初始化会话状态
 initialize_session_state()
 
-# 标题和说明 - 图标与标题同行
-st.markdown("<div style='display: flex; align-items: center;'>", unsafe_allow_html=True)
-
-st.image("stataid_128.png", width=60)
-st.title("统计宝")
-st.markdown("</div>", unsafe_allow_html=True)
-
-st.markdown("""
-提供多种稳健统计分析方法，用于处理包含异常值的数据集。
-支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
-""")
+# 标题和说明 - 使用高清自定义图标
+col_logo, col_title = st.columns([1, 5])
+with col_logo:
+    st.image("stataid.png", use_column_width=True) # 自适应宽度，通常更清晰
+with col_title:
+    st.title("统计宝")
+    st.markdown("""
+    提供多种稳健统计分析方法，用于处理包含异常值的数据集。
+    支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
+    """)
 
 # =============================================
 # 优化侧边栏布局
