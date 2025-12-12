@@ -893,16 +893,31 @@ st.set_page_config(
 # 初始化会话状态
 initialize_session_state()
 
-# 标题和说明 - 使用高清自定义图标
+import streamlit as st
+
+# 使用自定义CSS让图标列的内容垂直居中
+st.markdown("""
+<style>
+    div[data-testid="column"]:nth-of-type(1) {
+        display: flex;
+        align-items: center;  /* 这是实现垂直居中的关键属性 */
+        justify-content: center;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# 创建两列的布局
 col_logo, col_title = st.columns([1, 5])
 with col_logo:
-    st.image("stataid.png", use_container_width=True) # 自适应宽度，通常更清晰
+    st.image("stataid.png", use_container_width=True)
 with col_title:
     st.title("统计宝")
-    st.markdown("""
-    提供多种稳健统计分析方法，用于处理包含异常值的数据集。
-    支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
-    """)
+
+# 下面的描述文字
+st.markdown("""
+提供多种稳健统计分析方法，用于处理包含异常值的数据集。
+支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
+""")
 
 # =============================================
 # 优化侧边栏布局
