@@ -895,19 +895,22 @@ st.set_page_config(
 
 initialize_session_state()
 
-# 设置页面配置 - 移除默认边距
+import streamlit as st
+from PIL import Image
+
+# 设置页面配置
 st.set_page_config(layout="wide")
 
-# 添加最小化的CSS，专注于移除顶部空白
+# 添加CSS，保留Streamlit Cloud顶部UI空间
 st.markdown("""
 <style>
-/* 移除页面顶部空白 */
+/* 为Streamlit Cloud顶部UI元素保留空间 */
 .stApp {
-    margin-top: -2rem !important;
-    padding-top: 40px !important;
+    margin-top: 0 !important;
+    padding-top: 20px !important; /* 为顶部按钮/菜单留出空间 */
 }
 
-/* 确保主容器没有顶部边距 */
+/* 确保内容区域有适当间距 */
 .block-container {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
@@ -920,7 +923,7 @@ st.markdown("""
     flex-wrap: nowrap !important;
     width: 100% !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 10px 0 !important; /* 添加少量内边距 */
 }
 
 /* 图标容器 */
@@ -932,15 +935,15 @@ st.markdown("""
     margin-right: 30px !important;
 }
 
-/* 文字容器 - 恢复固定上边距 */
+/* 文字容器 - 保持固定上边距 */
 .text-wrapper {
     flex: 1 !important;
     display: flex !important;
     flex-direction: column !important;
-    padding-top: 40px !important; /* 恢复固定上边距 */
+    padding-top: 40px !important;
 }
 
-/* 响应式图标大小 */
+/* 响应式图标大小调整 */
 @media (max-width: 1200px) {
     .single-line-container img {
         width: 280px !important;
@@ -987,6 +990,18 @@ st.markdown("""
 @media (max-width: 768px) {
     .single-line-container {
         flex-wrap: nowrap !important;
+    }
+}
+
+/* 确保Streamlit顶部工具栏不被遮挡 */
+header[data-testid="stHeader"] {
+    z-index: 1000 !important;
+}
+
+/* 如果顶部菜单仍然被遮挡，可以增加此值 */
+@media (max-width: 768px) {
+    .stApp {
+        padding-top: 30px !important; /* 在手机上可能需要更多空间 */
     }
 }
 </style>
