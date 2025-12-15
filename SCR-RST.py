@@ -1102,7 +1102,6 @@ input_method = st.radio("",
 
 # 测试是否能正确识别选择
 st.write(f"当前选择的输入方式: **{input_method}**")
-
 data = None
 
 if input_method == "手动输入":
