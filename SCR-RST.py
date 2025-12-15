@@ -919,7 +919,7 @@ st.markdown('<div class="responsive-container" style="display: flex; align-items
 
 # 图标列
 st.markdown('<div class="icon-column" style="flex: 0 0 auto; padding-right: 20px;">', unsafe_allow_html=True)
-st.image(icon, width=80)
+st.image(icon, width=300)
 st.markdown('</div>', unsafe_allow_html=True)
 
 # 文字列
