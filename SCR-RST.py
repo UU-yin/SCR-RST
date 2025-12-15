@@ -896,40 +896,25 @@ initialize_session_state()
 # 设置页面配置
 st.set_page_config(layout="wide")
 
+# 创建间距
+st.markdown("")
+
 # 加载软件图标
 icon = Image.open("stataid.png")
 
-# 方法1: 使用更小的图标列比例，并移除图标右侧的内边距
-col1, col2 = st.columns([0.5, 4])  # 将第一列比例调小
+# 创建两列布局
+col1, col2 = st.columns([1, 4])
 
 with col1:
-    # 图标靠左显示，移除右侧内边距
+    # 使用垂直居中对齐
     st.image(icon, width=360)
 
 with col2:
+    # 使用Streamlit原生markdown显示黑色文字
+    st.write("")  # 空行用于调整垂直位置
+    st.write("")  # 空行用于调整垂直位置
     st.markdown("### **统计宝**")
     st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
-    st.markdown("支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。")
-
-# 添加分隔线，显示多个列表项
-st.divider()
-
-# 方法2: 完全移除图标列的内边距，使用自定义CSS
-col1, col2 = st.columns([0.8, 4])
-
-with col1:
-    # 使用自定义样式将图标推向最左
-    st.markdown(
-        '<div style="display: flex; justify-content: flex-start;">',
-        unsafe_allow_html=True
-    )
-    st.image(icon, width=60)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with col2:
-    st.markdown("### **统计宝**")
-    st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
-    st.markdown("支持迭代稳健统计法和四分位稳健统计法。")
 
 # =============================================
 # 优化侧边栏布局
