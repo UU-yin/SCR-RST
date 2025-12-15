@@ -911,6 +911,7 @@ with col1:
 
 with col2:
     # 使用Streamlit原生markdown显示黑色文字
+    st.write("")  # 空行用于调整垂直位置
     st.markdown("### **统计宝**")
     st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
 
