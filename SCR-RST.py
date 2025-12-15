@@ -907,6 +907,7 @@ col1, col2 = st.columns([1, 4])
 
 with col1:
     # 使用垂直居中对齐
+    st.markdown('<div style="margin-left: -40px;">', unsafe_allow_html=True)
     st.image(icon, width=360)
 
 with col2:
