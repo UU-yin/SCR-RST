@@ -895,106 +895,30 @@ st.set_page_config(
 
 initialize_session_state()
 
-import streamlit as st
-from PIL import Image
-
 # 设置页面配置
 st.set_page_config(layout="wide")
 
-# ========== CSS样式 ==========
-st.markdown("""
-<style>
-/* 移除Streamlit默认边距 */
-.stApp {
-    margin: 0 !important;
-    padding: 0 !important;
-}
-
-.block-container {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-}
-
-/* 主布局容器 */
-.main-layout {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    min-height: 200px;
-    margin: 0;
-    padding: 0;
-}
-
-/* 图标部分 */
-.icon-section {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    height: 100%;
-}
-
-/* 文字部分 */
-.text-section {
-    flex: 1;
-    padding-left: 30px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    height: 100%;
-}
-
-/* 响应式图标大小 */
-@media (max-width: 1200px) {
-    .icon-image { width: 280px !important; }
-}
-
-@media (max-width: 992px) {
-    .icon-image { width: 220px !important; }
-    .text-section { padding-left: 20px !important; }
-}
-
-@media (max-width: 768px) {
-    .icon-image { width: 180px !important; }
-    .text-section { padding-left: 15px !important; }
-}
-
-@media (max-width: 576px) {
-    .icon-image { width: 150px !important; }
-    .text-section { padding-left: 12px !important; }
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ========== 主程序 ==========
+# 最简单的版本 - 不使用任何复杂的HTML/CSS
+st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
 
 try:
     # 加载软件图标
     icon = Image.open("stataid_cut edge.png")
-    
-    # 使用简单的Streamlit布局
-    st.markdown('<div class="main-layout">', unsafe_allow_html=True)
     
     # 创建两列布局
     col1, col2 = st.columns([1, 4])
     
     with col1:
         # 图标部分
-        st.markdown('<div class="icon-section" style="margin-left: -30px;">', unsafe_allow_html=True)
-        st.image(icon, width=360, output_format="PNG")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.image(icon, width=300)
     
     with col2:
-        # 文字部分
-        st.markdown('<div class="text-section">', unsafe_allow_html=True)
+        # 文字部分 - 使用简单的垂直对齐
+        st.markdown("<div style='padding-top: 40px;'>", unsafe_allow_html=True)
         st.markdown("### **统计宝**")
         st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
+        st.markdown("</div>", unsafe_allow_html=True)
+        
 except Exception as e:
     st.error(f"加载图片时出错: {e}")
     st.info("请确保图片文件 'stataid_cut edge.png' 存在于当前目录")
