@@ -1092,11 +1092,27 @@ st.sidebar.info(method_descriptions[method])
 if method == "Z比分计算模块":
     st.sidebar.info("💡 **注意**: Z比分计算参数请在主界面输入")
 
-# 数据输入方式选择 - 带有间距控制的两行布局
-st.markdown("### **数据输入方式:**")
+# 添加自定义CSS调整间距
+st.markdown("""
+<style>
+/* 减少标题与单选按钮之间的间距 */
+.compact-radio-title {
+    margin-bottom: 0.2rem !important;
+}
+
+/* 调整单选按钮组的上边距 */
+.stRadio > div {
+    margin-top: 0.2rem !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# 数据输入方式选择 - 紧凑两行布局
+st.markdown("### **数据输入方式:**", unsafe_allow_html=True)
 input_method = st.radio("", 
                        ["手动输入", "带编号数据输入", "文件上传", "示例数据"],
-                       horizontal=True)
+                       horizontal=True,
+                       label_visibility="collapsed")
 
 data = None
 
