@@ -904,7 +904,7 @@ st.markdown("""
 /* 移除页面顶部空白 */
 .stApp {
     margin-top: -2rem !important;
-    padding-top: 0 !important;
+    padding-top: 10px !important;
 }
 
 /* 确保主容器没有顶部边距 */
