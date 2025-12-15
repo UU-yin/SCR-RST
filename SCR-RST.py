@@ -896,36 +896,6 @@ initialize_session_state()
 # 设置页面配置
 st.set_page_config(layout="wide")
 
-# 创建间距
-st.markdown("")
-
-# 加载软件图标
-icon = Image.open("stataid_cut edge.png")
-
-# 创建两列布局，减少第一列比例
-col1, col2 = st.columns([1, 4])
-
-with col1:
-    # 使用负边距将图标推向最左
-    st.markdown(
-        '<div style="margin-left: -60px; display: flex; align-items: center; height: 100%;">',
-        unsafe_allow_html=True
-    )
-    st.image(icon, width=360)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with col2:
-    # 使用Streamlit原生markdown显示黑色文字
-    st.write("")  # 空行用于调整垂直位置
-    st.write("")  # 空行用于调整垂直位置
-    st.write("")  # 空行用于调整垂直位置
-    st.write("")  # 空行用于调整垂直位置
-    st.markdown("### **统计宝**"import streamlit as st
-from PIL import Image
-
-# 设置页面配置
-st.set_page_config(layout="wide")
-
 # 添加响应式CSS
 st.markdown("""
 <style>
@@ -1008,7 +978,6 @@ window.addEventListener('load', adjustIconSize);
 window.addEventListener('resize', adjustIconSize);
 </script>
 """, unsafe_allow_html=True)
-    st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
 
 # =============================================
 # 优化侧边栏布局
