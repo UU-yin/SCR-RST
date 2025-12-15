@@ -895,154 +895,109 @@ st.set_page_config(
 
 initialize_session_state()
 
-# 设置页面配置 - 移除默认边距
+import streamlit as st
+from PIL import Image
+
+# 设置页面配置
 st.set_page_config(layout="wide")
 
-# ========== 精确控制垂直居中和边距 ==========
+# ========== CSS样式 ==========
 st.markdown("""
 <style>
-/* 移除Streamlit所有默认边距和内边距 */
+/* 移除Streamlit默认边距 */
 .stApp {
     margin: 0 !important;
     padding: 0 !important;
 }
 
-/* 移除主容器默认边距 */
 .block-container {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
-    max-width: 100% !important;
 }
 
-/* 移除页面顶部默认空白区域 */
-[data-testid="stAppViewContainer"] > .main {
-    padding-top: 0 !important;
-}
-
-/* 主布局容器 - 精确垂直居中 */
+/* 主布局容器 */
 .main-layout {
     display: flex;
-    align-items: center;  /* 垂直居中 */
+    align-items: center;
     width: 100%;
-    height: 200px;  /* 固定高度确保垂直居中 */
+    min-height: 200px;
     margin: 0;
     padding: 0;
 }
 
-/* 图标容器 */
-.icon-part {
+/* 图标部分 */
+.icon-section {
     flex: 0 0 auto;
     display: flex;
-    align-items: center;  /* 图标垂直居中 */
+    align-items: center;
     justify-content: flex-start;
     height: 100%;
 }
 
-/* 文字容器 */
-.text-part {
+/* 文字部分 */
+.text-section {
     flex: 1;
     padding-left: 30px;
     display: flex;
     flex-direction: column;
-    justify-content: center;  /* 文字垂直居中 */
+    justify-content: center;
     height: 100%;
-    margin-top: 0;  /* 确保没有顶部边距 */
 }
 
-/* 主标题样式 - 确保与图标中心对齐 */
-.main-title {
-    font-size: 1.8rem !important;
-    font-weight: 700 !important;
-    margin: 0 0 8px 0 !important;
-    line-height: 1.2;
-}
-
-/* 描述文字样式 */
-.description {
-    font-size: 1.1rem !important;
-    line-height: 1.5;
-    margin: 0;
-}
-
-/* 图标响应式 */
-.responsive-icon {
-    width: 360px;
-    max-width: 100%;
-    height: auto;
-    display: block;
-}
-
-/* 响应式调整 */
+/* 响应式图标大小 */
 @media (max-width: 1200px) {
-    .main-layout { height: 180px; }
-    .responsive-icon { width: 280px; }
-    .main-title { font-size: 1.6rem !important; }
-    .description { font-size: 1rem !important; }
+    .icon-image { width: 280px !important; }
 }
 
 @media (max-width: 992px) {
-    .main-layout { height: 160px; }
-    .responsive-icon { width: 220px; }
-    .main-title { font-size: 1.4rem !important; margin-bottom: 6px !important; }
-    .description { font-size: 0.95rem !important; }
-    .text-part { padding-left: 20px; }
+    .icon-image { width: 220px !important; }
+    .text-section { padding-left: 20px !important; }
 }
 
 @media (max-width: 768px) {
-    .main-layout { height: 140px; }
-    .responsive-icon { width: 180px; }
-    .main-title { font-size: 1.2rem !important; margin-bottom: 5px !important; }
-    .description { font-size: 0.9rem !important; }
-    .text-part { padding-left: 15px; }
+    .icon-image { width: 180px !important; }
+    .text-section { padding-left: 15px !important; }
 }
 
 @media (max-width: 576px) {
-    .main-layout { height: 120px; }
-    .responsive-icon { width: 150px; }
-    .main-title { font-size: 1.1rem !important; }
-    .description { font-size: 0.85rem !important; }
-    .text-part { padding-left: 12px; }
-}
-
-/* 确保Streamlit列内容垂直居中 */
-[data-testid="column"] {
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: center !important;  /* 垂直居中 */
-    padding: 0 !important;
-    margin: 0 !important;
+    .icon-image { width: 150px !important; }
+    .text-section { padding-left: 12px !important; }
 }
 </style>
 """, unsafe_allow_html=True)
 
-# 加载软件图标
-icon = Image.open("stataid_cut edge.png")
+# ========== 主程序 ==========
 
-# 将图标转换为base64
-import base64
-from io import BytesIO
-
-buffered = BytesIO()
-icon.save(buffered, format="PNG")
-img_str = base64.b64encode(buffered.getvalue()).decode()
-
-# 使用HTML/CSS完全控制布局
-st.markdown(f'''
-<div class="main-layout">
-    <div class="icon-part" style="margin-left: -30px;">
-        <img src="data:image/png;base64,{img_str}" class="responsive-icon" alt="统计宝图标">
-    </div>
+try:
+    # 加载软件图标
+    icon = Image.open("stataid_cut edge.png")
     
-    <div class="text-part">
-        <div class="main-title" style="color: #000000;">统计宝</div>
-        <div class="description" style="color: #000000;">
-            提供多种稳健统计分析方法，用于处理包含异常值的数据集。
-        </div>
-    </div>
-</div>
-''', unsafe_allow_html=True)
+    # 使用简单的Streamlit布局
+    st.markdown('<div class="main-layout">', unsafe_allow_html=True)
+    
+    # 创建两列布局
+    col1, col2 = st.columns([1, 4])
+    
+    with col1:
+        # 图标部分
+        st.markdown('<div class="icon-section" style="margin-left: -30px;">', unsafe_allow_html=True)
+        st.image(icon, width=360, output_format="PNG")
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with col2:
+        # 文字部分
+        st.markdown('<div class="text-section">', unsafe_allow_html=True)
+        st.markdown("### **统计宝**")
+        st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+except Exception as e:
+    st.error(f"加载图片时出错: {e}")
+    st.info("请确保图片文件 'stataid_cut edge.png' 存在于当前目录")
 
 # =============================================
 # 优化侧边栏布局
