@@ -899,26 +899,80 @@ st.set_page_config(layout="wide")
 # 添加响应式CSS
 st.markdown("""
 <style>
-/* 响应式调整 */
+/* 响应式设计CSS */
+:root {
+    --icon-size-lg: 360px;   /* 大屏幕图标大小 */
+    --icon-size-md: 280px;   /* 中等屏幕图标大小 */
+    --icon-size-sm: 200px;   /* 小屏幕图标大小 */
+    --icon-size-xs: 150px;   /* 超小屏幕图标大小 */
+}
+
+/* 图标容器 */
+.icon-container {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: 100%;
+    padding-right: 20px;
+}
+
+/* 图标图片响应式控制 */
+.responsive-icon-img {
+    width: var(--icon-size-lg);
+    max-width: 100%;
+    height: auto;
+    transition: width 0.3s ease;
+}
+
+/* 电脑非全屏状态 (1200px以下) */
+@media (max-width: 1200px) {
+    .responsive-icon-img {
+        width: var(--icon-size-md);
+    }
+    .icon-container {
+        margin-left: -20px !important;
+    }
+}
+
+/* 平板端 (992px以下) */
+@media (max-width: 992px) {
+    .responsive-icon-img {
+        width: var(--icon-size-sm);
+    }
+    .icon-container {
+        margin-left: -10px !important;
+    }
+}
+
+/* 手机端 (768px以下) */
 @media (max-width: 768px) {
-    /* 手机端将两列布局改为上下排列 */
-    [data-testid="column"] {
-        width: 100% !important;
-        flex: 1 1 100% !important;
+    .responsive-icon-img {
+        width: var(--icon-size-xs);
     }
     
-    /* 手机端调整图标容器 */
-    .mobile-icon-container {
-        display: flex !important;
-        justify-content: center !important;
+    .icon-container {
         margin-left: 0 !important;
-        margin-bottom: 20px !important;
+        justify-content: center !important;
+        padding-right: 0;
+        margin-bottom: 15px;
     }
     
-    /* 手机端调整文字容器 */
-    .mobile-text-container {
-        text-align: center !important;
+    /* 手机端改为上下布局 */
+    .mobile-stack {
+        flex-direction: column !important;
+    }
+    
+    /* 调整文字部分在手机端的边距 */
+    .text-content {
         padding-left: 0 !important;
+        text-align: center;
+    }
+}
+
+/* 超小手机 (576px以下) */
+@media (max-width: 576px) {
+    .responsive-icon-img {
+        width: 120px;
     }
 }
 </style>
@@ -930,54 +984,40 @@ st.markdown("")
 # 加载软件图标
 icon = Image.open("stataid_cut edge.png")
 
+# 使用响应式布局容器
+st.markdown('<div class="mobile-stack" style="display: flex; align-items: center;">', unsafe_allow_html=True)
+
 # 创建两列布局
 col1, col2 = st.columns([1, 4])
 
 with col1:
-    # 图标容器 - 添加手机端类名
-    st.markdown('<div class="mobile-icon-container" style="margin-left: -30px;">', unsafe_allow_html=True)
+    # 图标容器 - 使用HTML/CSS显示图片以获得更好的控制
+    st.markdown('<div class="icon-container">', unsafe_allow_html=True)
     
-    # 使用动态宽度计算
-    # 在Streamlit中，我们可以根据列宽动态计算图标大小
-    st.image(icon, width=360)
+    # 将PIL图像转换为base64以便在HTML中使用
+    import base64
+    from io import BytesIO
+    
+    buffered = BytesIO()
+    icon.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    
+    # 使用HTML/CSS显示响应式图片
+    st.markdown(
+        f'<img src="data:image/png;base64,{img_str}" class="responsive-icon-img" alt="统计宝图标">',
+        unsafe_allow_html=True
+    )
     
     st.markdown('</div>', unsafe_allow_html=True)
 
 with col2:
-    # 文字容器 - 添加手机端类名
-    st.markdown('<div class="mobile-text-container">', unsafe_allow_html=True)
+    # 文字内容容器
+    st.markdown('<div class="text-content">', unsafe_allow_html=True)
     st.markdown("### **统计宝**")
     st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# 添加JavaScript检测屏幕大小并动态调整图标大小
-st.markdown("""
-<script>
-// 检测屏幕大小并动态调整
-function adjustIconSize() {
-    const screenWidth = window.innerWidth;
-    const icon = document.querySelector('img[alt*="统计宝"]') || document.querySelector('img[src*="stataid"]');
-    
-    if (icon) {
-        if (screenWidth < 768) {
-            // 手机端
-            icon.style.width = '180px';
-        } else if (screenWidth < 1200) {
-            // 电脑非全屏
-            icon.style.width = '280px';
-        } else {
-            // 全屏
-            icon.style.width = '360px';
-        }
-    }
-}
-
-// 初始调整
-window.addEventListener('load', adjustIconSize);
-// 窗口大小变化时调整
-window.addEventListener('resize', adjustIconSize);
-</script>
-""", unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================
 # 优化侧边栏布局
