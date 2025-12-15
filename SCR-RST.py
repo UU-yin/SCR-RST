@@ -907,7 +907,6 @@ col1, col2 = st.columns([1, 4])
 
 with col1:
     # 使用垂直居中对齐
-    st.write("")  # 空行用于调整垂直位置
     st.image(icon, width=400)
     st.write("")  # 空行用于调整垂直位置
 
