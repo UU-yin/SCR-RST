@@ -896,8 +896,6 @@ st.set_page_config(
 initialize_session_state()
 
 # 设置页面配置
-st.set_page_config(layout="wide")
-
 # 添加CSS，保留Streamlit Cloud顶部UI空间
 st.markdown("""
 <style>
@@ -1092,22 +1090,33 @@ st.sidebar.info(method_descriptions[method])
 if method == "Z比分计算模块":
     st.sidebar.info("💡 **注意**: Z比分计算参数请在主界面输入")
 
-# 数据输入方式选择
-input_method = st.radio("数据输入方式:", 
-                       ["手动输入", "带编号数据输入", "文件上传", "示例数据"])
+# 数据输入方式选择 - 修复版
+st.markdown("### **数据输入方式:**")
+input_method = st.radio("", 
+                       ["手动输入", "带编号数据输入", "文件上传", "示例数据"],
+                       horizontal=True,
+                       index=0,  # 设置默认选中第一个选项
+                       label_visibility="collapsed")
+
+# 测试是否能正确识别选择
+st.write(f"当前选择的输入方式: **{input_method}**")
 data = None
 
+# 手动输入：
 if input_method == "手动输入":
     st.subheader("📝 手动输入数据")
     
     # 简化的输入界面
-    st.text_area(
+    manual_input = st.text_area(
         "请输入数据（每行一个数值或用逗号分隔）:",
         value=st.session_state.manual_data,
         height=150,
         key=f"manual_input_{st.session_state.reset_counter}",
         help="支持空白数据自动忽略"
     )
+    
+    # 更新会话状态
+    st.session_state.manual_data = manual_input
     
     # 操作按钮
     col1, col2, col3 = st.columns([2, 1, 1])
@@ -1125,9 +1134,25 @@ if input_method == "手动输入":
         if st.button("↶ 撤销", use_container_width=True, disabled=undo_disabled):
             undo_data()
     
+    # 显示验证结果
+    if st.session_state.validation_passed:
+        with st.expander("📋 查看数据验证报告", expanded=True):
+            for line in st.session_state.validation_report:
+                if line.startswith("❌"):
+                    st.error(line)
+                elif line.startswith("⚠️"):
+                    st.warning(line)
+                elif line.startswith("📊"):
+                    st.write("**" + line + "**")
+                else:
+                    st.write(line)
+    
     # 如果已经处理了数据，则设置data变量
     if st.session_state.data_loaded and st.session_state.processed_data is not None:
         data = st.session_state.processed_data
+        st.write(f"✅ 已加载 {len(data)} 个有效数据点")
+        if st.session_state.blank_count > 0:
+            st.warning(f"⚠️ 检测到 {st.session_state.blank_count} 个空白数据点，已忽略")
 
 elif input_method == "带编号数据输入":
     st.subheader("📝 带编号数据输入")
@@ -1304,15 +1329,16 @@ else:  # 示例数据
         54.5, 55.9, 53.2, 54.6
     ])
     
-    # 获取计算方案
-    calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
-    
-    # 对示例数据进行验证 - 使用新的方法签名，包含计算方案
-    example_data_str = ", ".join([str(x) for x in example_data])
-    is_valid, original_data, clean_data, blank_count, validation_report, decimal_info = \
-        DataValidator.comprehensive_validation(example_data_str, calculation_scheme)
-    
-    st.write(f"示例数据已加载，包含 {len(example_data)} 个测量值")
+    # 确认使用示例数据
+    if st.button("使用示例数据进行分析", type="primary"):
+        data = example_data
+        st.session_state.processed_data = example_data
+        st.session_state.original_data = example_data.tolist()
+        st.session_state.data_loaded = True
+        st.session_state.blank_count = 0
+        
+        st.success(f"✅ 示例数据已加载，包含 {len(example_data)} 个测量值")
+        st.rerun()
     
     if is_valid:
         st.success("✅ 示例数据验证通过")
@@ -1423,14 +1449,15 @@ else:  # 示例数据
 
 def detect_decimal_places(data):
     """检测数据的小数位数 - 返回最大小数位数"""
+    if data is None or (hasattr(data, '__len__') and len(data) == 0):
+        return 0
+    
     max_decimal_places = 0
     
-    # 确保数据是可迭代的
-    if data is None or (hasattr(data, '__len__') and len(data) == 0):
-        return 0  # 如果数据为空，返回0
-    
     try:
-        for value in data:
+        # 确保数据是可迭代的
+        data_array = np.asarray(data)
+        for value in data_array:
             if isinstance(value, (int, float)) and not np.isnan(value):
                 # 将数值转换为字符串
                 str_value = str(value)
@@ -1451,8 +1478,8 @@ def detect_decimal_places(data):
         return max_decimal_places
         
     except Exception as e:
-        # 如果出现任何错误，返回默认值0
-        return 0
+        # 如果出现任何错误，返回默认值2
+        return 2
 
 def iterative_robust_algorithm(data, max_iterations=50, k=1.5, scheme="strict"):
     """迭代稳健统计法 - 修复 decimal_places 问题"""
@@ -2201,6 +2228,7 @@ def _create_single_point_result(value, scheme):
         'original_std': 0.0
     }
 
+# 添加缺失的回退方法
 def _fallback_method(data, scheme, error_message=""):
     """回退方法 - 使用传统统计量"""
     data_array = np.asarray(data, dtype=float)
@@ -2215,37 +2243,25 @@ def _fallback_method(data, scheme, error_message=""):
         Z_scores_high_precision = [0.0] * len(data_array)
         Z_scores_rounded = [0.0] * len(data_array)
     
-    # 识别离群值（基于3σ原则）
-    lower_limit = mean_val - 3 * std_val
-    upper_limit = mean_val + 3 * std_val
-    outliers_mask = (data_array < lower_limit) | (data_array > upper_limit)
-    outliers = data_array[outliers_mask].tolist()
-    clean_data = data_array[~outliers_mask].tolist()
-    
     # 格式化Z比分显示
     formatted_Z_scores = format_z_scores(Z_scores_rounded)
     
     # 为每个数据点生成分类
     z_score_classifications = [classify_z_score(z) for z in Z_scores_rounded]
     
-    # 添加错误信息到格式化说明
-    formatting_note = f"Q/Hampel方法失败，使用传统平均值和标准差。错误信息: {error_message}" if error_message else "Q/Hampel方法失败，使用传统平均值和标准差"
-    
     return {
         'robust_mean': mean_val,
         'robust_std': std_val,
-        'clean_data': clean_data,
-        'outliers': outliers,
+        'clean_data': data_array.tolist(),
+        'outliers': [],
         'Z_scores_high_precision': Z_scores_high_precision,
         'Z_scores_rounded': Z_scores_rounded,
         'formatted_Z_scores': formatted_Z_scores,
         'z_score_classifications': z_score_classifications,
-        'method_name': 'Q/Hampel法（回退到传统方法）',
-        'lower_limit': float(lower_limit),
-        'upper_limit': float(upper_limit),
-        'weights': np.ones_like(data_array).tolist(),
-        'iterations': 0,
-        'formatting_note': formatting_note,
+        'method_name': '回退方法',
+        'lower_limit': mean_val - 3 * std_val,
+        'upper_limit': mean_val + 3 * std_val,
+        'formatting_note': f"使用传统平均值和标准差（原方法失败：{error_message[:100]}）",
         'calculation_scheme': scheme,
         'decimal_places': detect_decimal_places(data_array),
         'original_mean': mean_val,
@@ -2589,13 +2605,16 @@ def create_z_score_chart(results, original_labels=None):
 # 执行分析
 if data is not None and len(data) > 0:
     try:
-        # 数据预处理和检查
-        if not isinstance(data, np.ndarray):
+        # 确保data是有效的数值数组
+        if isinstance(data, list):
             data = np.array(data)
+        elif not isinstance(data, np.ndarray):
+            st.error("❌ 数据格式无效")
+            st.stop()
         
-        # 确保数据是数值类型
-        if not np.issubdtype(data.dtype, np.number):
-            st.error("❌ 数据包含非数值类型，请检查数据格式")
+        # 检查数据是否包含有效数值
+        if len(data) == 0:
+            st.error("❌ 没有有效数据可供分析")
             st.stop()
         
         st.markdown("---")
@@ -3152,12 +3171,6 @@ else:
 # 页脚
 st.markdown("---")
 st.markdown("""
-**方法说明:**
-- **迭代稳健统计法**: 通过迭代过程逐步修正异常值影响
-- **四分位稳健统计法**: 基于数据排序，使用中段50%数据，崩溃点25%
-- **Q/Hampel法**: 结合Q方法稳健标准差和Hampel方法稳健平均值
-- **Z比分计算模块**: 使用用户提供的稳健统计量计算Z比分
-
 **Z比分分类标准:**
 - **满意**: |Z| ≤ 2
 - **可疑**: 2 < |Z| < 3  
