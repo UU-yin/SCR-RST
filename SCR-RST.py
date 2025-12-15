@@ -893,8 +893,28 @@ st.set_page_config(
 
 initialize_session_state()
 
+import streamlit as st
+from PIL import Image
+
 # 设置页面配置
 st.set_page_config(layout="wide")
+
+# 添加针对性的CSS
+st.markdown("""
+<style>
+/* 只调整页面主容器的左右边距，不影响内部元素 */
+.block-container {
+    padding-left: 0.5rem !important;
+    padding-right: 1rem !important;
+}
+
+/* 只调整第一列的边距 */
+div[data-testid="column"]:first-child {
+    margin-left: -2rem !important;
+    padding-left: 0 !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # 创建间距
 st.markdown("")
@@ -902,17 +922,12 @@ st.markdown("")
 # 加载软件图标
 icon = Image.open("stataid.png")
 
-# 创建两列布局，减少第一列比例
+# 创建两列布局
 col1, col2 = st.columns([1, 4])
 
 with col1:
-    # 使用负边距将图标推向最左
-    st.markdown(
-        '<div style="margin-left: -60px; display: flex; align-items: center; height: 100%;">',
-        unsafe_allow_html=True
-    )
+    # 使用垂直居中对齐
     st.image(icon, width=360)
-    st.markdown('</div>', unsafe_allow_html=True)
 
 with col2:
     # 使用Streamlit原生markdown显示黑色文字
