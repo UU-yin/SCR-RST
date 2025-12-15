@@ -908,12 +908,12 @@ col1, col2 = st.columns([1, 4])
 with col1:
     # 使用垂直居中对齐
     st.image(icon, width=400)
-    st.write("")  # 空行用于调整垂直位置
 
 with col2:
     # 使用Streamlit原生markdown显示黑色文字
     st.markdown("### **统计宝**")
-    st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。")
+    st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
+    st.markdown("支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。")
 
 # =============================================
 # 优化侧边栏布局
