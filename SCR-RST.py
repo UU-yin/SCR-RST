@@ -893,242 +893,51 @@ st.set_page_config(
 
 initialize_session_state()
 
-import streamlit as st
-from PIL import Image
+# 设置页面配置
+st.set_page_config(layout="wide")
 
-# 设置页面配置 - 隐藏默认标题
-st.set_page_config(layout="wide", page_icon="", page_title="")
-
-# ========== CSS变量与样式定义 ==========
+# 添加响应式CSS
 st.markdown("""
 <style>
-/* CSS变量定义 - 统一管理所有样式参数 */
-:root {
-    /* 主色调 - 从天蓝到紫的渐变 */
-    --color-primary-start: #36D1DC;  /* 天蓝色 */
-    --color-primary-end: #5B86E5;    /* 紫色 */
-    --color-primary-dark: #2A5BC0;   /* 深蓝紫 */
-    --color-primary-light: rgba(54, 209, 220, 0.1); /* 浅天蓝透明 */
-    
-    /* 文字颜色 */
-    --color-text-primary: #1A237E;   /* 深蓝色标题 */
-    --color-text-secondary: #424242; /* 深灰色副标题 */
-    --color-text-tertiary: #616161;  /* 中灰色描述 */
-    
-    /* 背景与边框 */
-    --color-bg-light: #F8F9FF;       /* 浅蓝白背景 */
-    --color-border-light: #E1F5FE;   /* 浅蓝色边框 */
-    
-    /* 间距 */
-    --spacing-xs: 0.5rem;
-    --spacing-sm: 1rem;
-    --spacing-md: 1.5rem;
-    --spacing-lg: 2rem;
-    
-    /* 字体大小 - 基础值 */
-    --font-size-base: 1rem;
-    --font-size-title: 1.8rem;
-    --font-size-subtitle: 1.1rem;
-    --font-size-description: 1rem;
-    
-    /* 边框圆角 */
-    --border-radius: 8px;
-    
-    /* 阴影 */
-    --shadow-light: 0 4px 12px rgba(91, 134, 229, 0.1);
-}
-
-/* 响应式调整 - 平板设备 */
-@media (max-width: 1024px) {
-    :root {
-        --spacing-md: 1.2rem;
-        --spacing-lg: 1.5rem;
-        --font-size-title: 1.6rem;
-        --font-size-subtitle: 1rem;
-        --font-size-description: 0.95rem;
-    }
-}
-
-/* 响应式调整 - 手机设备 */
 @media (max-width: 768px) {
-    :root {
-        --spacing-sm: 0.8rem;
-        --spacing-md: 1rem;
-        --spacing-lg: 1.2rem;
-        --font-size-title: 1.4rem;
-        --font-size-subtitle: 0.95rem;
-        --font-size-description: 0.9rem;
-    }
-    
-    /* 在小屏幕上将两列布局改为上下堆叠 */
-    .responsive-columns {
+    .responsive-container {
         flex-direction: column !important;
     }
-    
-    .responsive-icon {
-        margin-bottom: var(--spacing-sm) !important;
+    .icon-column {
+        margin-bottom: 15px !important;
         justify-content: flex-start !important;
     }
-}
-
-/* 只隐藏特定的Streamlit默认元素，不隐藏主要内容 */
-header[data-testid="stHeader"] {
-    background: transparent !important;
-    height: 0 !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-/* 隐藏页脚 */
-footer {
-    visibility: hidden;
-}
-
-/* 调整主容器的顶部边距，去除默认空白 */
-.main-container {
-    margin-top: 0 !important;
-    padding-top: 0 !important;
-}
-
-/* 确保页面背景为纯白 */
-.stApp {
-    background-color: white;
-    padding-top: 0 !important;
-}
-
-/* 软件功能容器 */
-.software-feature-container {
-    border-left: 4px solid;
-    border-image: linear-gradient(to bottom, var(--color-primary-start), var(--color-primary-end)) 1;
-    padding: var(--spacing-md) var(--spacing-lg);
-    margin: 0;
-    background: var(--color-bg-light);
-    border-radius: 0 var(--border-radius) var(--border-radius) 0;
-    box-shadow: var(--shadow-light);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-
-.software-feature-container:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(91, 134, 229, 0.15);
-}
-
-/* 标题样式 */
-.software-title {
-    background: linear-gradient(90deg, var(--color-primary-start), var(--color-primary-end));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    font-size: var(--font-size-title) !important;
-    font-weight: 700 !important;
-    margin-bottom: var(--spacing-xs) !important;
-    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-    display: inline-block;
-}
-
-/* 副标题样式 */
-.software-subtitle {
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-subtitle);
-    font-weight: 600;
-    margin: var(--spacing-xs) 0;
-    line-height: 1.4;
-}
-
-/* 描述文字样式 */
-.software-description {
-    color: var(--color-text-tertiary);
-    font-size: var(--font-size-description);
-    line-height: 1.6;
-    margin: var(--spacing-xs) 0;
-}
-
-/* 图标容器 */
-.icon-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    padding-right: var(--spacing-lg);
-}
-
-/* 响应式列容器 */
-.responsive-columns {
-    display: flex;
-    align-items: stretch;
-    min-height: 200px;
-    margin-top: 20px; /* 添加一点顶部间距 */
-}
-
-/* 渐变标签样式 */
-.gradient-badge {
-    display: inline-block;
-    padding: 0.3rem 0.8rem;
-    background: linear-gradient(90deg, var(--color-primary-light), rgba(91, 134, 229, 0.1));
-    border-radius: 20px;
-    color: var(--color-primary-dark);
-    font-weight: 600;
-    font-size: 0.9rem;
-    margin-top: var(--spacing-xs);
 }
 </style>
 """, unsafe_allow_html=True)
 
+# 加载软件图标
 icon = Image.open("stataid.png")
 
-# 在主容器中布局
-st.markdown('<div class="main-container">', unsafe_allow_html=True)
+# 使用自定义容器
+st.markdown('<div class="responsive-container" style="display: flex; align-items: center; padding-top: 20px;">', unsafe_allow_html=True)
 
-# 创建响应式列布局
-col1, col2 = st.columns([1, 4])
+# 图标列
+st.markdown('<div class="icon-column" style="flex: 0 0 auto; padding-right: 20px;">', unsafe_allow_html=True)
+st.image(icon, width=80)
+st.markdown('</div>', unsafe_allow_html=True)
 
-# 使用自定义CSS类
-st.markdown('<div class="responsive-columns">', unsafe_allow_html=True)
+# 文字列
+st.markdown('<div style="flex: 1;">', unsafe_allow_html=True)
+st.markdown("""
+<div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
+    <h2 style="color: #000000; font-weight: 700; margin: 0 0 8px 0;">统计宝</h2>
+    <p style="color: #000000; font-size: 16px; margin: 0 0 6px 0; line-height: 1.4;">
+    提供多种稳健统计分析方法，用于处理包含异常值的数据集。
+    </p>
+    <p style="color: #000000; font-size: 16px; margin: 0; line-height: 1.4;">
+    支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
+    </p>
+</div>
+""", unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
-with col1:
-    # 图标显示区域
-    st.markdown('<div class="icon-container responsive-icon">', unsafe_allow_html=True)
-    st.image(icon, width=100)  # 调整图标大小
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with col2:
-    # 文字内容区域
-    st.markdown('<div class="software-feature-container">', unsafe_allow_html=True)
-    
-    # 第一行：主标题"统计宝"
-    st.markdown('<div class="software-title">统计宝</div>', unsafe_allow_html=True)
-    
-    # 第二行：方法描述
-    st.markdown(
-        '<div class="software-subtitle">'
-        '提供多种稳健统计分析方法，用于处理包含异常值的数据集。'
-        '</div>', 
-        unsafe_allow_html=True
-    )
-    
-    # 第三行：具体方法
-    st.markdown(
-        '<div class="software-description">'
-        '支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。'
-        '</div>', 
-        unsafe_allow_html=True
-    )
-    
-    # 添加渐变标签
-    st.markdown(
-        '<div class="gradient-badge">稳健统计 · 异常值处理 · 数据分析</div>',
-        unsafe_allow_html=True
-    )
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-
-st.markdown('</div>', unsafe_allow_html=True)  # 关闭responsive-columns
-st.markdown('</div>', unsafe_allow_html=True)  # 关闭main-container
+st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================
 # 优化侧边栏布局
