@@ -896,48 +896,26 @@ initialize_session_state()
 # 设置页面配置
 st.set_page_config(layout="wide")
 
-# 添加响应式CSS
-st.markdown("""
-<style>
-@media (max-width: 768px) {
-    .responsive-container {
-        flex-direction: column !important;
-    }
-    .icon-column {
-        margin-bottom: 15px !important;
-        justify-content: flex-start !important;
-    }
-}
-</style>
-""", unsafe_allow_html=True)
+# 创建间距
+st.markdown("")
 
 # 加载软件图标
 icon = Image.open("stataid.png")
 
-# 使用自定义容器
-st.markdown('<div class="responsive-container" style="display: flex; align-items: center; padding-top: 20px;">', unsafe_allow_html=True)
+# 创建两列布局
+col1, col2 = st.columns([1, 4])
 
-# 图标列
-st.markdown('<div class="icon-column" style="flex: 0 0 auto; padding-right: 20px;">', unsafe_allow_html=True)
-st.image(icon, width=300)
-st.markdown('</div>', unsafe_allow_html=True)
+with col1:
+    # 使用垂直居中对齐
+    st.write("")  # 空行用于调整垂直位置
+    st.image(icon, width=300)
+    st.write("")  # 空行用于调整垂直位置
 
-# 文字列
-st.markdown('<div style="flex: 1;">', unsafe_allow_html=True)
-st.markdown("""
-<div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
-    <h2 style="color: #000000; font-weight: 700; margin: 0 0 8px 0;">统计宝</h2>
-    <p style="color: #000000; font-size: 16px; margin: 0 0 6px 0; line-height: 1.4;">
-    提供多种稳健统计分析方法，用于处理包含异常值的数据集。
-    </p>
-    <p style="color: #000000; font-size: 16px; margin: 0; line-height: 1.4;">
-    支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
-    </p>
-</div>
-""", unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
-
-st.markdown('</div>', unsafe_allow_html=True)
+with col2:
+    # 使用Streamlit原生markdown显示黑色文字
+    st.markdown("### **统计宝**")
+    st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
+    st.markdown("支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。")
 
 # =============================================
 # 优化侧边栏布局
