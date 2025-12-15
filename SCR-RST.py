@@ -940,7 +940,7 @@ st.markdown("""
     flex: 1 !important;
     display: flex !important;
     flex-direction: column !important;
-    padding-top: 40px !important;
+    padding-top: 60px !important;
 }
 
 /* 响应式图标大小调整 */
