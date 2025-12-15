@@ -893,82 +893,29 @@ st.set_page_config(
 
 initialize_session_state()
 
-# ========== 第一步：添加CSS样式到页面顶部 ==========
-st.markdown("""
-<style>
-/* 1. 移除Streamlit默认的页面边距 */
-.stApp {
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-/* 2. 移除页面主容器的边距 */
-.main {
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-/* 3. 移除所有列的默认内边距 */
-.stColumn {
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-/* 4. 移除第一列的左边距，使其完全靠左 */
-div[data-testid="column"]:nth-of-type(1) {
-    padding-left: 0 !important;
-    margin-left: 0 !important;
-    width: auto !important;
-}
-
-/* 5. 移除第一列内部容器的边距 */
-div[data-testid="column"]:nth-of-type(1) > div {
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-/* 6. 移除图标容器的所有边距 */
-div[data-testid="column"]:nth-of-type(1) img {
-    display: block;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-}
-
-/* 7. 调整页面整体的左右边距 */
-.block-container {
-    padding-top: 2rem !important;
-    padding-bottom: 2rem !important;
-    padding-left: 1rem !important;
-    padding-right: 1rem !important;
-    max-width: 100% !important;
-}
-
-/* 8. 确保整个布局容器的边距为零 */
-.css-18e3th9 {
-    padding: 0 !important;
-    margin: 0 !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ========== 第二步：设置页面配置 ==========
+# 设置页面配置
 st.set_page_config(layout="wide")
 
-# ========== 第三步：加载软件图标 ==========
+# 创建间距
+st.markdown("")
+
+# 加载软件图标
 icon = Image.open("stataid.png")
 
-# ========== 第四步：创建两列布局 ==========
-# 调整列比例为 [0.8, 4]，让图标列更窄
-col1, col2 = st.columns([0.8, 4])
+# 创建两列布局，减少第一列比例
+col1, col2 = st.columns([0.5, 4])  # 从 [1, 4] 改为 [0.5, 4]
 
 with col1:
-    # 使用负边距将图标向左推出容器边界
-    st.markdown('<div style="margin-left: -20px; display: flex; align-items: center; height: 100%;">', unsafe_allow_html=True)
+    # 使用负边距将图标推向最左
+    st.markdown(
+        '<div style="margin-left: -60px; display: flex; align-items: center; height: 100%;">',
+        unsafe_allow_html=True
+    )
     st.image(icon, width=360)
     st.markdown('</div>', unsafe_allow_html=True)
 
 with col2:
-    # 调整垂直对齐，保持原有布局
+    # 使用Streamlit原生markdown显示黑色文字
     st.write("")  # 空行用于调整垂直位置
     st.write("")  # 空行用于调整垂直位置
     st.markdown("### **统计宝**")
