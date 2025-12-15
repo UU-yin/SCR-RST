@@ -1,6 +1,7 @@
 import streamlit as st
 import numpy as np
 from collections import Counter
+from PIL import Image
 import pandas as pd
 import matplotlib.pyplot as plt
 import io
@@ -892,23 +893,339 @@ st.set_page_config(
 
 initialize_session_state()
 
-# 创建主垂直布局
-main_col = st.columns([1])[0]  # 创建一个单列的容器
-with main_col:
-    # 第一行：图标和主标题（水平排列）
-    col_logo, col_title = st.columns([1, 5])
-    with col_logo:
-        st.image("stataid.png", width=256)  
-    with col_title:
-        st.title("统计宝")  # 主标题
+import streamlit as st
+from PIL import Image
+
+# 设置页面配置
+st.set_page_config(page_title="统计宝", layout="wide")
+
+# ========== CSS变量与样式定义 ==========
+st.markdown("""
+<style>
+/* CSS变量定义 - 方便统一调整 */
+:root {
+    /* 主色调 - 从天蓝到紫的渐变 */
+    --color-primary-start: #36D1DC;  /* 天蓝色 */
+    --color-primary-end: #5B86E5;    /* 紫色 */
+    --color-primary-dark: #2A5BC0;   /* 深蓝紫 */
+    --color-primary-light: rgba(54, 209, 220, 0.1); /* 浅天蓝透明 */
     
-    # 第二行：副标题（跨两列显示）
+    /* 文字颜色 */
+    --color-text-primary: #1A237E;   /* 深蓝色标题 */
+    --color-text-secondary: #424242; /* 深灰色副标题 */
+    --color-text-tertiary: #616161;  /* 中灰色描述 */
+    
+    /* 背景与边框 */
+    --color-bg-light: #F8F9FF;       /* 浅蓝白背景 */
+    --color-border-light: #E1F5FE;   /* 浅蓝色边框 */
+    
+    /* 间距 */
+    --spacing-xs: 0.5rem;
+    --spacing-sm: 1rem;
+    --spacing-md: 1.5rem;
+    --spacing-lg: 2rem;
+    --spacing-xl: 3rem;
+    
+    /* 字体大小 - 基础值 */
+    --font-size-base: 1rem;
+    --font-size-title: 1.8rem;
+    --font-size-subtitle: 1.1rem;
+    --font-size-description: 1rem;
+    
+    /* 边框圆角 */
+    --border-radius: 8px;
+    
+    /* 阴影 */
+    --shadow-light: 0 4px 12px rgba(91, 134, 229, 0.1);
+}
+
+/* 响应式调整 - 平板设备 */
+@media (max-width: 1024px) {
+    :root {
+        --spacing-md: 1.2rem;
+        --spacing-lg: 1.5rem;
+        --font-size-title: 1.6rem;
+        --font-size-subtitle: 1rem;
+    }
+}
+
+/* 响应式调整 - 手机设备 */
+@media (max-width: 768px) {
+    :root {
+        --spacing-sm: 0.8rem;
+        --spacing-md: 1rem;
+        --spacing-lg: 1.2rem;
+        --font-size-title: 1.4rem;
+        --font-size-subtitle: 0.95rem;
+        --font-size-description: 0.9rem;
+    }
+    
+    /* 在小屏幕上将两列布局改为上下堆叠 */
+    .responsive-columns {
+        flex-direction: column !important;
+    }
+    
+    .responsive-icon {
+        margin-bottom: var(--spacing-sm) !important;
+        justify-content: flex-start !important;
+    }
+}
+
+/* 软件功能容器 */
+.software-feature-container {
+    border-left: 4px solid;
+    border-image: linear-gradient(to bottom, var(--color-primary-start), var(--color-primary-end)) 1;
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin: var(--spacing-lg) 0;
+    background: var(--color-bg-light);
+    border-radius: 0 var(--border-radius) var(--border-radius) 0;
+    box-shadow: var(--shadow-light);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.software-feature-container:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(91, 134, 229, 0.15);
+}
+
+/* 标题样式 */
+.software-title {
+    background: linear-gradient(90deg, var(--color-primary-start), var(--color-primary-end));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-size: var(--font-size-title) !important;
+    font-weight: 700 !important;
+    margin-bottom: var(--spacing-xs) !important;
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    display: inline-block;
+}
+
+/* 副标题样式 */
+.software-subtitle {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-subtitle);
+    font-weight: 600;
+    margin: var(--spacing-xs) 0;
+}
+
+/* 描述文字样式 */
+.software-description {
+    color: var(--color-text-tertiary);
+    font-size: var(--font-size-description);
+    line-height: 1.6;
+    margin: var(--spacing-xs) 0;
+}
+
+/* 图标容器 */
+.icon-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding-right: var(--spacing-lg);
+}
+
+/* 渐变背景样式 */
+.gradient-badge {
+    display: inline-block;
+    padding: 0.3rem 0.8rem;
+    background: linear-gradient(90deg, var(--color-primary-light), rgba(91, 134, 229, 0.1));
+    border-radius: 20px;
+    color: var(--color-primary-dark);
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-top: var(--spacing-xs);
+}
+
+/* 主容器样式 */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 var(--spacing-md);
+}
+
+/* 响应式列容器 */
+.responsive-columns {
+    display: flex;
+    align-items: stretch;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ========== 主程序开始 ==========
+st.title("📊 统计宝 - 稳健统计分析工具")
+
+icon = Image.open("stataid.png")
+
+# 在主容器中布局
+st.markdown('<div class="main-container">', unsafe_allow_html=True)
+
+# 创建响应式列布局
+col1, col2 = st.columns([1, 4])
+
+# 使用自定义CSS类
+st.markdown('<div class="responsive-columns">', unsafe_allow_html=True)
+
+with col1:
+    # 图标显示区域
+    st.markdown('<div class="icon-container responsive-icon">', unsafe_allow_html=True)
+    st.image(icon, width=100)  # 调整图标大小
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with col2:
+    # 文字内容区域
+    st.markdown('<div class="software-feature-container">', unsafe_allow_html=True)
+    
+    # 第一行：主标题"统计宝"
+    st.markdown('<div class="software-title">统计宝</div>', unsafe_allow_html=True)
+    
+    # 第二行：方法描述
+    st.markdown(
+        '<div class="software-subtitle">'
+        '提供多种稳健统计分析方法，用于处理包含异常值的数据集。'
+        '</div>', 
+        unsafe_allow_html=True
+    )
+    
+    # 第三行：具体方法
+    st.markdown(
+        '<div class="software-description">'
+        '支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。'
+        '</div>', 
+        unsafe_allow_html=True
+    )
+    
+    # 添加渐变标签
+    st.markdown(
+        '<div class="gradient-badge">稳健统计 · 异常值处理 · 数据分析</div>',
+        unsafe_allow_html=True
+    )
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)  # 关闭responsive-columns
+
+# 添加分割线
+st.markdown("---")
+
+# ========== 功能模块展示 ==========
+st.subheader("✨ 核心功能")
+
+# 定义功能数据
+features = [
+    {
+        "title": "异常值检测",
+        "desc1": "自动识别数据中的异常点与离群值",
+        "desc2": "提供箱线图法、3σ原则、MAD法等多种检测方法",
+        "icon_color": "#36D1DC"
+    },
+    {
+        "title": "数据清洗",
+        "desc1": "智能处理缺失值与异常数据",
+        "desc2": "支持均值填补、中位数填补、插值法等多种处理方式",
+        "icon_color": "#5B86E5"
+    },
+    {
+        "title": "稳健回归",
+        "desc1": "针对含异常值数据的回归分析方法",
+        "desc2": "包含M估计、S估计、MM估计等稳健回归技术",
+        "icon_color": "#2A5BC0"
+    }
+]
+
+# 循环创建多个功能模块
+for i, feature in enumerate(features):
+    # 为每个功能模块创建列
+    col_a, col_b = st.columns([1, 4])
+    
+    with col_a:
+        # 创建彩色图标占位
+        icon_placeholder = Image.new('RGB', (80, 80), color=feature["icon_color"])
+        st.image(icon_placeholder, width=70)
+    
+    with col_b:
+        # 功能模块容器
+        st.markdown(f"""
+        <div class="software-feature-container">
+            <div class="software-title">{feature['title']}</div>
+            <div class="software-subtitle">{feature['desc1']}</div>
+            <div class="software-description">{feature['desc2']}</div>
+            <div class="gradient-badge">了解更多</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)  # 关闭main-container
+
+# ========== 响应式测试说明 ==========
+with st.expander("📱 布局自适应说明"):
     st.markdown("""
-    提供多种稳健统计分析方法，用于处理包含异常值的数据集。
+    ### 响应式设计特性
+    
+    此布局使用了CSS变量和媒体查询，确保在不同设备上都有良好显示效果：
+    
+    #### 桌面端 (>1024px)
+    - 完整两列布局，图标在左，文字在右
+    - 大号字体和间距，提供最佳阅读体验
+    
+    #### 平板端 (768px-1024px)
+    - 适度减小字体和间距
+    - 保持两列布局但更紧凑
+    
+    #### 手机端 (<768px)
+    - 改为单列布局，图标在上，文字在下
+    - 进一步减小字体和间距
+    - 优化触摸操作体验
+    
+    #### CSS变量统一管理
+    所有颜色、间距、字体大小都通过CSS变量定义，便于全局调整：
+    - `--color-primary-start` 和 `--color-primary-end`: 定义渐变色
+    - `--spacing-*`: 控制各级间距
+    - `--font-size-*`: 控制字体大小
     """)
-    st.markdown("""
-    支持迭代稳健统计法、四分位稳健统计法和Q/Hampel法。
-    """)
+    
+    # 显示当前CSS变量值
+    st.code("""
+    :root {{
+        /* 主色调 */
+        --color-primary-start: #36D1DC;
+        --color-primary-end: #5B86E5;
+        
+        /* 间距 */
+        --spacing-md: 1.5rem;   /* 桌面端 */
+        --spacing-md: 1.2rem;   /* 平板端 */
+        --spacing-md: 1rem;     /* 手机端 */
+        
+        /* 字体大小 */
+        --font-size-title: 1.8rem;   /* 桌面端 */
+        --font-size-title: 1.6rem;   /* 平板端 */
+        --font-size-title: 1.4rem;   /* 手机端 */
+    }}
+    """, language="css")
+
+# ========== 配色方案参考 ==========
+with st.sidebar:
+    st.header("🎨 配色方案")
+    
+    # 显示配色方案
+    colors = {
+        "天蓝色": "#36D1DC",
+        "紫色": "#5B86E5", 
+        "深蓝紫": "#2A5BC0",
+        "深蓝标题": "#1A237E",
+        "浅蓝背景": "#F8F9FF"
+    }
+    
+    for name, color in colors.items():
+        st.markdown(f"""
+        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+            <div style="width: 20px; height: 20px; background-color: {color}; 
+                 border-radius: 4px; margin-right: 10px; border: 1px solid #ddd;"></div>
+            <span>{name}: <code>{color}</code></span>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
 
 # =============================================
 # 优化侧边栏布局
