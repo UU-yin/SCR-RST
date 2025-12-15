@@ -893,16 +893,13 @@ st.set_page_config(
 
 initialize_session_state()
 
-import streamlit as st
-from PIL import Image
-
 # 设置页面配置
-st.set_page_config(page_title="统计宝", layout="wide")
+st.set_page_config(layout="wide")
 
 # ========== CSS变量与样式定义 ==========
 st.markdown("""
 <style>
-/* CSS变量定义 - 方便统一调整 */
+/* CSS变量定义 - 统一管理所有样式参数 */
 :root {
     /* 主色调 - 从天蓝到紫的渐变 */
     --color-primary-start: #36D1DC;  /* 天蓝色 */
@@ -924,7 +921,6 @@ st.markdown("""
     --spacing-sm: 1rem;
     --spacing-md: 1.5rem;
     --spacing-lg: 2rem;
-    --spacing-xl: 3rem;
     
     /* 字体大小 - 基础值 */
     --font-size-base: 1rem;
@@ -946,6 +942,7 @@ st.markdown("""
         --spacing-lg: 1.5rem;
         --font-size-title: 1.6rem;
         --font-size-subtitle: 1rem;
+        --font-size-description: 0.95rem;
     }
 }
 
@@ -971,16 +968,27 @@ st.markdown("""
     }
 }
 
+/* 主容器样式 */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--spacing-lg) var(--spacing-md);
+}
+
 /* 软件功能容器 */
 .software-feature-container {
     border-left: 4px solid;
     border-image: linear-gradient(to bottom, var(--color-primary-start), var(--color-primary-end)) 1;
     padding: var(--spacing-md) var(--spacing-lg);
-    margin: var(--spacing-lg) 0;
+    margin: 0;
     background: var(--color-bg-light);
     border-radius: 0 var(--border-radius) var(--border-radius) 0;
     box-shadow: var(--shadow-light);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 .software-feature-container:hover {
@@ -1007,6 +1015,7 @@ st.markdown("""
     font-size: var(--font-size-subtitle);
     font-weight: 600;
     margin: var(--spacing-xs) 0;
+    line-height: 1.4;
 }
 
 /* 描述文字样式 */
@@ -1026,7 +1035,14 @@ st.markdown("""
     padding-right: var(--spacing-lg);
 }
 
-/* 渐变背景样式 */
+/* 响应式列容器 */
+.responsive-columns {
+    display: flex;
+    align-items: stretch;
+    min-height: 200px;
+}
+
+/* 渐变标签样式 */
 .gradient-badge {
     display: inline-block;
     padding: 0.3rem 0.8rem;
@@ -1037,25 +1053,10 @@ st.markdown("""
     font-size: 0.9rem;
     margin-top: var(--spacing-xs);
 }
-
-/* 主容器样式 */
-.main-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 var(--spacing-md);
-}
-
-/* 响应式列容器 */
-.responsive-columns {
-    display: flex;
-    align-items: stretch;
-}
 </style>
 """, unsafe_allow_html=True)
 
 # ========== 主程序开始 ==========
-st.title("📊 统计宝 - 稳健统计分析工具")
-
 icon = Image.open("stataid.png")
 
 # 在主容器中布局
@@ -1105,127 +1106,7 @@ with col2:
     st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)  # 关闭responsive-columns
-
-# 添加分割线
-st.markdown("---")
-
-# ========== 功能模块展示 ==========
-st.subheader("✨ 核心功能")
-
-# 定义功能数据
-features = [
-    {
-        "title": "异常值检测",
-        "desc1": "自动识别数据中的异常点与离群值",
-        "desc2": "提供箱线图法、3σ原则、MAD法等多种检测方法",
-        "icon_color": "#36D1DC"
-    },
-    {
-        "title": "数据清洗",
-        "desc1": "智能处理缺失值与异常数据",
-        "desc2": "支持均值填补、中位数填补、插值法等多种处理方式",
-        "icon_color": "#5B86E5"
-    },
-    {
-        "title": "稳健回归",
-        "desc1": "针对含异常值数据的回归分析方法",
-        "desc2": "包含M估计、S估计、MM估计等稳健回归技术",
-        "icon_color": "#2A5BC0"
-    }
-]
-
-# 循环创建多个功能模块
-for i, feature in enumerate(features):
-    # 为每个功能模块创建列
-    col_a, col_b = st.columns([1, 4])
-    
-    with col_a:
-        # 创建彩色图标占位
-        icon_placeholder = Image.new('RGB', (80, 80), color=feature["icon_color"])
-        st.image(icon_placeholder, width=70)
-    
-    with col_b:
-        # 功能模块容器
-        st.markdown(f"""
-        <div class="software-feature-container">
-            <div class="software-title">{feature['title']}</div>
-            <div class="software-subtitle">{feature['desc1']}</div>
-            <div class="software-description">{feature['desc2']}</div>
-            <div class="gradient-badge">了解更多</div>
-        </div>
-        """, unsafe_allow_html=True)
-
 st.markdown('</div>', unsafe_allow_html=True)  # 关闭main-container
-
-# ========== 响应式测试说明 ==========
-with st.expander("📱 布局自适应说明"):
-    st.markdown("""
-    ### 响应式设计特性
-    
-    此布局使用了CSS变量和媒体查询，确保在不同设备上都有良好显示效果：
-    
-    #### 桌面端 (>1024px)
-    - 完整两列布局，图标在左，文字在右
-    - 大号字体和间距，提供最佳阅读体验
-    
-    #### 平板端 (768px-1024px)
-    - 适度减小字体和间距
-    - 保持两列布局但更紧凑
-    
-    #### 手机端 (<768px)
-    - 改为单列布局，图标在上，文字在下
-    - 进一步减小字体和间距
-    - 优化触摸操作体验
-    
-    #### CSS变量统一管理
-    所有颜色、间距、字体大小都通过CSS变量定义，便于全局调整：
-    - `--color-primary-start` 和 `--color-primary-end`: 定义渐变色
-    - `--spacing-*`: 控制各级间距
-    - `--font-size-*`: 控制字体大小
-    """)
-    
-    # 显示当前CSS变量值
-    st.code("""
-    :root {{
-        /* 主色调 */
-        --color-primary-start: #36D1DC;
-        --color-primary-end: #5B86E5;
-        
-        /* 间距 */
-        --spacing-md: 1.5rem;   /* 桌面端 */
-        --spacing-md: 1.2rem;   /* 平板端 */
-        --spacing-md: 1rem;     /* 手机端 */
-        
-        /* 字体大小 */
-        --font-size-title: 1.8rem;   /* 桌面端 */
-        --font-size-title: 1.6rem;   /* 平板端 */
-        --font-size-title: 1.4rem;   /* 手机端 */
-    }}
-    """, language="css")
-
-# ========== 配色方案参考 ==========
-with st.sidebar:
-    st.header("🎨 配色方案")
-    
-    # 显示配色方案
-    colors = {
-        "天蓝色": "#36D1DC",
-        "紫色": "#5B86E5", 
-        "深蓝紫": "#2A5BC0",
-        "深蓝标题": "#1A237E",
-        "浅蓝背景": "#F8F9FF"
-    }
-    
-    for name, color in colors.items():
-        st.markdown(f"""
-        <div style="display: flex; align-items: center; margin-bottom: 8px;">
-            <div style="width: 20px; height: 20px; background-color: {color}; 
-                 border-radius: 4px; margin-right: 10px; border: 1px solid #ddd;"></div>
-            <span>{name}: <code>{color}</code></span>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("---")
 
 # =============================================
 # 优化侧边栏布局
