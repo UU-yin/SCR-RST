@@ -893,8 +893,11 @@ st.set_page_config(
 
 initialize_session_state()
 
+import streamlit as st
+from PIL import Image
+
 # 设置页面配置 - 隐藏默认标题
-st.set_page_config(layout="wide", page_icon="stataid.png", page_title="统计宝")
+st.set_page_config(layout="wide", page_icon="", page_title="")
 
 # ========== CSS变量与样式定义 ==========
 st.markdown("""
@@ -968,42 +971,30 @@ st.markdown("""
     }
 }
 
-/* 隐藏Streamlit默认界面元素 */
+/* 只隐藏特定的Streamlit默认元素，不隐藏主要内容 */
 header[data-testid="stHeader"] {
-    display: none;
+    background: transparent !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
 }
 
-.stApp > header {
-    display: none;
-}
-
-.stApp > div:first-child {
-    display: none;
-}
-
-div[data-testid="stToolbar"] {
-    display: none;
-}
-
-#MainMenu {
-    visibility: hidden;
-}
-
+/* 隐藏页脚 */
 footer {
     visibility: hidden;
 }
 
+/* 调整主容器的顶部边距，去除默认空白 */
+.main-container {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+/* 确保页面背景为纯白 */
 .stApp {
     background-color: white;
     padding-top: 0 !important;
-    margin-top: 0 !important;
-}
-
-/* 主容器样式 */
-.main-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: var(--spacing-lg) var(--spacing-md);
 }
 
 /* 软件功能容器 */
@@ -1071,6 +1062,7 @@ footer {
     display: flex;
     align-items: stretch;
     min-height: 200px;
+    margin-top: 20px; /* 添加一点顶部间距 */
 }
 
 /* 渐变标签样式 */
