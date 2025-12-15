@@ -895,9 +895,6 @@ st.set_page_config(
 
 initialize_session_state()
 
-import streamlit as st
-from PIL import Image
-
 # 设置页面配置
 st.set_page_config(layout="wide")
 
@@ -907,7 +904,7 @@ st.markdown("""
 /* 为Streamlit Cloud顶部UI元素保留空间 */
 .stApp {
     margin-top: 0 !important;
-    padding-top: 20px !important; /* 为顶部按钮/菜单留出空间 */
+    padding-top: 30px !important; /* 为顶部按钮/菜单留出空间 */
 }
 
 /* 确保内容区域有适当间距 */
@@ -1096,7 +1093,7 @@ if method == "Z比分计算模块":
     st.sidebar.info("💡 **注意**: Z比分计算参数请在主界面输入")
 
 # 数据输入方式选择
-input_method = st.radio("数据输入方式:", 
+input_method = st.radio("### **数据输入方式:**", 
                        ["手动输入", "带编号数据输入", "文件上传", "示例数据"],
                        horizontal=True)
 
