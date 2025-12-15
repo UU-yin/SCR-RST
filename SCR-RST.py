@@ -907,11 +907,10 @@ col1, col2 = st.columns([1, 4])
 
 with col1:
     # 使用垂直居中对齐
-    st.image(icon, width=400)
+    st.image(icon, width=360)
 
 with col2:
     # 使用Streamlit原生markdown显示黑色文字
-    st.write("")  # 空行用于调整垂直位置
     st.write("")  # 空行用于调整垂直位置
     st.write("")  # 空行用于调整垂直位置
     st.markdown("### **统计宝**")
