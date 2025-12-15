@@ -12,6 +12,8 @@ from scipy.stats import norm
 from scipy import interpolate
 import matplotlib as mpl
 import matplotlib.font_manager as fm
+import base64
+from io import BytesIO
 
 # 设置中文字体
 def set_chinese_font():
@@ -896,84 +898,59 @@ initialize_session_state()
 # 设置页面配置
 st.set_page_config(layout="wide")
 
-# 添加响应式CSS
+# 添加响应式CSS，精确控制垂直对齐
 st.markdown("""
 <style>
-/* 响应式设计CSS */
-:root {
-    --icon-size-lg: 360px;   /* 大屏幕图标大小 */
-    --icon-size-md: 280px;   /* 中等屏幕图标大小 */
-    --icon-size-sm: 200px;   /* 小屏幕图标大小 */
-    --icon-size-xs: 150px;   /* 超小屏幕图标大小 */
+/* 响应式设计 - 保持水平布局 */
+.layout-container {
+    display: flex;
+    align-items: center;  /* 垂直居中对齐 */
+    width: 100%;
+    min-height: 200px;
 }
 
-/* 图标容器 */
+/* 图标容器 - 确保图标垂直居中 */
 .icon-container {
+    flex: 0 0 auto;
     display: flex;
-    align-items: center;
+    align-items: center;  /* 图标垂直居中 */
     justify-content: flex-start;
     height: 100%;
-    padding-right: 20px;
 }
 
-/* 图标图片响应式控制 */
-.responsive-icon-img {
-    width: var(--icon-size-lg);
+/* 文字容器 - 精确控制文字垂直位置 */
+.text-container {
+    flex: 1;
+    padding-left: 30px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;  /* 文字内容垂直居中 */
+}
+
+/* 图标响应式控制 */
+.responsive-icon {
+    width: 360px;
     max-width: 100%;
     height: auto;
-    transition: width 0.3s ease;
 }
 
-/* 电脑非全屏状态 (1200px以下) */
+/* 响应式调整 */
 @media (max-width: 1200px) {
-    .responsive-icon-img {
-        width: var(--icon-size-md);
-    }
-    .icon-container {
-        margin-left: -20px !important;
-    }
+    .responsive-icon { width: 280px; }
 }
 
-/* 平板端 (992px以下) */
 @media (max-width: 992px) {
-    .responsive-icon-img {
-        width: var(--icon-size-sm);
-    }
-    .icon-container {
-        margin-left: -10px !important;
-    }
+    .responsive-icon { width: 220px; }
 }
 
-/* 手机端 (768px以下) */
 @media (max-width: 768px) {
-    .responsive-icon-img {
-        width: var(--icon-size-xs);
-    }
-    
-    .icon-container {
-        margin-left: 0 !important;
-        justify-content: center !important;
-        padding-right: 0;
-        margin-bottom: 15px;
-    }
-    
-    /* 手机端改为上下布局 */
-    .mobile-stack {
-        flex-direction: column !important;
-    }
-    
-    /* 调整文字部分在手机端的边距 */
-    .text-content {
-        padding-left: 0 !important;
-        text-align: center;
-    }
+    .responsive-icon { width: 180px; }
+    .text-container { padding-left: 20px; }
 }
 
-/* 超小手机 (576px以下) */
 @media (max-width: 576px) {
-    .responsive-icon-img {
-        width: 120px;
-    }
+    .responsive-icon { width: 150px; }
+    .text-container { padding-left: 15px; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -984,38 +961,38 @@ st.markdown("")
 # 加载软件图标
 icon = Image.open("stataid_cut edge.png")
 
-# 使用响应式布局容器
-st.markdown('<div class="mobile-stack" style="display: flex; align-items: center;">', unsafe_allow_html=True)
+# 将图标转换为base64
+import base64
+from io import BytesIO
+
+buffered = BytesIO()
+icon.save(buffered, format="PNG")
+img_str = base64.b64encode(buffered.getvalue()).decode()
+
+# 使用Flexbox布局确保垂直居中
+st.markdown('<div class="layout-container">', unsafe_allow_html=True)
 
 # 创建两列布局
 col1, col2 = st.columns([1, 4])
 
 with col1:
-    # 图标容器 - 使用HTML/CSS显示图片以获得更好的控制
-    st.markdown('<div class="icon-container">', unsafe_allow_html=True)
-    
-    # 将PIL图像转换为base64以便在HTML中使用
-    import base64
-    from io import BytesIO
-    
-    buffered = BytesIO()
-    icon.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode()
-    
-    # 使用HTML/CSS显示响应式图片
+    # 图标容器
     st.markdown(
-        f'<img src="data:image/png;base64,{img_str}" class="responsive-icon-img" alt="统计宝图标">',
+        '<div class="icon-container" style="margin-left: -30px;">'
+        f'<img src="data:image/png;base64,{img_str}" class="responsive-icon" alt="统计宝图标">'
+        '</div>',
         unsafe_allow_html=True
     )
-    
-    st.markdown('</div>', unsafe_allow_html=True)
 
 with col2:
-    # 文字内容容器
-    st.markdown('<div class="text-content">', unsafe_allow_html=True)
-    st.markdown("### **统计宝**")
-    st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
-    st.markdown('</div>', unsafe_allow_html=True)
+    # 文字容器 - 不再需要st.write("")空行
+    st.markdown(
+        '<div class="text-container">'
+        '<div style="font-size: 1.8rem; font-weight: 700; margin-bottom: 0.8rem;">统计宝</div>'
+        '<div style="font-size: 1.1rem; line-height: 1.5;">提供多种稳健统计分析方法，用于处理包含异常值的数据集。</div>'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
 st.markdown('</div>', unsafe_allow_html=True)
 
