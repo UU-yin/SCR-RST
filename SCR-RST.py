@@ -893,8 +893,8 @@ st.set_page_config(
 
 initialize_session_state()
 
-# 设置页面配置
-st.set_page_config(layout="wide")
+# 设置页面配置 - 隐藏默认标题
+st.set_page_config(layout="wide", page_icon="stataid.png", page_title="统计宝")
 
 # ========== CSS变量与样式定义 ==========
 st.markdown("""
@@ -966,6 +966,37 @@ st.markdown("""
         margin-bottom: var(--spacing-sm) !important;
         justify-content: flex-start !important;
     }
+}
+
+/* 隐藏Streamlit默认界面元素 */
+header[data-testid="stHeader"] {
+    display: none;
+}
+
+.stApp > header {
+    display: none;
+}
+
+.stApp > div:first-child {
+    display: none;
+}
+
+div[data-testid="stToolbar"] {
+    display: none;
+}
+
+#MainMenu {
+    visibility: hidden;
+}
+
+footer {
+    visibility: hidden;
+}
+
+.stApp {
+    background-color: white;
+    padding-top: 0 !important;
+    margin-top: 0 !important;
 }
 
 /* 主容器样式 */
@@ -1056,7 +1087,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ========== 主程序开始 ==========
 icon = Image.open("stataid.png")
 
 # 在主容器中布局
