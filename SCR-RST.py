@@ -2325,42 +2325,264 @@ def main():
             if show_scheme_comparison and method != "Z比分计算模块":
                 display_scheme_comparison(data, method, k_value, max_iter, calculation_scheme)
             
-            # 导出结果
-            display_export_section(results, method, data, input_method, original_labels)
-            
-            # 图表下载功能
-            if fig is not None:
-                st.subheader("📥 下载图表")
-                chart_col1, chart_col2 = st.columns(2)
-                
-                with chart_col1:
-                    buffer_png = io.BytesIO()
-                    fig.savefig(buffer_png, format="png", dpi=300, bbox_inches="tight")
-                    buffer_png.seek(0)
-                    st.download_button(
-                        label="📥 下载PNG图表",
-                        data=buffer_png,
-                        file_name=f"z_score_chart_{method}.png",
-                        mime="image/png"
-                    )
-                
-                with chart_col2:
-                    buffer_pdf = io.BytesIO()
-                    fig.savefig(buffer_pdf, format="pdf", bbox_inches="tight")
-                    buffer_pdf.seek(0)
-                    st.download_button(
-                        label="📥 下载PDF图表",
-                        data=buffer_pdf,
-                        file_name=f"z_score_chart_{method}.pdf",
-                        mime="application/pdf"
-                    )
-            
-        except Exception as e:
-            st.error(f"❌ 统计分析过程中发生错误: {str(e)}")
-            st.info("💡 这可能是因为数据特征不适合所选的分析方法，请尝试其他统计方法或检查数据质量")
+# =============================================
+# 显示导出部分（修正版本）
+# =============================================
+
+def display_export_section(results, method, data, input_method, original_labels=None):
+    """显示导出部分"""
+    st.subheader("💾 导出结果")
     
+    def format_number(value, decimal_places):
+        """根据小数位数格式化数字"""
+        if value is None or pd.isna(value):
+            return None
+        if decimal_places == 0:
+            return int(value)
+        return round(value, decimal_places)
+    
+    # 根据输入方式选择正确的数据源
+    if input_method == "文件上传":
+        current_original_data = st.session_state.file_original_data
+        current_decimal_info = st.session_state.file_decimal_info
+        current_blank_count = st.session_state.file_blank_count
+    elif input_method == "带编号数据输入":
+        current_original_data = [value for _, value in st.session_state.valid_pairs]
+        current_decimal_info = st.session_state.two_column_decimal_info
+        current_blank_count = 0
     else:
-        st.info("👆 请先输入或上传数据以开始分析")
+        current_original_data = st.session_state.original_data
+        current_decimal_info = st.session_state.decimal_info
+        current_blank_count = st.session_state.blank_count
+    
+    detected_decimal_places = results.get('decimal_places', 2)
+    if current_decimal_info and 'detected_decimal_places' in current_decimal_info:
+        detected_decimal_places = current_decimal_info['detected_decimal_places']
+    
+    if detected_decimal_places is None:
+        detected_decimal_places = 2
+    
+    # 创建结果DataFrame
+    result_data = []
+    
+    if input_method == "带编号数据输入" and st.session_state.label_data_pairs:
+        valid_data_count = 0
+        for label, value in st.session_state.label_data_pairs:
+            z_score = None
+            if value is not None and valid_data_count < len(results['Z_scores_rounded']):
+                z_score = results['Z_scores_rounded'][valid_data_count]
+                classification = results['z_score_classifications'][valid_data_count]
+                valid_data_count += 1
+            
+            formatted_value = format_number(value, detected_decimal_places)
+            formatted_z_score = format_z_score_display(z_score)
+            
+            result_data.append({
+                '标签原始标号': label,
+                '输入数据': formatted_value,
+                'Z比分数': formatted_z_score,
+                '分类结果': classification
+            })
+        
+        total_data_count = len(st.session_state.label_data_pairs)
+        blank_data_count = sum(1 for _, value in st.session_state.label_data_pairs if value is None)
+        actual_analyzable_count = total_data_count - blank_data_count
+        
+    else:
+        valid_data_count = 0
+        
+        if current_original_data:
+            for i, value in enumerate(current_original_data):
+                original_label = f"{str(i+1).zfill(3)}"
+                
+                if value is not None:
+                    z_score = results['Z_scores_rounded'][valid_data_count] if valid_data_count < len(results['Z_scores_rounded']) else None
+                    classification = results['z_score_classifications'][valid_data_count] if valid_data_count < len(results['z_score_classifications']) else "未知"
+                    formatted_value = format_number(value, detected_decimal_places)
+                    formatted_z_score = format_z_score_display(z_score)
+                    
+                    result_data.append({
+                        '标签原始标号': original_label,
+                        '输入数据': formatted_value,
+                        'Z比分数': formatted_z_score,
+                        '分类结果': classification
+                    })
+                    valid_data_count += 1
+                else:
+                    result_data.append({
+                        '标签原始标号': original_label,
+                        '输入数据': None,
+                        'Z比分数': "",
+                        '分类结果': ""
+                    })
+            
+            total_data_count = len(current_original_data)
+            blank_data_count = current_blank_count
+            actual_analyzable_count = len(data)
+        else:
+            for i, value in enumerate(data):
+                original_label = f"{str(i+1).zfill(3)}"
+                z_score = results['Z_scores_rounded'][i] if i < len(results['Z_scores_rounded']) else None
+                classification = results['z_score_classifications'][i] if i < len(results['z_score_classifications']) else "未知"
+                
+                formatted_value = format_number(value, detected_decimal_places)
+                formatted_z_score = format_z_score_display(z_score)
+                
+                result_data.append({
+                    '标签原始标号': original_label,
+                    '输入数据': formatted_value,
+                    'Z比分数': formatted_z_score,
+                    '分类结果': classification
+                })
+            
+            total_data_count = len(data)
+            blank_data_count = 0
+            actual_analyzable_count = len(data)
+    
+    result_df = pd.DataFrame(result_data)
+    
+    # 计算统计量
+    stats_data = {
+        '统计量名称': ['总数据数', '实际可分析数据数', '空白数据数', '指定值', '能力评定标准差', '最小值', '最大值', '极差'],
+        '数值': [
+            total_data_count,
+            actual_analyzable_count,
+            blank_data_count,
+            format_number(results['robust_mean'], detected_decimal_places),
+            format_number(results['robust_std'], 3),
+            format_number(np.min(data), detected_decimal_places) if len(data) > 0 else 0,
+            format_number(np.max(data), detected_decimal_places) if len(data) > 0 else 0,
+            format_number(np.max(data) - np.min(data), detected_decimal_places) if len(data) > 0 else 0
+        ]
+    }
+    stats_df = pd.DataFrame(stats_data)
+    
+    # 显示预览
+    st.write("**导出数据预览:**")
+    st.dataframe(result_df, use_container_width=True)
+    
+    # 导出按钮
+    export_col1, export_col2, export_col3, export_col4 = st.columns(4)
+    
+    with export_col1:
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            result_df.to_excel(writer, sheet_name='分析数据', index=False)
+            stats_df.to_excel(writer, sheet_name='统计摘要', index=False)
+            
+            detail_data = {
+                '项目': ['分析方法', '总数据点数', '实际可分析数据数', '空白数据数', 
+                       '稳健平均值', '稳健标准差', '离群值数量', '正常值下限', '正常值上限',
+                       '数据小数位数'],
+                '数值': [method, total_data_count, actual_analyzable_count, blank_data_count,
+                       format_number(results['robust_mean'], detected_decimal_places),
+                       format_number(results['robust_std'], 3),
+                       len(results['outliers']), 
+                       format_number(results['lower_limit'], detected_decimal_places),
+                       format_number(results['upper_limit'], detected_decimal_places),
+                       detected_decimal_places]
+            }
+            pd.DataFrame(detail_data).to_excel(writer, sheet_name='详细信息', index=False)
+        
+        excel_buffer.seek(0)
+        
+        st.download_button(
+            label="📥 下载Excel",
+            data=excel_buffer,
+            file_name=f"{method}_分析结果.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            help="下载Excel工作簿，包含分析数据和统计摘要"
+        )
+    
+    with export_col2:
+        export_data = {
+            "metadata": {
+                "export_time": pd.Timestamp.now().isoformat(),
+                "analysis_method": method,
+                "software": "稳健统计分析系统",
+                "data_summary": {
+                    "total_data_points": total_data_count,
+                    "actual_analyzable_data": actual_analyzable_count,
+                    "blank_data_points": blank_data_count,
+                    "decimal_places": detected_decimal_places
+                }
+            },
+            "data_table": result_df.to_dict('records'),
+            "statistics": stats_df.set_index('统计量名称')['数值'].to_dict()
+        }
+        
+        json_data = json.dumps(export_data, indent=2, ensure_ascii=False)
+        st.download_button(
+            label="📥 下载JSON",
+            data=json_data,
+            file_name=f"{method}_分析结果.json",
+            mime="application/json",
+            help="下载JSON格式的分析结果和数据"
+        )
+    
+    with export_col3:
+        csv_data = result_df.to_csv(index=False)
+        st.download_button(
+            label="📥 下载CSV",
+            data=csv_data,
+            file_name=f"{method}_分析结果.csv",
+            mime="text/csv",
+            help="下载CSV格式的分析结果表格"
+        )
+    
+    with export_col4:
+        scheme_text = "严格计算方案" if results['calculation_scheme'] == "strict" else "规范展示方案"
+        report = f"""                
+{method}分析报告
+================
+
+分析时间: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
+工具版本: 稳健统计分析工具 (Robust Statistical Analysis Tool)
+计算方案: {scheme_text}
+数据小数位数: {detected_decimal_places}位（基于输入数据的最大小数位数）
+
+计算方案说明:
+--------
+{results['formatting_note']}
+
+数据概览:
+--------
+总数据点数: {total_data_count}
+实际可分析数据数: {actual_analyzable_count}
+空白数据数: {blank_data_count}
+
+数据表格:
+--------
+标签原始标号\t输入数据\tZ比分数\t分类结果
+"""
+        
+        # 修复这里：使用正确的列名'输入数据'，而不是'输入_data'
+        for i in range(len(result_df)):
+            row = result_df.iloc[i]
+            # 修复这里：正确的列名是'输入数据'
+            input_data_value = row['输入数据']
+            if pd.isna(input_data_value):
+                input_data = ""
+            else:
+                if detected_decimal_places == 0:
+                    input_data = f"{int(input_data_value)}"
+                else:
+                    input_data = f"{input_data_value:.{detected_decimal_places}f}"
+            
+            z_score = row['Z比分数']
+            classification = row['分类结果']
+            report += f"{row['标签原始标号']}\t{input_data}\t{z_score}\t{classification}\n"
+        
+        st.download_button(
+            label="📥 下载报告",
+            data=report,
+            file_name=f"{method}_分析报告.txt",
+            mime="text/plain",
+            help="下载文本格式的详细分析报告"
+        )
+    
+    # 添加说明
+    st.info(f"💡 **小数位数说明**: 导出的数据使用 {detected_decimal_places} 位小数（基于输入数据的最大小数位数）。Z比分统一格式化为两位小数，空白数据会保留标签但数据为空。")
     
     # 页脚
     st.markdown("---")
