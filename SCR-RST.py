@@ -903,7 +903,7 @@ st.markdown("")
 icon = Image.open("stataid.png")
 
 # 创建两列布局，减少第一列比例
-col1, col2 = st.columns([0.5, 4])  # 从 [1, 4] 改为 [0.5, 4]
+col1, col2 = st.columns([1, 4])
 
 with col1:
     # 使用负边距将图标推向最左
@@ -916,6 +916,7 @@ with col1:
 
 with col2:
     # 使用Streamlit原生markdown显示黑色文字
+    st.write("")  # 空行用于调整垂直位置
     st.write("")  # 空行用于调整垂直位置
     st.write("")  # 空行用于调整垂直位置
     st.markdown("### **统计宝**")
