@@ -898,30 +898,78 @@ initialize_session_state()
 # 设置页面配置
 st.set_page_config(layout="wide")
 
-# 最简单的版本 - 不使用任何复杂的HTML/CSS
-st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
+# 添加自适应CSS
+st.markdown("""
+<style>
+/* 确保单行显示 */
+.single-line-container {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    width: 100% !important;
+}
 
-try:
-    # 加载软件图标
-    icon = Image.open("stataid_cut edge.png")
+/* 响应式调整 */
+@media (max-width: 992px) {
+    .single-line-container img {
+        width: 250px !important;
+    }
+    .single-line-container h3 {
+        font-size: 1.4rem !important;
+    }
+    .single-line-container p {
+        font-size: 0.95rem !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .single-line-container img {
+        width: 200px !important;
+    }
+    .single-line-container h3 {
+        font-size: 1.2rem !important;
+    }
+    .single-line-container p {
+        font-size: 0.9rem !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .single-line-container img {
+        width: 150px !important;
+    }
+    .single-line-container h3 {
+        font-size: 1rem !important;
+    }
+    .single-line-container p {
+        font-size: 0.8rem !important;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
+# 加载软件图标
+icon = Image.open("stataid_cut edge.png")
+
+# 使用容器包裹
+with st.container():
+    # 使用自定义CSS类
+    st.markdown('<div class="single-line-container">', unsafe_allow_html=True)
     
-    # 创建两列布局
+    # 创建两列
     col1, col2 = st.columns([1, 4])
     
     with col1:
-        # 图标部分
-        st.image(icon, width=200)
+        st.image(icon, width=360)  # 基础宽度
     
     with col2:
-        # 文字部分 - 使用简单的垂直对齐
-        st.markdown("<div style='padding-top: 40px;'>", unsafe_allow_html=True)
+        # 添加一些垂直间距调整
+        st.markdown('<div style="padding-top: 10px;">', unsafe_allow_html=True)
         st.markdown("### **统计宝**")
         st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-except Exception as e:
-    st.error(f"加载图片时出错: {e}")
-    st.info("请确保图片文件 'stataid_cut edge.png' 存在于当前目录")
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================
 # 优化侧边栏布局
