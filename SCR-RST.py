@@ -1092,8 +1092,10 @@ st.sidebar.info(method_descriptions[method])
 if method == "Z比分计算模块":
     st.sidebar.info("💡 **注意**: Z比分计算参数请在主界面输入")
 
-# 数据输入方式选择
-input_method = st.radio("### **数据输入方式:**", 
+# 数据输入方式选择 - 带有间距控制的两行布局
+st.markdown("### **数据输入方式:**")
+st.write("")  # 添加一行小间距
+input_method = st.radio("", 
                        ["手动输入", "带编号数据输入", "文件上传", "示例数据"],
                        horizontal=True)
 
