@@ -895,142 +895,132 @@ st.set_page_config(
 
 initialize_session_state()
 
-# 设置页面配置
+# 设置页面配置 - 移除默认边距
 st.set_page_config(layout="wide")
 
-# 创建间距（最小化以避免干扰）
-st.markdown("")
-
-# 加载软件图标
-icon = Image.open("stataid_cut edge.png")
-
-# ========== 精确垂直居中CSS ==========
+# ========== 精确控制垂直居中和边距 ==========
 st.markdown("""
 <style>
-/* 响应式设计 - 确保完美垂直居中 */
-.main-container {
-    display: flex;
-    align-items: center;  /* 垂直居中对齐关键属性 */
-    width: 100%;
+/* 移除Streamlit默认边距 */
+.stApp {
+    padding: 0 !important;
+    margin: 0 !important;
 }
 
-/* 图标容器 - 使用flex确保垂直居中 */
-.icon-wrapper {
-    flex: 0 0 auto;
+/* 移除主容器默认边距 */
+.block-container {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    max-width: 100% !important;
+}
+
+/* 主布局容器 - 精确垂直居中 */
+.main-layout {
     display: flex;
     align-items: center;  /* 垂直居中 */
-    justify-content: flex-start;  /* 水平靠左 */
+    width: 100%;
+    height: 200px;  /* 固定高度确保垂直居中 */
+    margin: 0;
+    padding: 0;
+}
+
+/* 图标容器 */
+.icon-part {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;  /* 图标垂直居中 */
+    justify-content: flex-start;
     height: 100%;
 }
 
-/* 文字容器 - 确保内容垂直居中 */
-.text-wrapper {
+/* 文字容器 */
+.text-part {
     flex: 1;
     padding-left: 30px;
     display: flex;
     flex-direction: column;
-    justify-content: center;  /* 垂直居中关键 */
+    justify-content: center;  /* 文字垂直居中 */
     height: 100%;
 }
 
-/* 响应式图标大小控制 */
-.icon-img {
-    width: 360px;
-    max-width: 100%;
-    height: auto;
-    display: block;
-}
-
-/* 主标题样式 - 确保与图标基线对齐 */
+/* 主标题样式 - 确保与图标中心对齐 */
 .main-title {
     font-size: 1.8rem !important;
     font-weight: 700 !important;
-    margin: 0 0 0.8rem 0 !important;
+    margin: 0 0 8px 0 !important;
     line-height: 1.2;
-    display: block;
 }
 
-/* 副标题样式 */
-.subtitle {
+/* 描述文字样式 */
+.description {
     font-size: 1.1rem !important;
     line-height: 1.5;
     margin: 0;
-    display: block;
 }
 
-/* 响应式调整 - 所有尺寸保持垂直居中 */
+/* 图标响应式 */
+.responsive-icon {
+    width: 360px;
+    max-width: 100%;
+    height: auto;
+}
+
+/* 响应式调整 */
 @media (max-width: 1200px) {
-    .icon-img { width: 280px; }
+    .main-layout { height: 180px; }
+    .responsive-icon { width: 280px; }
     .main-title { font-size: 1.6rem !important; }
-    .subtitle { font-size: 1rem !important; }
+    .description { font-size: 1rem !important; }
 }
 
 @media (max-width: 992px) {
-    .icon-img { width: 220px; }
-    .main-title { font-size: 1.4rem !important; margin-bottom: 0.6rem !important; }
-    .subtitle { font-size: 0.95rem !important; }
-    .text-wrapper { padding-left: 20px; }
+    .main-layout { height: 160px; }
+    .responsive-icon { width: 220px; }
+    .main-title { font-size: 1.4rem !important; margin-bottom: 6px !important; }
+    .description { font-size: 0.95rem !important; }
+    .text-part { padding-left: 20px; }
 }
 
 @media (max-width: 768px) {
-    .icon-img { width: 180px; }
-    .main-title { font-size: 1.2rem !important; margin-bottom: 0.5rem !important; }
-    .subtitle { font-size: 0.9rem !important; }
-    .text-wrapper { padding-left: 15px; }
+    .main-layout { height: 140px; }
+    .responsive-icon { width: 180px; }
+    .main-title { font-size: 1.2rem !important; margin-bottom: 5px !important; }
+    .description { font-size: 0.9rem !important; }
+    .text-part { padding-left: 15px; }
 }
 
 @media (max-width: 576px) {
-    .icon-img { width: 150px; }
+    .main-layout { height: 120px; }
+    .responsive-icon { width: 150px; }
     .main-title { font-size: 1.1rem !important; }
-    .subtitle { font-size: 0.85rem !important; }
-    .text-wrapper { padding-left: 12px; }
-}
-
-/* 确保Streamlit列内容垂直居中 */
-[data-testid="column"] {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;  /* 垂直居中 */
+    .description { font-size: 0.85rem !important; }
+    .text-part { padding-left: 12px; }
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ========== 主布局 ==========
+# ========== 主程序 ==========
 
-# 创建两列布局
-col1, col2 = st.columns([1, 4])
+# 加载软件图标
+icon = Image.open("stataid_cut edge.png")
 
-# 使用容器确保垂直对齐
-with st.container():
-    col1, col2 = st.columns([1, 4])
+# 使用HTML/CSS完全控制布局
+st.markdown(f'''
+<div class="main-layout">
+    <div class="icon-part" style="margin-left: -30px;">
+        <img src="data:image/png;base64,{base64.b64encode(icon.tobytes()).decode()}" class="responsive-icon" alt="统计宝图标">
+    </div>
     
-    with col1:
-        # 图标容器 - 使用负边距调整左对齐
-        st.markdown(
-            '<div class="icon-wrapper" style="margin-left: -30px;">',
-            unsafe_allow_html=True
-        )
-        st.image(icon, width=360)  # 固定宽度，响应式由CSS控制
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    with col2:
-        # 文字容器 - 确保垂直居中
-        st.markdown('<div class="text-wrapper">', unsafe_allow_html=True)
-        
-        # 使用HTML直接控制文字样式和位置
-        st.markdown(
-            '''
-            <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
-                <div class="main-title" style="color: #000000;">统计宝</div>
-                <div class="subtitle" style="color: #000000;">
-                    提供多种稳健统计分析方法，用于处理包含异常值的数据集。
-                </div>
-            </div>
-            ''',
-            unsafe_allow_html=True
-        )
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+    <div class="text-part">
+        <div class="main-title" style="color: #000000;">统计宝</div>
+        <div class="description" style="color: #000000;">
+            提供多种稳健统计分析方法，用于处理包含异常值的数据集。
+        </div>
+    </div>
+</div>
+''', unsafe_allow_html=True)
 
 # =============================================
 # 优化侧边栏布局
