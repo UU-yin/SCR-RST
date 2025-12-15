@@ -786,6 +786,11 @@ def analyze_data():
         # 获取当前输入的数据
         data_string = st.session_state.manual_data
         
+        # 检查数据是否为空
+        if not data_string or data_string.strip() == "":
+            st.error("❌ 请输入数据")
+            return
+        
         # 从会话状态获取计算方案
         calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
         
@@ -802,8 +807,9 @@ def analyze_data():
             st.session_state.decimal_info = decimal_info
             st.session_state.data_loaded = True
             
-            # 保存到历史记录
-            st.session_state.data_history.append(data_string)
+            # 保存到历史记录（只保存不同的数据）
+            if not st.session_state.data_history or st.session_state.data_history[-1] != data_string:
+                st.session_state.data_history.append(data_string)
             
             st.success(f"✅ 数据验证通过！成功加载 {len(clean_data)} 个有效数据点")
             if blank_count > 0:
@@ -824,15 +830,28 @@ def clear_data():
 
 def undo_data():
     """撤销到上一次的数据状态"""
-    if st.session_state.data_history:
+    if len(st.session_state.data_history) > 0:
         # 移除当前状态
-        current_data = st.session_state.data_history.pop()
-        # 恢复上一个状态
-        if st.session_state.data_history:
+        st.session_state.data_history.pop()
+        # 恢复上一个状态（如果有）
+        if len(st.session_state.data_history) > 0:
             previous_data = st.session_state.data_history[-1]
             st.session_state.manual_data = previous_data
-            st.session_state.reset_counter += 1
-            st.rerun()
+            # 重新分析数据
+            try:
+                analyze_data()
+                st.success("✅ 已撤销到上一步")
+            except:
+                st.warning("⚠️ 撤销操作完成，但重新分析数据时出现问题")
+        else:
+            st.session_state.manual_data = ""
+            st.session_state.data_loaded = False
+            st.session_state.validation_passed = False
+            st.success("✅ 已清除所有数据")
+        
+        st.rerun()
+    else:
+        st.warning("⚠️ 没有历史记录可撤销")
 
 def analyze_two_column_data():
     """分析两列数据"""
@@ -1130,8 +1149,9 @@ if input_method == "手动输入":
             clear_data()
     
     with col3:
-        undo_disabled = len(st.session_state.data_history) == 0
-        if st.button("↶ 撤销", use_container_width=True, disabled=undo_disabled):
+        undo_disabled = len(st.session_state.data_history) <= 1  # 只有当前数据时禁用
+        undo_label = f"↶ 撤销 ({len(st.session_state.data_history)-1}次可用)" if len(st.session_state.data_history) > 1 else "↶ 撤销 (无历史)"
+        if st.button(undo_label, use_container_width=True, disabled=undo_disabled):
             undo_data()
     
     # 显示验证结果
@@ -3153,11 +3173,6 @@ Z比分数分类（仅有效数据）:
         
         # 添加分类标准说明
         st.info("""
-        **📝 新的Z比分分类标准:**
-        - **满意**: |Z| ≤ 2
-        - **可疑**: 2 < |Z| < 3  
-        - **不满意**: |Z| ≥ 3
-        
         **注意**: 分类基于保留两位小数后的Z比分数进行计算。
         """)
         
