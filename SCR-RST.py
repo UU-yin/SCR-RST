@@ -910,7 +910,7 @@ try:
     
     with col1:
         # 图标部分
-        st.image(icon, width=300)
+        st.image(icon, width=200)
     
     with col2:
         # 文字部分 - 使用简单的垂直对齐
