@@ -964,7 +964,7 @@ with st.container():
     
     with col2:
         # 添加一些垂直间距调整
-        st.markdown('<div style="padding-top: 10px;">', unsafe_allow_html=True)
+        st.markdown('<div style="padding-top: 40px;">', unsafe_allow_html=True)
         st.markdown("### **统计宝**")
         st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
         st.markdown('</div>', unsafe_allow_html=True)
