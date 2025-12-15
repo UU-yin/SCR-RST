@@ -895,55 +895,240 @@ st.set_page_config(
 
 initialize_session_state()
 
+import streamlit as st
+from PIL import Image
+
 # 设置页面配置
 st.set_page_config(layout="wide")
 
 # 添加自适应CSS
 st.markdown("""
 <style>
-/* 确保单行显示 */
+/* 移除Streamlit默认边距 */
+.stApp {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-x: hidden !important;
+}
+
+/* 主容器 - 确保单行显示 */
 .single-line-container {
     display: flex !important;
     align-items: center !important;
     flex-wrap: nowrap !important;
     width: 100% !important;
+    min-height: 180px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
 }
 
-/* 响应式调整 */
+/* 图标容器 */
+.icon-wrapper {
+    flex: 0 0 auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    margin-right: 30px !important;
+    max-width: 50% !important; /* 限制图标最大宽度 */
+}
+
+/* 文字容器 */
+.text-wrapper {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    min-width: 200px !important; /* 确保文字区域有最小宽度 */
+}
+
+/* 图片响应式控制 */
+.responsive-img {
+    max-width: 100% !important;
+    height: auto !important;
+    display: block !important;
+}
+
+/* 大桌面 (1200px以上) */
+.single-line-container img {
+    width: 360px !important;
+}
+
+/* 中等桌面 (992px-1200px) */
+@media (max-width: 1200px) {
+    .single-line-container {
+        min-height: 160px !important;
+    }
+    
+    .single-line-container img {
+        width: 300px !important;
+    }
+    
+    .single-line-container h3 {
+        font-size: 1.6rem !important;
+    }
+    
+    .single-line-container p {
+        font-size: 1rem !important;
+    }
+    
+    .icon-wrapper {
+        margin-right: 25px !important;
+    }
+}
+
+/* 小桌面/大平板 (768px-992px) */
 @media (max-width: 992px) {
+    .single-line-container {
+        min-height: 140px !important;
+    }
+    
     .single-line-container img {
         width: 250px !important;
     }
+    
     .single-line-container h3 {
         font-size: 1.4rem !important;
     }
+    
     .single-line-container p {
         font-size: 0.95rem !important;
     }
+    
+    .icon-wrapper {
+        margin-right: 20px !important;
+        max-width: 45% !important;
+    }
 }
 
+/* 平板 (576px-768px) */
 @media (max-width: 768px) {
+    .single-line-container {
+        min-height: 120px !important;
+    }
+    
     .single-line-container img {
         width: 200px !important;
     }
+    
     .single-line-container h3 {
         font-size: 1.2rem !important;
     }
+    
     .single-line-container p {
         font-size: 0.9rem !important;
     }
+    
+    .icon-wrapper {
+        margin-right: 15px !important;
+        max-width: 40% !important;
+    }
+    
+    .text-wrapper {
+        min-width: 150px !important;
+    }
 }
 
+/* 大手机 (480px-576px) */
 @media (max-width: 576px) {
+    .single-line-container {
+        min-height: 100px !important;
+    }
+    
     .single-line-container img {
         width: 150px !important;
     }
+    
     .single-line-container h3 {
         font-size: 1rem !important;
     }
+    
     .single-line-container p {
         font-size: 0.8rem !important;
     }
+    
+    .icon-wrapper {
+        margin-right: 12px !important;
+        max-width: 35% !important;
+    }
+    
+    .text-wrapper {
+        min-width: 130px !important;
+    }
+}
+
+/* 小手机 (480px以下) */
+@media (max-width: 480px) {
+    .single-line-container {
+        min-height: 90px !important;
+    }
+    
+    .single-line-container img {
+        width: 120px !important;
+    }
+    
+    .single-line-container h3 {
+        font-size: 0.9rem !important;
+    }
+    
+    .single-line-container p {
+        font-size: 0.75rem !important;
+    }
+    
+    .icon-wrapper {
+        margin-right: 10px !important;
+        max-width: 30% !important;
+    }
+    
+    .text-wrapper {
+        min-width: 110px !important;
+    }
+}
+
+/* 超小手机 (360px以下) */
+@media (max-width: 360px) {
+    .single-line-container {
+        min-height: 80px !important;
+    }
+    
+    .single-line-container img {
+        width: 100px !important;
+    }
+    
+    .single-line-container h3 {
+        font-size: 0.8rem !important;
+    }
+    
+    .single-line-container p {
+        font-size: 0.7rem !important;
+    }
+    
+    .icon-wrapper {
+        margin-right: 8px !important;
+        max-width: 25% !important;
+    }
+    
+    .text-wrapper {
+        min-width: 100px !important;
+    }
+}
+
+/* 强制在小屏幕上保持单行，禁止换行 */
+@media (max-width: 768px) {
+    .single-line-container {
+        flex-wrap: nowrap !important;
+        overflow: hidden !important;
+    }
+    
+    .icon-wrapper, .text-wrapper {
+        flex-shrink: 1 !important;
+        min-width: unset !important;
+    }
+}
+
+/* 确保Streamlit列容器也保持单行 */
+[data-testid="column"] {
+    flex-wrap: nowrap !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -960,11 +1145,15 @@ with st.container():
     col1, col2 = st.columns([1, 4])
     
     with col1:
-        st.image(icon, width=360)  # 基础宽度
+        # 图标容器 - 使用负边距向左对齐
+        st.markdown('<div class="icon-wrapper" style="margin-left: -30px;">', unsafe_allow_html=True)
+        # 使用CSS控制图片大小，不再在st.image中设置固定宽度
+        st.image(icon, use_container_width=False)
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with col2:
-        # 添加一些垂直间距调整
-        st.markdown('<div style="padding-top: 40px;">', unsafe_allow_html=True)
+        # 文字容器 - 移除固定padding-top，使用flex垂直居中
+        st.markdown('<div class="text-wrapper">', unsafe_allow_html=True)
         st.markdown("### **统计宝**")
         st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
         st.markdown('</div>', unsafe_allow_html=True)
