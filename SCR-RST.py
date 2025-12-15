@@ -901,10 +901,10 @@ st.set_page_config(layout="wide")
 # ========== 精确控制垂直居中和边距 ==========
 st.markdown("""
 <style>
-/* 移除Streamlit默认边距 */
+/* 移除Streamlit所有默认边距和内边距 */
 .stApp {
-    padding: 0 !important;
     margin: 0 !important;
+    padding: 0 !important;
 }
 
 /* 移除主容器默认边距 */
@@ -914,6 +914,11 @@ st.markdown("""
     padding-left: 0 !important;
     padding-right: 0 !important;
     max-width: 100% !important;
+}
+
+/* 移除页面顶部默认空白区域 */
+[data-testid="stAppViewContainer"] > .main {
+    padding-top: 0 !important;
 }
 
 /* 主布局容器 - 精确垂直居中 */
@@ -943,6 +948,7 @@ st.markdown("""
     flex-direction: column;
     justify-content: center;  /* 文字垂直居中 */
     height: 100%;
+    margin-top: 0;  /* 确保没有顶部边距 */
 }
 
 /* 主标题样式 - 确保与图标中心对齐 */
@@ -965,6 +971,7 @@ st.markdown("""
     width: 360px;
     max-width: 100%;
     height: auto;
+    display: block;
 }
 
 /* 响应式调整 */
@@ -998,19 +1005,34 @@ st.markdown("""
     .description { font-size: 0.85rem !important; }
     .text-part { padding-left: 12px; }
 }
+
+/* 确保Streamlit列内容垂直居中 */
+[data-testid="column"] {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;  /* 垂直居中 */
+    padding: 0 !important;
+    margin: 0 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ========== 主程序 ==========
-
 # 加载软件图标
 icon = Image.open("stataid_cut edge.png")
+
+# 将图标转换为base64
+import base64
+from io import BytesIO
+
+buffered = BytesIO()
+icon.save(buffered, format="PNG")
+img_str = base64.b64encode(buffered.getvalue()).decode()
 
 # 使用HTML/CSS完全控制布局
 st.markdown(f'''
 <div class="main-layout">
     <div class="icon-part" style="margin-left: -30px;">
-        <img src="data:image/png;base64,{base64.b64encode(icon.tobytes()).decode()}" class="responsive-icon" alt="统计宝图标">
+        <img src="data:image/png;base64,{img_str}" class="responsive-icon" alt="统计宝图标">
     </div>
     
     <div class="text-part">
