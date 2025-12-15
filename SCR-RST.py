@@ -1092,16 +1092,9 @@ st.sidebar.info(method_descriptions[method])
 if method == "Z比分计算模块":
     st.sidebar.info("💡 **注意**: Z比分计算参数请在主界面输入")
 
-# 数据输入方式选择 - 修复版
-st.markdown("### **数据输入方式:**")
-input_method = st.radio("", 
-                       ["手动输入", "带编号数据输入", "文件上传", "示例数据"],
-                       horizontal=True,
-                       index=0,  # 设置默认选中第一个选项
-                       label_visibility="collapsed")
-
-# 测试是否能正确识别选择
-st.write(f"当前选择的输入方式: **{input_method}**")
+# 数据输入方式选择
+input_method = st.radio("数据输入方式:", 
+                       ["手动输入", "带编号数据输入", "文件上传", "示例数据"])
 data = None
 
 if input_method == "手动输入":
