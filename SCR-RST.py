@@ -1092,27 +1092,16 @@ st.sidebar.info(method_descriptions[method])
 if method == "Z比分计算模块":
     st.sidebar.info("💡 **注意**: Z比分计算参数请在主界面输入")
 
-# 添加自定义CSS调整间距
-st.markdown("""
-<style>
-/* 减少标题与单选按钮之间的间距 */
-.compact-radio-title {
-    margin-bottom: 0.2rem !important;
-}
-
-/* 调整单选按钮组的上边距 */
-.stRadio > div {
-    margin-top: 0.2rem !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# 数据输入方式选择 - 紧凑两行布局
-st.markdown("### **数据输入方式:**", unsafe_allow_html=True)
+# 数据输入方式选择 - 修复版
+st.markdown("### **数据输入方式:**")
 input_method = st.radio("", 
                        ["手动输入", "带编号数据输入", "文件上传", "示例数据"],
                        horizontal=True,
+                       index=0,  # 设置默认选中第一个选项
                        label_visibility="collapsed")
+
+# 测试是否能正确识别选择
+st.write(f"当前选择的输入方式: **{input_method}**")
 
 data = None
 
