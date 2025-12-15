@@ -920,7 +920,94 @@ with col2:
     st.write("")  # 空行用于调整垂直位置
     st.write("")  # 空行用于调整垂直位置
     st.write("")  # 空行用于调整垂直位置
+    st.markdown("### **统计宝**"import streamlit as st
+from PIL import Image
+
+# 设置页面配置
+st.set_page_config(layout="wide")
+
+# 添加响应式CSS
+st.markdown("""
+<style>
+/* 响应式调整 */
+@media (max-width: 768px) {
+    /* 手机端将两列布局改为上下排列 */
+    [data-testid="column"] {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+    }
+    
+    /* 手机端调整图标容器 */
+    .mobile-icon-container {
+        display: flex !important;
+        justify-content: center !important;
+        margin-left: 0 !important;
+        margin-bottom: 20px !important;
+    }
+    
+    /* 手机端调整文字容器 */
+    .mobile-text-container {
+        text-align: center !important;
+        padding-left: 0 !important;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
+# 创建间距
+st.markdown("")
+
+# 加载软件图标
+icon = Image.open("stataid_cut edge.png")
+
+# 创建两列布局
+col1, col2 = st.columns([1, 4])
+
+with col1:
+    # 图标容器 - 添加手机端类名
+    st.markdown('<div class="mobile-icon-container" style="margin-left: -30px;">', unsafe_allow_html=True)
+    
+    # 使用动态宽度计算
+    # 在Streamlit中，我们可以根据列宽动态计算图标大小
+    st.image(icon, width=360)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with col2:
+    # 文字容器 - 添加手机端类名
+    st.markdown('<div class="mobile-text-container">', unsafe_allow_html=True)
     st.markdown("### **统计宝**")
+    st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# 添加JavaScript检测屏幕大小并动态调整图标大小
+st.markdown("""
+<script>
+// 检测屏幕大小并动态调整
+function adjustIconSize() {
+    const screenWidth = window.innerWidth;
+    const icon = document.querySelector('img[alt*="统计宝"]') || document.querySelector('img[src*="stataid"]');
+    
+    if (icon) {
+        if (screenWidth < 768) {
+            // 手机端
+            icon.style.width = '180px';
+        } else if (screenWidth < 1200) {
+            // 电脑非全屏
+            icon.style.width = '280px';
+        } else {
+            // 全屏
+            icon.style.width = '360px';
+        }
+    }
+}
+
+// 初始调整
+window.addEventListener('load', adjustIconSize);
+// 窗口大小变化时调整
+window.addEventListener('resize', adjustIconSize);
+</script>
+""", unsafe_allow_html=True)
     st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
 
 # =============================================
