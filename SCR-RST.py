@@ -1110,7 +1110,7 @@ if method == "Z比分计算模块":
     st.sidebar.info("💡 **注意**: Z比分计算参数请在主界面输入")
 
 # 数据输入方式选择 - 修复版
-st.markdown("### **数据输入方式:**")
+st.markdown("### **👉数据输入方式**")
 input_method = st.radio("", 
                        ["手动输入", "带编号数据输入", "文件上传", "示例数据"],
                        horizontal=True,
@@ -1174,7 +1174,7 @@ if input_method == "手动输入":
             st.warning(f"⚠️ 检测到 {st.session_state.blank_count} 个空白数据点，已忽略")
 
 elif input_method == "带编号数据输入":
-    st.subheader("📝 带编号数据输入")
+    st.subheader("🏷️ 带编号数据输入")
     
     # 两列数据输入说明
     st.markdown("""
