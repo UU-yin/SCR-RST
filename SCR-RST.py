@@ -2763,112 +2763,137 @@ def display_statistics_table(results, method, data, input_method, original_label
     return stats_df
 
 # =============================================
-# Z比分图表创建函数
+# 数据可视化函数
 # =============================================
 
-def create_z_score_chart(results, original_labels):
+def create_z_score_chart(results, original_labels=None):
     """
-    创建Z比分图表，显示每个数据点的Z比分和分类
+    创建Z比分分布图表
+    返回一个matplotlib图表对象，如果创建失败则返回None
     """
     try:
-        set_chinese_font()  # 设置中文字体
+        set_chinese_font()
         
-        # 检查是否有足够的数据
-        if not results or 'Z_scores_rounded' not in results:
-            return None
-        
+        # 获取数据
         z_scores = results['Z_scores_rounded']
         classifications = results['z_score_classifications']
-        
-        if not z_scores or len(z_scores) == 0:
+        if not z_scores or not classifications:
+            st.warning("无法创建图表：缺少Z比分数据")
             return None
+          
+        # 生成标签
+        n_points = len(z_scores)
+        if original_labels is None or len(original_labels) != n_points:
+            labels = [f"{i+1:03d}" for i in range(n_points)]
+        else:
+            labels = original_labels
+        
+        # 创建数据框
+        chart_data = pd.DataFrame({
+            'Label': labels,
+            'Z_Score': z_scores,
+            'Classification': classifications
+        })
+        
+        # 按Z比分排序
+        chart_data = chart_data.sort_values('Z_Score', ascending=False)
         
         # 创建图表
-        fig, ax = plt.subplots(figsize=(12, 6))
+        chart_height = max(10, len(chart_data) * 0.4)
+        fig, ax = plt.subplots(figsize=(14, chart_height))
         
-        # 准备数据点
-        indices = list(range(1, len(z_scores) + 1))
+        # 设置类别对应的颜色
+        color_map = {
+            '满意': '#00FF00',    # 绿色
+            '可疑': '#FFA500',    # 橙色
+            '不满意': '#FF0000',   # 红色
+            '未知': '#808080'     # 灰色
+        }
         
-        # 根据分类设置颜色
-        colors = []
-        for classification in classifications:
-            if classification == "满意":
-                colors.append('green')
-            elif classification == "可疑":
-                colors.append('orange')
-            elif classification == "不满意":
-                colors.append('red')
-            else:
-                colors.append('gray')
+        # 创建颜色列表
+        colors = [color_map.get(cat, '#808080') for cat in chart_data['Classification']]
         
-        # 绘制散点图
-        scatter = ax.scatter(indices, z_scores, c=colors, s=50, alpha=0.7, edgecolors='black', linewidth=0.5)
+        # 绘制柱状图
+        y_positions = range(len(chart_data))
+        bars = ax.barh(
+            y_positions, 
+            chart_data['Z_Score'], 
+            color=colors, 
+            alpha=0.6,
+            height=0.8,
+            edgecolor='white',
+            linewidth=0.5
+        )
         
-        # 添加水平参考线
-        ax.axhline(y=0, color='blue', linestyle='-', alpha=0.3, linewidth=1)
-        ax.axhline(y=2, color='orange', linestyle='--', alpha=0.5, linewidth=1)
-        ax.axhline(y=-2, color='orange', linestyle='--', alpha=0.5, linewidth=1)
-        ax.axhline(y=3, color='red', linestyle='--', alpha=0.5, linewidth=1)
-        ax.axhline(y=-3, color='red', linestyle='--', alpha=0.5, linewidth=1)
+        # 在柱状图上标注Z值
+        for i, (bar, z_value) in enumerate(zip(bars, chart_data['Z_Score'])):
+            try:
+                text_color = 'black'
+                z_display = f"{z_value:.2f}"
+                
+                ax.text(
+                    bar.get_width() + 0.05 * (1 if bar.get_width() >= 0 else -1), 
+                    bar.get_y() + bar.get_height()/2, 
+                    z_display, 
+                    ha='left' if bar.get_width() >= 0 else 'right', 
+                    va='center', 
+                    fontsize=9, 
+                    fontweight='bold',
+                    color=text_color
+                )
+            except:
+                continue
         
-        # 设置图表标题和标签
-        ax.set_title('Z比分分析图', fontsize=16, fontweight='bold')
-        ax.set_xlabel('数据点序号', fontsize=12)
-        ax.set_ylabel('Z比分', fontsize=12)
-        
-        # 设置x轴刻度标签
-        if original_labels and len(original_labels) == len(z_scores):
-            # 如果标签太多，只显示部分标签
-            if len(original_labels) > 30:
-                step = max(1, len(original_labels) // 15)
-                tick_indices = list(range(0, len(original_labels), step))
-                tick_labels = [original_labels[i] for i in tick_indices]
-                ax.set_xticks([i+1 for i in tick_indices])
-                ax.set_xticklabels(tick_labels, rotation=45, ha='right')
-            else:
-                ax.set_xticks(indices)
-                ax.set_xticklabels(original_labels, rotation=45, ha='right')
-        else:
-            ax.set_xticks(indices)
-        
-        # 添加网格
-        ax.grid(True, alpha=0.3, linestyle='--')
+        # 设置图形属性
+        ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Original Data ID', fontsize=14, fontweight='bold')
+        ax.set_title('Z-Score Distribution (Sorted)', fontsize=18, fontweight='bold', pad=40)
         
         # 添加图例
         from matplotlib.patches import Patch
         legend_elements = [
-            Patch(facecolor='green', alpha=0.7, edgecolor='black', label='满意 (|Z| ≤ 2)'),
-            Patch(facecolor='orange', alpha=0.7, edgecolor='black', label='可疑 (2 < |Z| < 3)'),
-            Patch(facecolor='red', alpha=0.7, edgecolor='black', label='不满意 (|Z| ≥ 3)')
+            Patch(facecolor=color_map['满意'], alpha=0.6, label='Satisfactory (|Z| ≤ 2)'),
+            Patch(facecolor=color_map['可疑'], alpha=0.6, label='Questionable (2 < |Z| < 3)'),
+            Patch(facecolor=color_map['不满意'], alpha=0.6, label='Unsatisfactory (|Z| ≥ 3)')
         ]
-        ax.legend(handles=legend_elements, loc='upper right')
         
-        # 设置y轴范围
-        y_min = min(z_scores) - 1
-        y_max = max(z_scores) + 1
-        ax.set_ylim(y_min, y_max)
+        ax.legend(
+            handles=legend_elements, 
+            title='Category', 
+            title_fontsize=12, 
+            fontsize=11, 
+            loc='upper center', 
+            bbox_to_anchor=(0.5, 1.00), 
+            ncol=3, 
+            frameon=True
+        )
         
-        # 添加参考线说明
-        ax.text(0.02, 0.98, 'Z=±2 (橙色虚线)', transform=ax.transAxes, 
-                verticalalignment='top', fontsize=9, color='orange')
-        ax.text(0.02, 0.94, 'Z=±3 (红色虚线)', transform=ax.transAxes, 
-                verticalalignment='top', fontsize=9, color='red')
+        # 设置Y轴刻度
+        ax.set_yticks(y_positions)
+        ax.set_yticklabels(chart_data['Label'])
         
-        # 添加统计信息
-        robust_mean = results.get('robust_mean', 0)
-        robust_std = results.get('robust_std', 1)
-        outliers_count = len(results.get('outliers', []))
+        # 添加参考线
+        ax.axvline(x=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
+        ax.axvline(x=-2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
+        ax.axvline(x=2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
+        ax.axvline(x=-3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
+        ax.axvline(x=3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
         
-        info_text = f"稳健平均值: {robust_mean:.4f}\n稳健标准差: {robust_std:.4f}\n离群值数量: {outliers_count}"
-        ax.text(0.98, 0.02, info_text, transform=ax.transAxes,
-                verticalalignment='bottom', horizontalalignment='right',
-                fontsize=10, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+        # 添加网格和背景
+        ax.grid(axis='x', alpha=0.3, linestyle='--')
+        ax.set_facecolor('white')
         
+        # 反转Y轴，使最大的Z值在顶部
+        ax.invert_yaxis()
+        
+        # 调整布局
+        plt.subplots_adjust(top=0.88)
         plt.tight_layout()
+        
         return fig
         
     except Exception as e:
-        print(f"创建Z比分图表时出错: {str(e)}")
+        st.error(f"创建图表时发生错误: {str(e)}")
         return None
 
 # =============================================
