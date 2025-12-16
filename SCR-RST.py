@@ -915,7 +915,7 @@ st.set_page_config(
 initialize_session_state()
 
 # 设置页面配置
-# 添加CSS，为顶部区域添加纯色块
+# 添加CSS，恢复原有设定并添加底部空白
 st.markdown("""
 <style>
 /* 为Streamlit Cloud顶部UI元素保留空间 */
@@ -930,76 +930,31 @@ st.markdown("""
     padding-bottom: 0 !important;
 }
 
-/* 主容器 - 单行显示，添加纯色背景 */
+/* 主容器 - 单行显示 */
 .single-line-container {
     display: flex !important;
     align-items: flex-start !important;
     flex-wrap: nowrap !important;
     width: 100% !important;
     margin: 0 !important;
-    padding: 20px !important;
-    background: linear-gradient(135deg, #f0f8ff 0%, #e6f7ff 50%, #f0f8ff 100%) !important;
-    border-radius: 15px !important;
-    border: 2px solid #e0f2ff !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    padding: 10px 0 !important; /* 添加少量内边距 */
 }
 
-/* 图标容器 - 添加纯色背景块 */
+/* 图标容器 */
 .icon-wrapper {
     flex: 0 0 auto !important;
     display: flex !important;
     align-items: center !important;
     justify-content: flex-start !important;
     margin-right: 30px !important;
-    background-color: #ffffff !important;
-    padding: 15px !important;
-    border-radius: 12px !important;
-    border: 2px solid #d0e7ff !important;
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05) !important;
 }
 
-/* 文字容器 - 添加纯色背景块 */
+/* 文字容器 - 保持固定上边距 */
 .text-wrapper {
     flex: 1 !important;
     display: flex !important;
     flex-direction: column !important;
-    background-color: #ffffff !important;
-    padding: 20px 30px !important;
-    border-radius: 12px !important;
-    border: 2px solid #d0e7ff !important;
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05) !important;
-}
-
-/* 主标题样式 - 添加背景色 */
-.text-wrapper h3 {
-    background: linear-gradient(90deg, #1890ff 0%, #52c41a 100%) !important;
-    -webkit-background-clip: text !important;
-    -webkit-text-fill-color: transparent !important;
-    background-clip: text !important;
-    padding: 5px 0 !important;
-    margin-bottom: 10px !important;
-    font-size: 28px !important;
-    font-weight: bold !important;
-}
-
-/* 副标题列表样式 - 添加背景色块 */
-.text-wrapper ul {
-    background-color: #f9fdff !important;
-    padding: 15px 20px 15px 35px !important;
-    border-radius: 8px !important;
-    border-left: 4px solid #1890ff !important;
-    margin: 0 !important;
-}
-
-.text-wrapper li {
-    color: #333 !important;
-    margin-bottom: 8px !important;
-    font-size: 15px !important;
-    line-height: 1.5 !important;
-}
-
-.text-wrapper li:last-child {
-    margin-bottom: 0 !important;
+    padding-top: 60px !important;
 }
 
 /* 响应式图标大小调整 */
@@ -1014,7 +969,7 @@ st.markdown("""
         width: 220px !important;
     }
     .text-wrapper {
-        padding: 15px 20px !important;
+        padding-top: 35px !important;
     }
 }
 
@@ -1023,13 +978,7 @@ st.markdown("""
         width: 180px !important;
     }
     .text-wrapper {
-        padding: 15px !important;
-    }
-    .text-wrapper h3 {
-        font-size: 24px !important;
-    }
-    .text-wrapper li {
-        font-size: 14px !important;
+        padding-top: 30px !important;
     }
 }
 
@@ -1038,13 +987,7 @@ st.markdown("""
         width: 150px !important;
     }
     .text-wrapper {
-        padding: 12px !important;
-    }
-    .text-wrapper h3 {
-        font-size: 22px !important;
-    }
-    .text-wrapper li {
-        font-size: 13px !important;
+        padding-top: 25px !important;
     }
 }
 
@@ -1053,13 +996,7 @@ st.markdown("""
         width: 120px !important;
     }
     .text-wrapper {
-        padding: 10px !important;
-    }
-    .text-wrapper h3 {
-        font-size: 20px !important;
-    }
-    .text-wrapper li {
-        font-size: 12px !important;
+        padding-top: 20px !important;
     }
 }
 
@@ -1082,37 +1019,47 @@ header[data-testid="stHeader"] {
     }
 }
 
-/* 统计结果对齐样式 */
-.stats-row-container {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 10px !important;
-    margin-bottom: 10px !important;
+/* 统计分析结果 - 统一的2行4列布局 */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: auto auto;
+    gap: 10px;
+    margin-bottom: 20px;
 }
 
-.stats-metric-container {
-    flex: 1 !important;
-    min-width: calc(25% - 10px) !important;
+.stats-metric {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
 }
 
-/* 为第二行数据添加对齐容器 */
-.aligned-row {
-    margin-top: 20px !important;
-    width: 100% !important;
+/* 为底部添加空白，确保用户反馈模块完整显示 */
+.main-footer {
+    margin-top: 50px;
+    padding: 20px 0;
+    background-color: #f8f9fa;
+    border-top: 1px solid #e9ecef;
 }
 
-/* 统计量表格样式 */
-.stat-table-container {
-    margin-top: 20px !important;
-    padding: 15px !important;
-    background-color: #f9fdff !important;
-    border-radius: 10px !important;
-    border: 1px solid #e0f2ff !important;
+/* 添加页面底部空白 */
+.page-bottom-padding {
+    height: 100px;
+    clear: both;
 }
 
-/* 删除"满意数据"列后调整列宽 */
-[data-testid="metric-container"] {
-    min-height: 100px !important;
+/* 确保统计量显示对齐 */
+.aligned-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.aligned-metric-item {
+    flex: 1 0 calc(25% - 10px);
+    min-width: 200px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1122,7 +1069,7 @@ icon = Image.open("stataid_cut edge.png")
 
 # 使用容器包裹
 with st.container():
-    # 使用自定义CSS类
+    # 使用自定义CSS类 - 恢复原有设定
     st.markdown('<div class="single-line-container">', unsafe_allow_html=True)
     
     # 创建两列
@@ -1135,19 +1082,11 @@ with st.container():
         st.markdown('</div>', unsafe_allow_html=True)
     
     with col2:
-        # 文字容器 - 添加纯色背景块
+        # 文字容器 - 恢复原有设定
         st.markdown('<div class="text-wrapper">', unsafe_allow_html=True)
         st.markdown("### **统计宝**")
         st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
-        # 添加带背景色的副标题列表
-        st.markdown("""
-        <ul>
-            <li>迭代稳健统计法：通过迭代过程逐步修正异常值影响，收敛后得到稳健的统计估计</li>
-            <li>四分位稳健统计法：以数据排序为基础，使用数据集中段50%的数据，崩溃点为25%，具有易于计算、操作简单的特点</li>
-            <li>Q/Hampel法：结合Q方法计算的稳健标准差和Hampel方法计算的稳健平均值，具有较好的抗异常值干扰能力</li>
-            <li>Z比分计算模块：使用用户提供的稳健统计量计算Z比分：Z比分 = (测试数据-稳健平均值)/稳健标准差</li>
-        </ul>
-        """, unsafe_allow_html=True)
+        # 删除杂乱的副标题列表，恢复简洁版本
         st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
@@ -2421,102 +2360,35 @@ def _fallback_method(data, scheme, error_message=""):
     }
 
 # =============================================
-# 统一结果显示组件 - 修改版本
+# 统一结果显示组件 - 修改版本：采用2行4列布局
 # =============================================
 
-def display_method_specific_info(results, method):
-    """显示各方法特有的统计信息 - 修改版本：确保第二行数据与第一行对齐"""
-    # 获取计算方案和小数位数
-    calculation_scheme = results.get('calculation_scheme', 'strict')
-    decimal_places = results.get('decimal_places', 0)
-    
-    if method == "四分位稳健统计法":
-        # 创建4列容器，确保与第一行对齐
-        cols = st.columns(4)
-        
-        metrics_data = []
-        if calculation_scheme == "presentation":
-            # 规范展示方案：按原始数据小数位数格式化
-            metrics_data.append(("下四分位数(Q1)", round(results['q1'], decimal_places), ""))
-            metrics_data.append(("上四分位数(Q3)", round(results['q3'], decimal_places), ""))
-            metrics_data.append(("四分位距(IQR)", round(results['iqr'], decimal_places), ""))
-            metrics_data.append(("标准化四分位距(NIQR)", round(results['niqr'], 3), ""))
-        else:
-            # 严格计算方案：显示6位小数
-            metrics_data.append(("下四分位数(Q1)", results['q1'], f"{results['q1']:.6f}"))
-            metrics_data.append(("上四分位数(Q3)", results['q3'], f"{results['q3']:.6f}"))
-            metrics_data.append(("四分位距(IQR)", results['iqr'], f"{results['iqr']:.6f}"))
-            metrics_data.append(("标准化四分位距(NIQR)", results['niqr'], f"{results['niqr']:.6f}"))
-        
-        # 在每一列中显示指标
-        for i, (title, value, display_value) in enumerate(metrics_data):
-            with cols[i]:
-                if calculation_scheme == "presentation":
-                    st.metric(title, f"{value}")
-                else:
-                    st.metric(title, f"{value:.6f}")
-    
-    elif method == "Q/Hampel法":
-        # 创建4列容器，确保与第一行对齐
-        cols = st.columns(4)
-        
-        metrics_data = []
-        if calculation_scheme == "presentation":
-            # 规范展示方案：按原始数据小数位数格式化
-            initial_median = results.get('initial_median', results['robust_mean'])
-            metrics_data.append(("初始中位数", round(initial_median, decimal_places), ""))
-            
-            mad = results.get('mad', 0)
-            metrics_data.append(("MAD", round(mad, decimal_places), ""))
-            
-            # 添加两个空白列以保持对齐
-            metrics_data.append(("", "", ""))
-            metrics_data.append(("", "", ""))
-        else:
-            # 严格计算方案：显示6位小数
-            initial_median = results.get('initial_median', results['robust_mean'])
-            metrics_data.append(("初始中位数", initial_median, f"{initial_median:.6f}"))
-            
-            mad = results.get('mad', 0)
-            metrics_data.append(("MAD", mad, f"{mad:.6f}"))
-            
-            # 添加两个空白列以保持对齐
-            metrics_data.append(("", "", ""))
-            metrics_data.append(("", "", ""))
-        
-        # 在每一列中显示指标
-        for i, (title, value, display_value) in enumerate(metrics_data):
-            with cols[i]:
-                if title:  # 只显示有标题的指标
-                    if calculation_scheme == "presentation":
-                        st.metric(title, f"{value}")
-                    else:
-                        st.metric(title, f"{value:.6f}")
-                else:
-                    # 空白列，保持对齐但不显示内容
-                    st.metric("", "")
-
 def display_core_results(results, method):
-    """显示核心结果 - 修改版本：删除稳健标准差后边的'计算方案'和'满意数据'"""
-    # 主要统计量 - 第一行：只显示稳健平均值和稳健标准差
-    st.markdown('<div class="stats-row-container">', unsafe_allow_html=True)
-    
-    # 创建3列容器，第一行只使用前两列
-    col1, col2, col3 = st.columns(3)
+    """显示核心结果 - 修改版本：采用统一的2行4列布局"""
+    st.subheader("📊 统计分析结果")
     
     # 根据计算方案格式化显示
     decimal_places = results.get('decimal_places', 0)
     calculation_scheme = results.get('calculation_scheme', 'strict')
     
+    # 第一行：4个核心指标
+    col1, col2, col3, col4 = st.columns(4)
+    
+    # 第一个指标：稳健平均值
     with col1:
         if calculation_scheme == "presentation":
             # 规范展示方案：使用原始数据小数位数
             formatted_mean = round(results['robust_mean'], decimal_places)
-            st.metric("稳健平均值", f"{formatted_mean}")
+            if decimal_places == 0:
+                display_value = f"{int(formatted_mean)}"
+            else:
+                display_value = f"{formatted_mean}"
+            st.metric("稳健平均值", display_value)
         else:
             # 严格计算方案：显示6位小数
             st.metric("稳健平均值", f"{results['robust_mean']:.6f}")
     
+    # 第二个指标：稳健标准差
     with col2:
         if calculation_scheme == "presentation":
             # 规范展示方案：保留3位小数
@@ -2526,17 +2398,210 @@ def display_core_results(results, method):
             # 严格计算方案：显示6位小数
             st.metric("稳健标准差", f"{results['robust_std']:.6f}")
     
+    # 第三个指标：正常值下限
     with col3:
-        # 第三列留空，保持布局对齐
-        st.metric("", "")
+        if calculation_scheme == "presentation":
+            # 规范展示方案：使用原始数据小数位数
+            formatted_lower = round(results['lower_limit'], decimal_places)
+            if decimal_places == 0:
+                display_value = f"{int(formatted_lower)}"
+            else:
+                display_value = f"{formatted_lower}"
+            st.metric("正常值下限", display_value)
+        else:
+            # 严格计算方案：显示6位小数
+            st.metric("正常值下限", f"{results['lower_limit']:.6f}")
+    
+    # 第四个指标：正常值上限
+    with col4:
+        if calculation_scheme == "presentation":
+            # 规范展示方案：使用原始数据小数位数
+            formatted_upper = round(results['upper_limit'], decimal_places)
+            if decimal_places == 0:
+                display_value = f"{int(formatted_upper)}"
+            else:
+                display_value = f"{formatted_upper}"
+            st.metric("正常值上限", display_value)
+        else:
+            # 严格计算方案：显示6位小数
+            st.metric("正常值上限", f"{results['upper_limit']:.6f}")
+    
+    # 第二行：方法特定指标
+    st.markdown('<div class="aligned-metrics">', unsafe_allow_html=True)
+    
+    # 根据方法显示不同的第二行指标
+    if method == "迭代稳健统计法":
+        # 迭代法：迭代次数、收敛状态、离群值数量、尺度因子
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            iterations = results.get('iterations', 0)
+            st.metric("迭代次数", f"{iterations}")
+        
+        with col2:
+            converged = results.get('converged', False)
+            converged_text = "是" if converged else "否"
+            st.metric("收敛状态", converged_text)
+        
+        with col3:
+            outliers_count = len(results.get('outliers', []))
+            st.metric("离群值数量", f"{outliers_count}")
+        
+        with col4:
+            # 从全局变量获取尺度因子
+            if 'k_value' in globals():
+                st.metric("尺度因子(k)", f"{k_value}")
+            else:
+                st.metric("尺度因子(k)", "1.5")
+    
+    elif method == "四分位稳健统计法":
+        # 四分位法：Q1、Q3、IQR、NIQR
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            if calculation_scheme == "presentation":
+                # 规范展示方案：按原始数据小数位数格式化
+                formatted_q1 = round(results['q1'], decimal_places)
+                if decimal_places == 0:
+                    display_value = f"{int(formatted_q1)}"
+                else:
+                    display_value = f"{formatted_q1}"
+                st.metric("下四分位数(Q1)", display_value)
+            else:
+                # 严格计算方案：显示6位小数
+                st.metric("下四分位数(Q1)", f"{results['q1']:.6f}")
+        
+        with col2:
+            if calculation_scheme == "presentation":
+                # 规范展示方案：按原始数据小数位数格式化
+                formatted_q3 = round(results['q3'], decimal_places)
+                if decimal_places == 0:
+                    display_value = f"{int(formatted_q3)}"
+                else:
+                    display_value = f"{formatted_q3}"
+                st.metric("上四分位数(Q3)", display_value)
+            else:
+                # 严格计算方案：显示6位小数
+                st.metric("上四分位数(Q3)", f"{results['q3']:.6f}")
+        
+        with col3:
+            if calculation_scheme == "presentation":
+                # 规范展示方案：按原始数据小数位数格式化
+                formatted_iqr = round(results['iqr'], decimal_places)
+                if decimal_places == 0:
+                    display_value = f"{int(formatted_iqr)}"
+                else:
+                    display_value = f"{formatted_iqr}"
+                st.metric("四分位距(IQR)", display_value)
+            else:
+                # 严格计算方案：显示6位小数
+                st.metric("四分位距(IQR)", f"{results['iqr']:.6f}")
+        
+        with col4:
+            if calculation_scheme == "presentation":
+                # 规范展示方案：NIQR保留3位小数
+                formatted_niqr = round(results['niqr'], 3)
+                st.metric("标准化四分位距(NIQR)", f"{formatted_niqr}")
+            else:
+                # 严格计算方案：显示6位小数
+                st.metric("标准化四分位距(NIQR)", f"{results['niqr']:.6f}")
+    
+    elif method == "Q/Hampel法":
+        # Q/Hampel法：初始中位数、MAD值、离群值数量、权重平均值
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            if calculation_scheme == "presentation":
+                # 规范展示方案：按原始数据小数位数格式化
+                initial_median = results.get('initial_median', results['robust_mean'])
+                formatted_initial_median = round(initial_median, decimal_places)
+                if decimal_places == 0:
+                    display_value = f"{int(formatted_initial_median)}"
+                else:
+                    display_value = f"{formatted_initial_median}"
+                st.metric("初始中位数", display_value)
+            else:
+                # 严格计算方案：显示6位小数
+                initial_median = results.get('initial_median', results['robust_mean'])
+                st.metric("初始中位数", f"{initial_median:.6f}")
+        
+        with col2:
+            if calculation_scheme == "presentation":
+                # 规范展示方案：按原始数据小数位数格式化
+                mad = results.get('mad', 0)
+                formatted_mad = round(mad, decimal_places)
+                if decimal_places == 0:
+                    display_value = f"{int(formatted_mad)}"
+                else:
+                    display_value = f"{formatted_mad}"
+                st.metric("MAD值", display_value)
+            else:
+                # 严格计算方案：显示6位小数
+                mad = results.get('mad', 0)
+                st.metric("MAD值", f"{mad:.6f}")
+        
+        with col3:
+            outliers_count = len(results.get('outliers', []))
+            st.metric("离群值数量", f"{outliers_count}")
+        
+        with col4:
+            # 计算权重平均值（如果可用）
+            if 'weights' in results and results['weights']:
+                weights = results['weights']
+                weighted_avg = np.average(results['clean_data'], weights=weights[:len(results['clean_data'])]) if len(results['clean_data']) > 0 else 0
+                if calculation_scheme == "presentation":
+                    formatted_weighted_avg = round(weighted_avg, decimal_places)
+                    if decimal_places == 0:
+                        display_value = f"{int(formatted_weighted_avg)}"
+                    else:
+                        display_value = f"{formatted_weighted_avg}"
+                    st.metric("权重平均值", display_value)
+                else:
+                    st.metric("权重平均值", f"{weighted_avg:.6f}")
+            else:
+                st.metric("权重平均值", "N/A")
+    
+    elif method == "Z比分计算模块":
+        # Z比分计算模块：输入的平均值、输入的标准差、离群值数量、Z比分范围
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            # 显示输入的稳健平均值
+            robust_mean_val = results['robust_mean']
+            if calculation_scheme == "presentation":
+                formatted_mean = round(robust_mean_val, decimal_places)
+                if decimal_places == 0:
+                    display_value = f"{int(formatted_mean)}"
+                else:
+                    display_value = f"{formatted_mean}"
+                st.metric("输入稳健平均值", display_value)
+            else:
+                st.metric("输入稳健平均值", f"{robust_mean_val:.6f}")
+        
+        with col2:
+            # 显示输入的稳健标准差
+            robust_std_val = results['robust_std']
+            if calculation_scheme == "presentation":
+                formatted_std = round(robust_std_val, 3)
+                st.metric("输入稳健标准差", f"{formatted_std}")
+            else:
+                st.metric("输入稳健标准差", f"{robust_std_val:.6f}")
+        
+        with col3:
+            outliers_count = len(results.get('outliers', []))
+            st.metric("离群值数量", f"{outliers_count}")
+        
+        with col4:
+            # 计算Z比分范围
+            z_scores = results.get('Z_scores_rounded', [])
+            if z_scores:
+                min_z = min(z_scores)
+                max_z = max(z_scores)
+                st.metric("Z比分范围", f"[{min_z:.2f}, {max_z:.2f}]")
+            else:
+                st.metric("Z比分范围", "N/A")
     
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # 方法特定信息 - 第二行：确保与第一行对齐
-    if method in ["四分位稳健统计法", "Q/Hampel法"]:
-        st.markdown('<div class="aligned-row">', unsafe_allow_html=True)
-        display_method_specific_info(results, method)
-        st.markdown('</div>', unsafe_allow_html=True)
 
 def display_z_score_analysis(results):
     """统一显示Z比分分析"""
@@ -2569,9 +2634,6 @@ def display_z_score_analysis(results):
 def display_detailed_results(results, method, data, original_labels=None):
     """显示详细结果 - 可折叠"""
     with st.expander("📋 详细结果", expanded=False):
-        # 正常值范围
-        st.write(f"**正常值范围**: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]")
-        
         # 格式化说明 - 仅在详细结果中保留
         if 'formatting_note' in results:
             st.info(f"💡 {results['formatting_note']}")
@@ -2696,222 +2758,9 @@ def display_statistics_table(results, method, data, input_method, original_label
     stats_df = pd.DataFrame(stats_data)
     
     # 显示表格
-    st.markdown('<div class="stat-table-container">', unsafe_allow_html=True)
     st.dataframe(stats_df, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
     
     return stats_df
-
-# =============================================
-# Z比分对比表格功能
-# =============================================
-
-def display_z_score_comparison_table(results, original_labels=None):
-    """
-    显示高精度和保留两位小数后Z比分数对比表格
-    """
-    st.subheader("📊 Z比分数对比表格")
-    
-    # 创建对比数据
-    comparison_data = []
-    
-    # 获取数据点数量
-    n_points = len(results['Z_scores_high_precision'])
-    
-    # 生成标签（如果没有提供原始标签）
-    if original_labels is None or len(original_labels) != n_points:
-        labels = [f"数据点 {i+1:03d}" for i in range(n_points)]
-    else:
-        labels = original_labels
-    
-    # 构建对比数据
-    for i in range(n_points):
-        high_precision_z = results['Z_scores_high_precision'][i]
-        rounded_z = results['Z_scores_rounded'][i]
-        classification = results['z_score_classifications'][i]
-        
-        comparison_data.append({
-            '数据点': labels[i],
-            '保留两位小数Z比分数': f"{rounded_z:.2f}",
-            '分类结果': classification
-        })
-    
-    # 创建DataFrame
-    comparison_df = pd.DataFrame(comparison_data)
-    
-    # 显示表格
-    st.dataframe(comparison_df, use_container_width=True)
-    
-    # 添加分类统计
-    st.subheader("📈 Z比分数分类统计")
-    
-    # 统计各类别的数量
-    classification_counts = Counter(results['z_score_classifications'])
-    total_count = len(results['z_score_classifications'])
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        satisfactory_count = classification_counts.get('满意', 0)
-        satisfactory_percent = (satisfactory_count / total_count * 100) if total_count > 0 else 0
-        st.metric(
-            "满意 (|Z| ≤ 2)", 
-            f"{satisfactory_count} 个", 
-            f"{satisfactory_percent:.1f}%"
-        )
-    
-    with col2:
-        questionable_count = classification_counts.get('可疑', 0)
-        questionable_percent = (questionable_count / total_count * 100) if total_count > 0 else 0
-        st.metric(
-            "可疑 (2 < |Z| < 3)", 
-            f"{questionable_count} 个", 
-            f"{questionable_percent:.1f}%"
-        )
-    
-    with col3:
-        unsatisfactory_count = classification_counts.get('不满意', 0)
-        unsatisfactory_percent = (unsatisfactory_count / total_count * 100) if total_count > 0 else 0
-        st.metric(
-            "不满意 (|Z| ≥ 3)", 
-            f"{unsatisfactory_count} 个", 
-            f"{unsatisfactory_percent:.1f}%"
-        )
-    
-    return comparison_df
-
-# =============================================
-# 可视化部分
-# =============================================
-
-def create_z_score_chart(results, original_labels=None):
-    """
-    创建Z比分分布图表
-    """
-    try:
-        set_chinese_font()
-        
-        # 获取数据
-        z_scores = results['Z_scores_rounded']
-        classifications = results['z_score_classifications']
-        if not z_scores or not classifications:
-            st.warning("无法创建图表：缺少Z比分数据")
-            return None
-          
-        # 生成标签
-        n_points = len(z_scores)
-        if original_labels is None or len(original_labels) != n_points:
-            labels = [f"{i+1:03d}" for i in range(n_points)]
-        else:
-            labels = original_labels
-        
-        # 创建数据框
-        chart_data = pd.DataFrame({
-            'Label': labels,
-            'Z_Score': z_scores,
-            'Classification': classifications
-        })
-        
-        # 按Z比分排序
-        chart_data = chart_data.sort_values('Z_Score', ascending=False)
-        
-        # 创建图表
-        chart_height = max(10, len(chart_data) * 0.4)
-        fig, ax = plt.subplots(figsize=(14, chart_height))
-        
-        # 设置类别对应的颜色
-        color_map = {
-            '满意': '#00FF00',    # 绿色
-            '可疑': '#FFA500',    # 橙色
-            '不满意': '#FF0000',   # 红色
-            '未知': '#808080'     # 灰色
-        }
-        
-        # 创建颜色列表
-        colors = [color_map.get(cat, '#808080') for cat in chart_data['Classification']]
-        
-        # 绘制柱状图
-        y_positions = range(len(chart_data))
-        bars = ax.barh(
-            y_positions, 
-            chart_data['Z_Score'], 
-            color=colors, 
-            alpha=0.6,
-            height=0.8,
-            edgecolor='white',
-            linewidth=0.5
-        )
-        
-        # 在柱状图上标注Z值
-        for i, (bar, z_value) in enumerate(zip(bars, chart_data['Z_Score'])):
-            try:
-                text_color = 'black'
-                z_display = f"{z_value:.2f}"
-                
-                ax.text(
-                    bar.get_width() + 0.05 * (1 if bar.get_width() >= 0 else -1), 
-                    bar.get_y() + bar.get_height()/2, 
-                    z_display, 
-                    ha='left' if bar.get_width() >= 0 else 'right', 
-                    va='center', 
-                    fontsize=9, 
-                    fontweight='bold',
-                    color=text_color
-                )
-            except:
-                continue
-        
-        # 设置图形属性
-        ax.set_xlabel('Z-Score', fontsize=14, fontweight='bold')
-        ax.set_ylabel('Original Data ID', fontsize=14, fontweight='bold')
-        ax.set_title('Z-Score Distribution (Sorted)', fontsize=18, fontweight='bold', pad=40)
-        
-        # 添加图例
-        from matplotlib.patches import Patch
-        legend_elements = [
-            Patch(facecolor=color_map['满意'], alpha=0.6, label='Satisfactory (|Z| ≤ 2)'),
-            Patch(facecolor=color_map['可疑'], alpha=0.6, label='Questionable (2 < |Z| < 3)'),
-            Patch(facecolor=color_map['不满意'], alpha=0.6, label='Unsatisfactory (|Z| ≥ 3)')
-        ]
-        
-        ax.legend(
-            handles=legend_elements, 
-            title='Category', 
-            title_fontsize=12, 
-            fontsize=11, 
-            loc='upper center', 
-            bbox_to_anchor=(0.5, 1.00), 
-            ncol=3, 
-            frameon=True
-        )
-        
-        # 设置Y轴刻度
-        ax.set_yticks(y_positions)
-        ax.set_yticklabels(chart_data['Label'])
-        
-        # 添加参考线
-        ax.axvline(x=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
-        ax.axvline(x=-2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
-        ax.axvline(x=2, color='gray', linestyle='--', alpha=0.7, linewidth=0.8)
-        ax.axvline(x=-3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
-        ax.axvline(x=3, color='red', linestyle='--', alpha=0.7, linewidth=0.8)
-        
-        # 添加网格和背景
-        ax.grid(axis='x', alpha=0.3, linestyle='--')
-        ax.set_facecolor('white')
-        
-        # 反转Y轴，使最大的Z值在顶部
-        ax.invert_yaxis()
-        
-        # 调整布局
-        plt.subplots_adjust(top=0.88)
-        plt.tight_layout()
-        
-        return fig
-        
-    except Exception as e:
-        st.error(f"创建图表时发生错误: {str(e)}")
-        return None
 
 # =============================================
 # 主程序分析部分
@@ -2981,10 +2830,7 @@ if data is not None and len(data) > 0:
                 # 使用Z比分计算方法
                 results = z_score_calculation_algorithm(data, robust_mean_val, robust_std_val, scheme=scheme_param)
 
-        # 删除蓝色块的计算方案说明（第一行），仅在详细结果中保留
-        # 注意：这里不再显示results['formatting_note']的蓝色块
-        
-        # 显示核心结果
+        # 显示核心结果（2行4列布局）
         display_core_results(results, method)
         
         # 显示Z比分分析
@@ -3016,7 +2862,7 @@ if data is not None and len(data) > 0:
             st.pyplot(fig)
         
         # =============================================
-        # 方案比较功能（可选） - 修改版本：整合Z比分对比表格
+        # 方案比较功能（可选）
         # =============================================
         if show_scheme_comparison and method != "Z比分计算模块":
             st.markdown("---")
@@ -3048,39 +2894,11 @@ if data is not None and len(data) > 0:
                 st.write(f"稳健标准差: {presentation_results['robust_std']:.3f}")
                 st.write(f"离群值数量: {len(presentation_results['outliers'])}")
             
-            # 显示Z比分对比表格
-            st.subheader("📊 Z比分对比表格")
-            
-            # 创建对比数据
-            comparison_data = []
-            n_points = len(strict_results['Z_scores_rounded'])
-            
-            for i in range(n_points):
-                strict_z = strict_results['Z_scores_rounded'][i]
-                presentation_z = presentation_results['Z_scores_rounded'][i]
-                strict_class = strict_results['z_score_classifications'][i]
-                presentation_class = presentation_results['z_score_classifications'][i]
-                
-                comparison_data.append({
-                    '数据点': f"{i+1:03d}",
-                    '严格计算Z比分': f"{strict_z:.2f}",
-                    '严格计算分类': strict_class,
-                    '规范展示Z比分': f"{presentation_z:.2f}",
-                    '规范展示分类': presentation_class
-                })
-            
-            # 创建DataFrame
-            comparison_df = pd.DataFrame(comparison_data)
-            
-            # 显示表格
-            st.dataframe(comparison_df, use_container_width=True)
-            
             # 显示方案差异说明
             st.info("""
             **方案差异说明:**
             - **严格计算方案**: 使用完整计算精度，确保计算准确性
             - **规范展示方案**: 稳健平均值与原始数据小数位数一致，结果更规范但可能引入微小误差
-            - **Z比分处理**: Z比分的计算数据精度不同，计算方法相同，展示时统一格式化为两位小数
             """)
     
         # =============================================
@@ -3442,8 +3260,6 @@ Z比分数分类（仅有效数据）:
                     mime="application/pdf"
                 )
         
-        # 删除重复的小数位数说明，因为已在小数位数保留规则说明中说明
-        
     except Exception as e:
         st.error(f"❌ 统计分析过程中发生错误: {str(e)}")
         st.info("💡 这可能是因为数据特征不适合所选的分析方法，请尝试其他统计方法或检查数据质量")
@@ -3472,3 +3288,8 @@ with st.expander("💬 有问题或建议？点击这里联系我们", expanded=
        
     感谢您帮助我们变得更好！
     """)
+
+# =============================================
+# 添加页面底部空白，确保用户反馈模块完整显示
+# =============================================
+st.markdown('<div class="page-bottom-padding"></div>', unsafe_allow_html=True)
