@@ -1154,18 +1154,24 @@ if input_method == "手动输入":
         if st.button(undo_label, use_container_width=True, disabled=undo_disabled):
             undo_data()
     
-    # 显示验证结果
+    # 显示验证结果 - 修改：仅显示小数位数保留规则的介绍，默认为收起状态
     if st.session_state.validation_passed:
-        with st.expander("📋 查看数据验证报告", expanded=True):
-            for line in st.session_state.validation_report:
-                if line.startswith("❌"):
-                    st.error(line)
-                elif line.startswith("⚠️"):
-                    st.warning(line)
-                elif line.startswith("📊"):
-                    st.write("**" + line + "**")
-                else:
-                    st.write(line)
+        # 获取小数位数信息
+        decimal_places = st.session_state.decimal_info.get('detected_decimal_places', 0)
+        max_decimal_places = st.session_state.decimal_info.get('max_decimal_places', 0)
+        consistent_decimals = st.session_state.decimal_info.get('consistent_decimals', True)
+        
+        with st.expander("📋 小数位数保留规则说明", expanded=False):
+            st.info(f"""
+            **小数位数处理规则：**
+            1. 检测到数据最大小数位数: {max_decimal_places}位
+            2. 数据小数位数一致性: {'一致' if consistent_decimals else '不一致'}
+            3. 使用的小数位数: {decimal_places}位
+            
+            **计算方案说明：**
+            - 严格计算方案：保留完整计算精度
+            - 规范展示方案：稳健平均值与原始数据保持相同小数位数({decimal_places}位)，稳健标准差保留3位小数
+            """)
     
     # 如果已经处理了数据，则设置data变量
     if st.session_state.data_loaded and st.session_state.processed_data is not None:
@@ -1298,17 +1304,22 @@ elif input_method == "文件上传":
                     if blank_count > 0:
                         st.warning(f"⚠️ 检测到 {blank_count} 个空白数据点，这些数据将被忽略")
                     
-                    # 显示验证报告
-                    with st.expander("📋 查看文件验证报告", expanded=True):
-                        for line in validation_report:
-                            if line.startswith("❌"):
-                                st.error(line)
-                            elif line.startswith("⚠️"):
-                                st.warning(line)
-                            elif line.startswith("📊"):
-                                st.write("**" + line + "**")
-                            else:
-                                st.write(line)
+                    # 显示小数位数保留规则说明
+                    decimal_places = decimal_info.get('detected_decimal_places', 0)
+                    max_decimal_places = decimal_info.get('max_decimal_places', 0)
+                    consistent_decimals = decimal_info.get('consistent_decimals', True)
+                    
+                    with st.expander("📋 小数位数保留规则说明", expanded=False):
+                        st.info(f"""
+                        **小数位数处理规则：**
+                        1. 检测到数据最大小数位数: {max_decimal_places}位
+                        2. 数据小数位数一致性: {'一致' if consistent_decimals else '不一致'}
+                        3. 使用的小数位数: {decimal_places}位
+                        
+                        **计算方案说明：**
+                        - 严格计算方案：保留完整计算精度
+                        - 规范展示方案：稳健平均值与原始数据保持相同小数位数({decimal_places}位)，稳健标准差保留3位小数
+                        """)
                     
                     st.write("**前10个有效数据:**", processed_data[:10])
                     
@@ -1348,6 +1359,14 @@ else:  # 示例数据
         54.5, 55.9, 53.2, 54.6
     ])
     
+    # 验证示例数据
+    calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
+    is_valid, original_data, clean_data, blank_count, validation_report, decimal_info = \
+        DataValidator.comprehensive_validation(
+            "54.4, 54.6, 54.2, 54.3, 53.9, 54.4, 54.3, 54.6, 54.5, 54.3, 54.5, 54.1, 54.2, 54.3, 54.8, 54.8, 54.8, 54.3, 54.4, 54.3, 54.3, 54.7, 54.4, 54.5, 54.4, 55.0, 55.0, 55.1, 54.1, 54.8, 54.5, 55.5, 55.6, 55.0, 54.3, 55.3, 54.3, 54.4, 54.3, 54.4, 54.5, 55.9, 53.2, 54.6",
+            calculation_scheme
+        )
+    
     # 确认使用示例数据
     if st.button("使用示例数据进行分析", type="primary"):
         data = example_data
@@ -1355,6 +1374,7 @@ else:  # 示例数据
         st.session_state.original_data = example_data.tolist()
         st.session_state.data_loaded = True
         st.session_state.blank_count = 0
+        st.session_state.decimal_info = decimal_info
         
         st.success(f"✅ 示例数据已加载，包含 {len(example_data)} 个测量值")
         st.rerun()
@@ -1362,38 +1382,22 @@ else:  # 示例数据
     if is_valid:
         st.success("✅ 示例数据验证通过")
     
-    # 添加一个可展开的区域显示所有原始数据值
-    with st.expander("📋 查看所有示例数据值", expanded=False):
-        # 创建数据框显示所有数据
-        df_example = pd.DataFrame({
-            '数据编号': range(1, len(example_data) + 1),
-            '数值': example_data
-        })
-        st.dataframe(df_example, use_container_width=True)
+    # 显示小数位数保留规则说明
+    decimal_places = decimal_info.get('detected_decimal_places', 0)
+    max_decimal_places = decimal_info.get('max_decimal_places', 0)
+    consistent_decimals = decimal_info.get('consistent_decimals', True)
+    
+    with st.expander("📋 小数位数保留规则说明", expanded=False):
+        st.info(f"""
+        **小数位数处理规则：**
+        1. 检测到数据最大小数位数: {max_decimal_places}位
+        2. 数据小数位数一致性: {'一致' if consistent_decimals else '不一致'}
+        3. 使用的小数位数: {decimal_places}位
         
-        # 显示验证报告
-        st.write("**数据验证报告:**")
-        for line in validation_report:
-            if line.startswith("❌"):
-                st.error(line)
-            elif line.startswith("⚠️"):
-                st.warning(line)
-            elif line.startswith("📊"):
-                st.write("**" + line + "**")
-            else:
-                st.write(line)
-        
-        # 同时显示基本统计信息
-        st.write("**基本统计信息:**")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("平均值", f"{np.mean(example_data):.4f}")
-        with col2:
-            st.metric("标准差", f"{np.std(example_data, ddof=1):.4f}")
-        with col3:
-            st.metric("最小值", f"{np.min(example_data):.4f}")
-        with col4:
-            st.metric("最大值", f"{np.max(example_data):.4f}")
+        **计算方案说明：**
+        - 严格计算方案：保留完整计算精度
+        - 规范展示方案：稳健平均值与原始数据保持相同小数位数({decimal_places}位)，稳健标准差保留3位小数
+        """)
     
     # 设置数据变量，以便后续分析
     data = example_data
@@ -2288,7 +2292,7 @@ def _fallback_method(data, scheme, error_message=""):
     }
 
 # =============================================
-# 统一结果显示组件
+# 统一结果显示组件 - 修改版本
 # =============================================
 
 def display_method_specific_info(results, method):
@@ -2312,26 +2316,53 @@ def display_method_specific_info(results, method):
             st.metric("MAD", f"{results.get('mad', 0):.6f}")
 
 def display_core_results(results, method):
-    """显示核心结果 - 统一格式"""
+    """显示核心结果 - 修改版本：隐藏离群值数量和迭代次数"""
     # 主要统计量
     col1, col2, col3, col4 = st.columns(4)
+    
+    # 根据计算方案格式化显示
+    decimal_places = results.get('decimal_places', 0)
+    calculation_scheme = results.get('calculation_scheme', 'strict')
+    
     with col1:
-        st.metric("稳健平均值", f"{results['robust_mean']:.6f}")
+        if calculation_scheme == "presentation":
+            # 规范展示方案：使用原始数据小数位数
+            formatted_mean = round(results['robust_mean'], decimal_places)
+            st.metric("稳健平均值", f"{formatted_mean}")
+        else:
+            # 严格计算方案：显示6位小数
+            st.metric("稳健平均值", f"{results['robust_mean']:.6f}")
+    
     with col2:
-        st.metric("稳健标准差", f"{results['robust_std']:.6f}")
+        if calculation_scheme == "presentation":
+            # 规范展示方案：保留3位小数
+            formatted_std = round(results['robust_std'], 3)
+            st.metric("稳健标准差", f"{formatted_std}")
+        else:
+            # 严格计算方案：显示6位小数
+            st.metric("稳健标准差", f"{results['robust_std']:.6f}")
+    
     with col3:
-        st.metric("离群值数量", len(results['outliers']))
-    with col4:
+        # 移除离群值数量显示
         if 'iterations' in results:
             st.metric("迭代次数", results['iterations'])
         else:
-            st.metric("计算方案", "规范展示" if results.get('calculation_scheme') == "presentation" else "严格计算")
+            # 显示Z比分统计信息
+            z_scores = results.get('Z_scores_rounded', [])
+            if z_scores:
+                satisfactory = sum(1 for z in z_scores if abs(z) <= 2)
+                st.metric("满意数据", f"{satisfactory}")
+    
+    with col4:
+        # 计算方案显示
+        scheme_display = "规范展示" if calculation_scheme == "presentation" else "严格计算"
+        st.metric("计算方案", scheme_display)
     
     # 方法特定信息
     display_method_specific_info(results, method)
 
-def display_z_score_analysis(results, original_labels=None):
-    """统一显示Z比分分析"""
+def display_z_score_analysis(results):
+    """统一显示Z比分分析 - 修改版本：仅显示一个Z比分分析"""
     # Z比分分类统计
     st.subheader("📊 Z比分分析")
     
@@ -2406,7 +2437,7 @@ def display_detailed_results(results, method, data, original_labels=None):
             st.success("✅ **离群值**: 无检测到离群值")
 
 # =============================================
-# Z比分对比表格功能
+# Z比分对比表格功能 - 修改版本
 # =============================================
 
 def display_z_score_comparison_table(results, original_labels=None):
@@ -2435,7 +2466,6 @@ def display_z_score_comparison_table(results, original_labels=None):
         
         comparison_data.append({
             '数据点': labels[i],
-            '高精度Z比分数': f"{high_precision_z:.6f}",
             '保留两位小数Z比分数': f"{rounded_z:.2f}",
             '分类结果': classification
         })
@@ -2685,10 +2715,8 @@ if data is not None and len(data) > 0:
                 # 使用Z比分计算方法
                 results = z_score_calculation_algorithm(data, robust_mean_val, robust_std_val, scheme=scheme_param)
 
-        # 显示计算方案说明
-        with st.expander("ℹ️ 计算方案说明", expanded=True):
-            st.info(results['formatting_note'])
-            st.success("💡 **Z比分处理说明**: Z比分在计算过程中保持完整精度，展示和导出时统一格式化为两位小数。分类基于保留两位小数后的Z比分数进行计算。")
+        # 修改：删除计算方案说明的下拉条，仅保留蓝色块中的计算方案展示
+        st.info(results['formatting_note'])
         
         # 显示核心结果
         display_core_results(results, method)
@@ -2700,7 +2728,7 @@ if data is not None and len(data) > 0:
         display_detailed_results(results, method, data)
         
         # =============================================
-        # 数据可视化
+        # 数据可视化 - 修改版本
         # =============================================
         st.subheader("📊 数据可视化")
         
@@ -2713,16 +2741,13 @@ if data is not None and len(data) > 0:
             n_points = len(data)
             original_labels = [f"{i+1:03d}" for i in range(n_points)]
         
-        # 显示Z比分对比表格
-        comparison_df = display_z_score_comparison_table(results, original_labels)
-        
         # 显示Z比分图表
         fig = create_z_score_chart(results, original_labels)
         if fig is not None:
             st.pyplot(fig)
         
         # =============================================
-        # 方案比较功能（可选）
+        # 方案比较功能（可选） - 修改版本：整合Z比分对比表格
         # =============================================
         if show_scheme_comparison and method != "Z比分计算模块":
             st.markdown("---")
@@ -2754,6 +2779,33 @@ if data is not None and len(data) > 0:
                 st.write(f"稳健标准差: {presentation_results['robust_std']:.3f}")
                 st.write(f"离群值数量: {len(presentation_results['outliers'])}")
             
+            # 显示Z比分对比表格
+            st.subheader("📊 Z比分对比表格")
+            
+            # 创建对比数据
+            comparison_data = []
+            n_points = len(strict_results['Z_scores_rounded'])
+            
+            for i in range(n_points):
+                strict_z = strict_results['Z_scores_rounded'][i]
+                presentation_z = presentation_results['Z_scores_rounded'][i]
+                strict_class = strict_results['z_score_classifications'][i]
+                presentation_class = presentation_results['z_score_classifications'][i]
+                
+                comparison_data.append({
+                    '数据点': f"{i+1:03d}",
+                    '严格计算Z比分': f"{strict_z:.2f}",
+                    '严格计算分类': strict_class,
+                    '规范展示Z比分': f"{presentation_z:.2f}",
+                    '规范展示分类': presentation_class
+                })
+            
+            # 创建DataFrame
+            comparison_df = pd.DataFrame(comparison_data)
+            
+            # 显示表格
+            st.dataframe(comparison_df, use_container_width=True)
+            
             # 显示方案差异说明
             st.info("""
             **方案差异说明:**
@@ -2763,7 +2815,7 @@ if data is not None and len(data) > 0:
             """)
     
         # =============================================
-        # 导出结果模块
+        # 导出结果模块 - 修改版本：删除导出结果预览模块和数据一致性验证
         # =============================================
         st.subheader("💾 导出结果")
         
@@ -2923,29 +2975,6 @@ if data is not None and len(data) > 0:
         }
         stats_df = pd.DataFrame(stats_data)
         
-        # 创建用于显示的DataFrame（确保Z比分显示两位小数）
-        display_df = result_df.copy()
-        
-        # 显示预览 - 使用与导出相同的数据
-        st.write("**导出数据预览:**")
-        st.dataframe(display_df, use_container_width=True)
-        
-        # 验证数据一致性
-        st.write(f"**数据一致性验证:**")
-        st.write(f"- 原始数据点数: {total_data_count}")
-        st.write(f"- 有效分析数据: {actual_analyzable_count}")
-        st.write(f"- 空白数据数: {blank_data_count}")
-        st.write(f"- Z比分数量: {len(results['formatted_Z_scores'])}")
-        st.write(f"- 导出数据行数: {len(result_df)}")
-        
-        if total_data_count != len(results['formatted_Z_scores']):
-            st.error("❌ 数据数量不匹配！请检查数据处理逻辑。")
-        else:
-            st.success("✅ 数据一致性验证通过")
-        
-        st.write("**统计量摘要:**")
-        st.dataframe(stats_df, use_container_width=True)
-        
         # 在文本报告开头添加方案说明和小数位数说明
         scheme_text = "严格计算方案" if calculation_scheme == "严格计算方案" else "规范展示方案"
         report = f"""                
@@ -3004,7 +3033,6 @@ if data is not None and len(data) > 0:
 分析详情:
 --------
 分析方法: {method}
-离群值数量: {len(results['outliers'])}
 正常值范围: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]
 """
 
@@ -3170,26 +3198,12 @@ Z比分数分类（仅有效数据）:
         # 添加小数位数说明
         st.info(f"💡 **小数位数说明**: 导出的数据使用 {detected_decimal_places} 位小数（基于输入数据的最大小数位数）。Z比分统一格式化为两位小数，空白数据会保留标签但数据为空。")
         
-        # 添加分类标准说明
-        st.info("""
-        **注意**: 分类基于保留两位小数后的Z比分数进行计算。
-        """)
-        
     except Exception as e:
         st.error(f"❌ 统计分析过程中发生错误: {str(e)}")
         st.info("💡 这可能是因为数据特征不适合所选的分析方法，请尝试其他统计方法或检查数据质量")
 
 else:
     st.info("👆 请先输入或上传数据以开始分析")
-
-# 页脚
-st.markdown("---")
-st.markdown("""
-**Z比分分类标准:**
-- **满意**: |Z| ≤ 2
-- **可疑**: 2 < |Z| < 3  
-- **不满意**: |Z| ≥ 3
-""")
 
 # 用户反馈
 st.markdown("---")
