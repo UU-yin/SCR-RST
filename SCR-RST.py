@@ -915,7 +915,7 @@ st.set_page_config(
 initialize_session_state()
 
 # 设置页面配置
-# 添加CSS，保留Streamlit Cloud顶部UI空间
+# 添加CSS，为顶部区域添加纯色块
 st.markdown("""
 <style>
 /* 为Streamlit Cloud顶部UI元素保留空间 */
@@ -930,31 +930,76 @@ st.markdown("""
     padding-bottom: 0 !important;
 }
 
-/* 主容器 - 单行显示 */
+/* 主容器 - 单行显示，添加纯色背景 */
 .single-line-container {
     display: flex !important;
     align-items: flex-start !important;
     flex-wrap: nowrap !important;
     width: 100% !important;
     margin: 0 !important;
-    padding: 10px 0 !important; /* 添加少量内边距 */
+    padding: 20px !important;
+    background: linear-gradient(135deg, #f0f8ff 0%, #e6f7ff 50%, #f0f8ff 100%) !important;
+    border-radius: 15px !important;
+    border: 2px solid #e0f2ff !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
 }
 
-/* 图标容器 */
+/* 图标容器 - 添加纯色背景块 */
 .icon-wrapper {
     flex: 0 0 auto !important;
     display: flex !important;
     align-items: center !important;
     justify-content: flex-start !important;
     margin-right: 30px !important;
+    background-color: #ffffff !important;
+    padding: 15px !important;
+    border-radius: 12px !important;
+    border: 2px solid #d0e7ff !important;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05) !important;
 }
 
-/* 文字容器 - 保持固定上边距 */
+/* 文字容器 - 添加纯色背景块 */
 .text-wrapper {
     flex: 1 !important;
     display: flex !important;
     flex-direction: column !important;
-    padding-top: 60px !important;
+    background-color: #ffffff !important;
+    padding: 20px 30px !important;
+    border-radius: 12px !important;
+    border: 2px solid #d0e7ff !important;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* 主标题样式 - 添加背景色 */
+.text-wrapper h3 {
+    background: linear-gradient(90deg, #1890ff 0%, #52c41a 100%) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    padding: 5px 0 !important;
+    margin-bottom: 10px !important;
+    font-size: 28px !important;
+    font-weight: bold !important;
+}
+
+/* 副标题列表样式 - 添加背景色块 */
+.text-wrapper ul {
+    background-color: #f9fdff !important;
+    padding: 15px 20px 15px 35px !important;
+    border-radius: 8px !important;
+    border-left: 4px solid #1890ff !important;
+    margin: 0 !important;
+}
+
+.text-wrapper li {
+    color: #333 !important;
+    margin-bottom: 8px !important;
+    font-size: 15px !important;
+    line-height: 1.5 !important;
+}
+
+.text-wrapper li:last-child {
+    margin-bottom: 0 !important;
 }
 
 /* 响应式图标大小调整 */
@@ -969,7 +1014,7 @@ st.markdown("""
         width: 220px !important;
     }
     .text-wrapper {
-        padding-top: 35px !important;
+        padding: 15px 20px !important;
     }
 }
 
@@ -978,7 +1023,13 @@ st.markdown("""
         width: 180px !important;
     }
     .text-wrapper {
-        padding-top: 30px !important;
+        padding: 15px !important;
+    }
+    .text-wrapper h3 {
+        font-size: 24px !important;
+    }
+    .text-wrapper li {
+        font-size: 14px !important;
     }
 }
 
@@ -987,7 +1038,13 @@ st.markdown("""
         width: 150px !important;
     }
     .text-wrapper {
-        padding-top: 25px !important;
+        padding: 12px !important;
+    }
+    .text-wrapper h3 {
+        font-size: 22px !important;
+    }
+    .text-wrapper li {
+        font-size: 13px !important;
     }
 }
 
@@ -996,7 +1053,13 @@ st.markdown("""
         width: 120px !important;
     }
     .text-wrapper {
-        padding-top: 20px !important;
+        padding: 10px !important;
+    }
+    .text-wrapper h3 {
+        font-size: 20px !important;
+    }
+    .text-wrapper li {
+        font-size: 12px !important;
     }
 }
 
@@ -1017,6 +1080,39 @@ header[data-testid="stHeader"] {
     .stApp {
         padding-top: 30px !important; /* 在手机上可能需要更多空间 */
     }
+}
+
+/* 统计结果对齐样式 */
+.stats-row-container {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+    margin-bottom: 10px !important;
+}
+
+.stats-metric-container {
+    flex: 1 !important;
+    min-width: calc(25% - 10px) !important;
+}
+
+/* 为第二行数据添加对齐容器 */
+.aligned-row {
+    margin-top: 20px !important;
+    width: 100% !important;
+}
+
+/* 统计量表格样式 */
+.stat-table-container {
+    margin-top: 20px !important;
+    padding: 15px !important;
+    background-color: #f9fdff !important;
+    border-radius: 10px !important;
+    border: 1px solid #e0f2ff !important;
+}
+
+/* 删除"满意数据"列后调整列宽 */
+[data-testid="metric-container"] {
+    min-height: 100px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1039,10 +1135,19 @@ with st.container():
         st.markdown('</div>', unsafe_allow_html=True)
     
     with col2:
-        # 文字容器 - 使用固定的上边距
+        # 文字容器 - 添加纯色背景块
         st.markdown('<div class="text-wrapper">', unsafe_allow_html=True)
         st.markdown("### **统计宝**")
         st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
+        # 添加带背景色的副标题列表
+        st.markdown("""
+        <ul>
+            <li>迭代稳健统计法：通过迭代过程逐步修正异常值影响，收敛后得到稳健的统计估计</li>
+            <li>四分位稳健统计法：以数据排序为基础，使用数据集中段50%的数据，崩溃点为25%，具有易于计算、操作简单的特点</li>
+            <li>Q/Hampel法：结合Q方法计算的稳健标准差和Hampel方法计算的稳健平均值，具有较好的抗异常值干扰能力</li>
+            <li>Z比分计算模块：使用用户提供的稳健统计量计算Z比分：Z比分 = (测试数据-稳健平均值)/稳健标准差</li>
+        </ul>
+        """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
@@ -1116,10 +1221,6 @@ input_method = st.radio("",
                        horizontal=True,
                        index=0,  # 设置默认选中第一个选项
                        label_visibility="collapsed")
-
-# 测试是否能正确识别选择
-st.write(f"当前选择的输入方式: **{input_method}**")
-data = None
 
 # 手动输入：
 if input_method == "手动输入":
@@ -2324,79 +2425,84 @@ def _fallback_method(data, scheme, error_message=""):
 # =============================================
 
 def display_method_specific_info(results, method):
-    """显示各方法特有的统计信息"""
+    """显示各方法特有的统计信息 - 修改版本：确保第二行数据与第一行对齐"""
     # 获取计算方案和小数位数
     calculation_scheme = results.get('calculation_scheme', 'strict')
     decimal_places = results.get('decimal_places', 0)
     
     if method == "四分位稳健统计法":
-        col1, col2, col3, col4 = st.columns(4)
+        # 创建4列容器，确保与第一行对齐
+        cols = st.columns(4)
         
-        with col1:
-            if calculation_scheme == "presentation":
-                # 规范展示方案：按原始数据小数位数格式化
-                formatted_q1 = round(results['q1'], decimal_places)
-                st.metric("下四分位数(Q1)", f"{formatted_q1}")
-            else:
-                # 严格计算方案：显示6位小数
-                st.metric("下四分位数(Q1)", f"{results['q1']:.6f}")
+        metrics_data = []
+        if calculation_scheme == "presentation":
+            # 规范展示方案：按原始数据小数位数格式化
+            metrics_data.append(("下四分位数(Q1)", round(results['q1'], decimal_places), ""))
+            metrics_data.append(("上四分位数(Q3)", round(results['q3'], decimal_places), ""))
+            metrics_data.append(("四分位距(IQR)", round(results['iqr'], decimal_places), ""))
+            metrics_data.append(("标准化四分位距(NIQR)", round(results['niqr'], 3), ""))
+        else:
+            # 严格计算方案：显示6位小数
+            metrics_data.append(("下四分位数(Q1)", results['q1'], f"{results['q1']:.6f}"))
+            metrics_data.append(("上四分位数(Q3)", results['q3'], f"{results['q3']:.6f}"))
+            metrics_data.append(("四分位距(IQR)", results['iqr'], f"{results['iqr']:.6f}"))
+            metrics_data.append(("标准化四分位距(NIQR)", results['niqr'], f"{results['niqr']:.6f}"))
         
-        with col2:
-            if calculation_scheme == "presentation":
-                # 规范展示方案：按原始数据小数位数格式化
-                formatted_q3 = round(results['q3'], decimal_places)
-                st.metric("上四分位数(Q3)", f"{formatted_q3}")
-            else:
-                # 严格计算方案：显示6位小数
-                st.metric("上四分位数(Q3)", f"{results['q3']:.6f}")
-        
-        with col3:
-            if calculation_scheme == "presentation":
-                # 规范展示方案：按原始数据小数位数格式化
-                formatted_iqr = round(results['iqr'], decimal_places)
-                st.metric("四分位距(IQR)", f"{formatted_iqr}")
-            else:
-                # 严格计算方案：显示6位小数
-                st.metric("四分位距(IQR)", f"{results['iqr']:.6f}")
-        
-        with col4:
-            if calculation_scheme == "presentation":
-                # 规范展示方案：NIQR保留3位小数
-                formatted_niqr = round(results['niqr'], 3)
-                st.metric("标准化四分位距(NIQR)", f"{formatted_niqr}")
-            else:
-                # 严格计算方案：显示6位小数
-                st.metric("标准化四分位距(NIQR)", f"{results['niqr']:.6f}")
+        # 在每一列中显示指标
+        for i, (title, value, display_value) in enumerate(metrics_data):
+            with cols[i]:
+                if calculation_scheme == "presentation":
+                    st.metric(title, f"{value}")
+                else:
+                    st.metric(title, f"{value:.6f}")
     
     elif method == "Q/Hampel法":
-        col1, col2 = st.columns(2)
+        # 创建4列容器，确保与第一行对齐
+        cols = st.columns(4)
         
-        with col1:
-            if calculation_scheme == "presentation":
-                # 规范展示方案：按原始数据小数位数格式化
-                initial_median = results.get('initial_median', results['robust_mean'])
-                formatted_initial_median = round(initial_median, decimal_places)
-                st.metric("初始中位数", f"{formatted_initial_median}")
-            else:
-                # 严格计算方案：显示6位小数
-                initial_median = results.get('initial_median', results['robust_mean'])
-                st.metric("初始中位数", f"{initial_median:.6f}")
+        metrics_data = []
+        if calculation_scheme == "presentation":
+            # 规范展示方案：按原始数据小数位数格式化
+            initial_median = results.get('initial_median', results['robust_mean'])
+            metrics_data.append(("初始中位数", round(initial_median, decimal_places), ""))
+            
+            mad = results.get('mad', 0)
+            metrics_data.append(("MAD", round(mad, decimal_places), ""))
+            
+            # 添加两个空白列以保持对齐
+            metrics_data.append(("", "", ""))
+            metrics_data.append(("", "", ""))
+        else:
+            # 严格计算方案：显示6位小数
+            initial_median = results.get('initial_median', results['robust_mean'])
+            metrics_data.append(("初始中位数", initial_median, f"{initial_median:.6f}"))
+            
+            mad = results.get('mad', 0)
+            metrics_data.append(("MAD", mad, f"{mad:.6f}"))
+            
+            # 添加两个空白列以保持对齐
+            metrics_data.append(("", "", ""))
+            metrics_data.append(("", "", ""))
         
-        with col2:
-            if calculation_scheme == "presentation":
-                # 规范展示方案：按原始数据小数位数格式化
-                mad = results.get('mad', 0)
-                formatted_mad = round(mad, decimal_places)
-                st.metric("MAD", f"{formatted_mad}")
-            else:
-                # 严格计算方案：显示6位小数
-                mad = results.get('mad', 0)
-                st.metric("MAD", f"{mad:.6f}")
+        # 在每一列中显示指标
+        for i, (title, value, display_value) in enumerate(metrics_data):
+            with cols[i]:
+                if title:  # 只显示有标题的指标
+                    if calculation_scheme == "presentation":
+                        st.metric(title, f"{value}")
+                    else:
+                        st.metric(title, f"{value:.6f}")
+                else:
+                    # 空白列，保持对齐但不显示内容
+                    st.metric("", "")
 
 def display_core_results(results, method):
-    """显示核心结果 - 修改版本：隐藏离群值数量和迭代次数"""
-    # 主要统计量
-    col1, col2, col3, col4 = st.columns(4)
+    """显示核心结果 - 修改版本：删除稳健标准差后边的'计算方案'和'满意数据'"""
+    # 主要统计量 - 第一行：只显示稳健平均值和稳健标准差
+    st.markdown('<div class="stats-row-container">', unsafe_allow_html=True)
+    
+    # 创建3列容器，第一行只使用前两列
+    col1, col2, col3 = st.columns(3)
     
     # 根据计算方案格式化显示
     decimal_places = results.get('decimal_places', 0)
@@ -2421,22 +2527,19 @@ def display_core_results(results, method):
             st.metric("稳健标准差", f"{results['robust_std']:.6f}")
     
     with col3:
-        # 移除离群值数量显示，显示计算方案
-        scheme_display = "规范展示" if calculation_scheme == "presentation" else "严格计算"
-        st.metric("计算方案", scheme_display)
+        # 第三列留空，保持布局对齐
+        st.metric("", "")
     
-    with col4:
-        # 显示Z比分统计信息
-        z_scores = results.get('Z_scores_rounded', [])
-        if z_scores:
-            satisfactory = sum(1 for z in z_scores if abs(z) <= 2)
-            st.metric("满意数据", f"{satisfactory}")
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    # 方法特定信息
-    display_method_specific_info(results, method)
+    # 方法特定信息 - 第二行：确保与第一行对齐
+    if method in ["四分位稳健统计法", "Q/Hampel法"]:
+        st.markdown('<div class="aligned-row">', unsafe_allow_html=True)
+        display_method_specific_info(results, method)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 def display_z_score_analysis(results):
-    """统一显示Z比分分析 - 修改版本：仅显示一个Z比分分析"""
+    """统一显示Z比分分析"""
     # Z比分分类统计
     st.subheader("📊 Z比分分析")
     
@@ -2511,11 +2614,11 @@ def display_detailed_results(results, method, data, original_labels=None):
             st.success("✅ **离群值**: 无检测到离群值")
 
 # =============================================
-# 统计量表显示函数
+# 统计量表显示函数 - 修改版本：只展示到"极差"
 # =============================================
 
 def display_statistics_table(results, method, data, input_method, original_labels=None):
-    """显示统计量表"""
+    """显示统计量表 - 修改版本：只展示到'极差'"""
     st.subheader("📊 统计量表")
     
     # 根据输入方式选择正确的数据源
@@ -2552,15 +2655,15 @@ def display_statistics_table(results, method, data, input_method, original_label
             return int(value)  # 如果是整数，返回整数形式
         return round(value, decimal_places)
     
-    # 计算统计量
+    # 计算统计量 - 只计算到极差，删除正常值下限和上限
     total_data_count = len(current_original_data) if current_original_data else len(data)
     actual_analyzable_count = len(data)
     blank_data_count = current_blank_count if current_blank_count else 0
     
-    # 创建统计量表
+    # 创建统计量表 - 只展示到极差
     stats_data = {
         '统计量名称': ['总数据数', '实际可分析数据数', '空白数据数', '稳健平均值', '稳健标准差', 
-                     '最小值', '最大值', '极差', '正常值下限', '正常值上限'],
+                     '最小值', '最大值', '极差'],
         '数值': [
             total_data_count,
             actual_analyzable_count,
@@ -2569,9 +2672,7 @@ def display_statistics_table(results, method, data, input_method, original_label
             format_number(results['robust_std'], 3),  # 标准差保持3位
             format_number(np.min(data), detected_decimal_places) if len(data) > 0 else 0,
             format_number(np.max(data), detected_decimal_places) if len(data) > 0 else 0,
-            format_number(np.max(data) - np.min(data), detected_decimal_places) if len(data) > 0 else 0,
-            format_number(results['lower_limit'], detected_decimal_places),
-            format_number(results['upper_limit'], detected_decimal_places)
+            format_number(np.max(data) - np.min(data), detected_decimal_places) if len(data) > 0 else 0
         ]
     }
     
@@ -2595,12 +2696,14 @@ def display_statistics_table(results, method, data, input_method, original_label
     stats_df = pd.DataFrame(stats_data)
     
     # 显示表格
+    st.markdown('<div class="stat-table-container">', unsafe_allow_html=True)
     st.dataframe(stats_df, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
     
     return stats_df
 
 # =============================================
-# Z比分对比表格功能 - 修改版本
+# Z比分对比表格功能
 # =============================================
 
 def display_z_score_comparison_table(results, original_labels=None):
@@ -2678,7 +2781,7 @@ def display_z_score_comparison_table(results, original_labels=None):
     return comparison_df
 
 # =============================================
-# 可视化部分修改 - 使用新的分类标准
+# 可视化部分
 # =============================================
 
 def create_z_score_chart(results, original_labels=None):
@@ -2890,7 +2993,7 @@ if data is not None and len(data) > 0:
         # 显示详细结果（可折叠）
         display_detailed_results(results, method, data)
         
-        # 显示统计量表
+        # 显示统计量表（只展示到极差）
         stats_df = display_statistics_table(results, method, data, input_method)
         
         # =============================================
