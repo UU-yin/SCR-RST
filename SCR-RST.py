@@ -1167,10 +1167,6 @@ if input_method == "手动输入":
             1. 检测到数据最大小数位数: {max_decimal_places}位
             2. 数据小数位数一致性: {'一致' if consistent_decimals else '不一致'}
             3. 使用的小数位数: {decimal_places}位
-            
-            **计算方案说明：**
-            - 严格计算方案：保留完整计算精度
-            - 规范展示方案：稳健平均值与原始数据保持相同小数位数({decimal_places}位)，稳健标准差保留3位小数
             """)
     
     # 如果已经处理了数据，则设置data变量
@@ -1315,10 +1311,6 @@ elif input_method == "文件上传":
                         1. 检测到数据最大小数位数: {max_decimal_places}位
                         2. 数据小数位数一致性: {'一致' if consistent_decimals else '不一致'}
                         3. 使用的小数位数: {decimal_places}位
-                        
-                        **计算方案说明：**
-                        - 严格计算方案：保留完整计算精度
-                        - 规范展示方案：稳健平均值与原始数据保持相同小数位数({decimal_places}位)，稳健标准差保留3位小数
                         """)
                     
                     st.write("**前10个有效数据:**", processed_data[:10])
@@ -1393,10 +1385,6 @@ else:  # 示例数据
         1. 检测到数据最大小数位数: {max_decimal_places}位
         2. 数据小数位数一致性: {'一致' if consistent_decimals else '不一致'}
         3. 使用的小数位数: {decimal_places}位
-        
-        **计算方案说明：**
-        - 严格计算方案：保留完整计算精度
-        - 规范展示方案：稳健平均值与原始数据保持相同小数位数({decimal_places}位)，稳健标准差保留3位小数
         """)
     
     # 设置数据变量，以便后续分析
@@ -1738,6 +1726,12 @@ def quartile_robust_algorithm(data, scheme="strict"):
         robust_mean = formatted_median
         robust_std = formatted_niqr
         
+        # 在规范展示方案中，其他统计量也按原始数据小数位数格式化
+        formatted_q1 = round(q1, decimal_places)
+        formatted_q3 = round(q3, decimal_places)
+        formatted_iqr = round(iqr, decimal_places)
+        formatted_niqr_display = round(niqr, 3)  # niqr已经格式化过了
+        
     else:
         # 严格计算方案：使用原始计算值
         formatted_median = median
@@ -1751,6 +1745,12 @@ def quartile_robust_algorithm(data, scheme="strict"):
         
         robust_mean = median
         robust_std = niqr
+        
+        # 在严格计算方案中，显示6位小数
+        formatted_q1 = q1
+        formatted_q3 = q3
+        formatted_iqr = iqr
+        formatted_niqr_display = niqr
     
     # 确保Z_scores是安全的Python类型
     safe_z_scores_high_precision = Z_scores_high_precision.tolist() if hasattr(Z_scores_high_precision, 'tolist') else [float(z) for z in Z_scores_high_precision]
@@ -1772,10 +1772,10 @@ def quartile_robust_algorithm(data, scheme="strict"):
         'Z_scores_rounded': safe_z_scores_rounded,  # 保留两位小数的Z比分
         'formatted_Z_scores': formatted_Z_scores,  # 格式化显示的Z比分
         'z_score_classifications': z_score_classifications,  # Z比分分类
-        'q1': float(q1) if not np.isnan(q1) else 0.0,
-        'q3': float(q3) if not np.isnan(q3) else 0.0,
-        'iqr': float(iqr) if not np.isnan(iqr) else 0.0,
-        'niqr': float(niqr) if not np.isnan(niqr) else 0.0,
+        'q1': float(formatted_q1) if not np.isnan(formatted_q1) else 0.0,
+        'q3': float(formatted_q3) if not np.isnan(formatted_q3) else 0.0,
+        'iqr': float(formatted_iqr) if not np.isnan(formatted_iqr) else 0.0,
+        'niqr': float(formatted_niqr_display) if not np.isnan(formatted_niqr_display) else 0.0,
         'method_name': '四分位稳健统计法',
         'lower_limit': float(lower_limit) if not np.isnan(lower_limit) else 0.0,
         'upper_limit': float(upper_limit) if not np.isnan(upper_limit) else 0.0,
@@ -2166,10 +2166,19 @@ def _format_q_hampel_results(data, robust_mean, robust_std, clean_data, outliers
             Z_scores_high_precision = [0.0] * len(data)
             Z_scores_rounded = [0.0] * len(data)
         
-        formatting_note = f"使用规范展示方案：稳健平均值({formatted_robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。"
+        formatting_note = f"使用规范展示方案：稳健平均值({formatted_robust_mean})与原始数据小数位数({decimal_places}位)一致，稳健标准差保留3位小数。Z比分计算使用格式化后的均值和标准差。"
         
         display_mean = formatted_robust_mean
         display_std = formatted_robust_std
+        
+        # 在规范展示方案中，初始中位数和MAD也按原始数据小数位数格式化
+        initial_median = np.median(data)
+        formatted_initial_median = round(initial_median, decimal_places)
+        
+        # 计算MAD（中位数绝对偏差）
+        residuals = data - initial_median
+        mad = np.median(np.abs(residuals))
+        formatted_mad = round(mad, decimal_places)
         
     else:
         # 严格计算方案
@@ -2177,6 +2186,14 @@ def _format_q_hampel_results(data, robust_mean, robust_std, clean_data, outliers
         
         display_mean = robust_mean
         display_std = robust_std
+        
+        # 在严格计算方案中，显示6位小数
+        initial_median = np.median(data)
+        formatted_initial_median = initial_median
+        
+        residuals = data - initial_median
+        mad = np.median(np.abs(residuals))
+        formatted_mad = mad
     
     # 格式化Z比分为两位小数用于显示
     formatted_Z_scores = format_z_scores(Z_scores_rounded)
@@ -2202,7 +2219,9 @@ def _format_q_hampel_results(data, robust_mean, robust_std, clean_data, outliers
         'calculation_scheme': scheme,
         'decimal_places': decimal_places,
         'original_mean': float(robust_mean),
-        'original_std': float(robust_std)
+        'original_std': float(robust_std),
+        'initial_median': float(formatted_initial_median),
+        'mad': float(formatted_mad)
     }
 
 def _create_empty_result(scheme):
@@ -2225,13 +2244,18 @@ def _create_empty_result(scheme):
         'calculation_scheme': scheme,
         'decimal_places': 0,
         'original_mean': 0.0,
-        'original_std': 0.0
+        'original_std': 0.0,
+        'initial_median': 0.0,
+        'mad': 0.0
     }
 
 def _create_single_point_result(value, scheme):
     """创建单数据点结果"""
+    decimal_places = detect_decimal_places([value])
+    formatted_value = round(value, decimal_places) if scheme == "presentation" else value
+    
     return {
-        'robust_mean': float(value),
+        'robust_mean': float(formatted_value),
         'robust_std': 0.0,
         'clean_data': [float(value)],
         'outliers': [],
@@ -2240,15 +2264,17 @@ def _create_single_point_result(value, scheme):
         'formatted_Z_scores': ["0.00"],
         'z_score_classifications': ["满意"],
         'method_name': 'Q/Hampel法（单数据点）',
-        'lower_limit': float(value),
-        'upper_limit': float(value),
+        'lower_limit': float(formatted_value),
+        'upper_limit': float(formatted_value),
         'weights': [1.0],
         'iterations': 0,
         'formatting_note': "只有一个数据点，无法计算标准差",
         'calculation_scheme': scheme,
-        'decimal_places': detect_decimal_places([value]),
+        'decimal_places': decimal_places,
         'original_mean': float(value),
-        'original_std': 0.0
+        'original_std': 0.0,
+        'initial_median': float(formatted_value),
+        'mad': 0.0
     }
 
 # 添加缺失的回退方法
@@ -2288,7 +2314,9 @@ def _fallback_method(data, scheme, error_message=""):
         'calculation_scheme': scheme,
         'decimal_places': detect_decimal_places(data_array),
         'original_mean': mean_val,
-        'original_std': std_val
+        'original_std': std_val,
+        'initial_median': mean_val,
+        'mad': 0.0
     }
 
 # =============================================
@@ -2297,23 +2325,73 @@ def _fallback_method(data, scheme, error_message=""):
 
 def display_method_specific_info(results, method):
     """显示各方法特有的统计信息"""
+    # 获取计算方案和小数位数
+    calculation_scheme = results.get('calculation_scheme', 'strict')
+    decimal_places = results.get('decimal_places', 0)
+    
     if method == "四分位稳健统计法":
         col1, col2, col3, col4 = st.columns(4)
+        
         with col1:
-            st.metric("下四分位数(Q1)", f"{results['q1']:.6f}")
+            if calculation_scheme == "presentation":
+                # 规范展示方案：按原始数据小数位数格式化
+                formatted_q1 = round(results['q1'], decimal_places)
+                st.metric("下四分位数(Q1)", f"{formatted_q1}")
+            else:
+                # 严格计算方案：显示6位小数
+                st.metric("下四分位数(Q1)", f"{results['q1']:.6f}")
+        
         with col2:
-            st.metric("上四分位数(Q3)", f"{results['q3']:.6f}")
+            if calculation_scheme == "presentation":
+                # 规范展示方案：按原始数据小数位数格式化
+                formatted_q3 = round(results['q3'], decimal_places)
+                st.metric("上四分位数(Q3)", f"{formatted_q3}")
+            else:
+                # 严格计算方案：显示6位小数
+                st.metric("上四分位数(Q3)", f"{results['q3']:.6f}")
+        
         with col3:
-            st.metric("四分位距(IQR)", f"{results['iqr']:.6f}")
+            if calculation_scheme == "presentation":
+                # 规范展示方案：按原始数据小数位数格式化
+                formatted_iqr = round(results['iqr'], decimal_places)
+                st.metric("四分位距(IQR)", f"{formatted_iqr}")
+            else:
+                # 严格计算方案：显示6位小数
+                st.metric("四分位距(IQR)", f"{results['iqr']:.6f}")
+        
         with col4:
-            st.metric("标准化四分位距(NIQR)", f"{results['niqr']:.6f}")
+            if calculation_scheme == "presentation":
+                # 规范展示方案：NIQR保留3位小数
+                formatted_niqr = round(results['niqr'], 3)
+                st.metric("标准化四分位距(NIQR)", f"{formatted_niqr}")
+            else:
+                # 严格计算方案：显示6位小数
+                st.metric("标准化四分位距(NIQR)", f"{results['niqr']:.6f}")
     
     elif method == "Q/Hampel法":
         col1, col2 = st.columns(2)
+        
         with col1:
-            st.metric("初始中位数", f"{results.get('initial_median', results['robust_mean']):.6f}")
+            if calculation_scheme == "presentation":
+                # 规范展示方案：按原始数据小数位数格式化
+                initial_median = results.get('initial_median', results['robust_mean'])
+                formatted_initial_median = round(initial_median, decimal_places)
+                st.metric("初始中位数", f"{formatted_initial_median}")
+            else:
+                # 严格计算方案：显示6位小数
+                initial_median = results.get('initial_median', results['robust_mean'])
+                st.metric("初始中位数", f"{initial_median:.6f}")
+        
         with col2:
-            st.metric("MAD", f"{results.get('mad', 0):.6f}")
+            if calculation_scheme == "presentation":
+                # 规范展示方案：按原始数据小数位数格式化
+                mad = results.get('mad', 0)
+                formatted_mad = round(mad, decimal_places)
+                st.metric("MAD", f"{formatted_mad}")
+            else:
+                # 严格计算方案：显示6位小数
+                mad = results.get('mad', 0)
+                st.metric("MAD", f"{mad:.6f}")
 
 def display_core_results(results, method):
     """显示核心结果 - 修改版本：隐藏离群值数量和迭代次数"""
@@ -2343,20 +2421,16 @@ def display_core_results(results, method):
             st.metric("稳健标准差", f"{results['robust_std']:.6f}")
     
     with col3:
-        # 移除离群值数量显示
-        if 'iterations' in results:
-            st.metric("迭代次数", results['iterations'])
-        else:
-            # 显示Z比分统计信息
-            z_scores = results.get('Z_scores_rounded', [])
-            if z_scores:
-                satisfactory = sum(1 for z in z_scores if abs(z) <= 2)
-                st.metric("满意数据", f"{satisfactory}")
-    
-    with col4:
-        # 计算方案显示
+        # 移除离群值数量显示，显示计算方案
         scheme_display = "规范展示" if calculation_scheme == "presentation" else "严格计算"
         st.metric("计算方案", scheme_display)
+    
+    with col4:
+        # 显示Z比分统计信息
+        z_scores = results.get('Z_scores_rounded', [])
+        if z_scores:
+            satisfactory = sum(1 for z in z_scores if abs(z) <= 2)
+            st.metric("满意数据", f"{satisfactory}")
     
     # 方法特定信息
     display_method_specific_info(results, method)
@@ -2395,7 +2469,7 @@ def display_detailed_results(results, method, data, original_labels=None):
         # 正常值范围
         st.write(f"**正常值范围**: [{results['lower_limit']:.6f}, {results['upper_limit']:.6f}]")
         
-        # 格式化说明
+        # 格式化说明 - 仅在详细结果中保留
         if 'formatting_note' in results:
             st.info(f"💡 {results['formatting_note']}")
         
@@ -2435,6 +2509,95 @@ def display_detailed_results(results, method, data, original_labels=None):
                 st.write("**离群值**: 无")
         else:
             st.success("✅ **离群值**: 无检测到离群值")
+
+# =============================================
+# 统计量表显示函数
+# =============================================
+
+def display_statistics_table(results, method, data, input_method, original_labels=None):
+    """显示统计量表"""
+    st.subheader("📊 统计量表")
+    
+    # 根据输入方式选择正确的数据源
+    if input_method == "文件上传":
+        current_original_data = st.session_state.file_original_data
+        current_decimal_info = st.session_state.file_decimal_info
+        current_blank_count = st.session_state.file_blank_count
+    elif input_method == "带编号数据输入":
+        # 对于两列数据，需要特殊处理
+        current_original_data = [value for _, value in st.session_state.valid_pairs]
+        current_decimal_info = st.session_state.two_column_decimal_info
+        current_blank_count = 0  # 两列数据已经过滤了无效数据
+    else:
+        # 手动输入或示例数据
+        current_original_data = st.session_state.original_data
+        current_decimal_info = st.session_state.decimal_info
+        current_blank_count = st.session_state.blank_count
+    
+    # 获取检测到的小数位数 - 使用正确的数据源
+    detected_decimal_places = results.get('decimal_places', 2)
+    if current_decimal_info and 'detected_decimal_places' in current_decimal_info:
+        detected_decimal_places = current_decimal_info['detected_decimal_places']
+    
+    # 确保detected_decimal_places是一个整数
+    if detected_decimal_places is None:
+        detected_decimal_places = 2
+    
+    # 辅助函数：根据小数位数格式化数字
+    def format_number(value, decimal_places):
+        """根据小数位数格式化数字"""
+        if value is None or pd.isna(value):
+            return None
+        if decimal_places == 0:
+            return int(value)  # 如果是整数，返回整数形式
+        return round(value, decimal_places)
+    
+    # 计算统计量
+    total_data_count = len(current_original_data) if current_original_data else len(data)
+    actual_analyzable_count = len(data)
+    blank_data_count = current_blank_count if current_blank_count else 0
+    
+    # 创建统计量表
+    stats_data = {
+        '统计量名称': ['总数据数', '实际可分析数据数', '空白数据数', '稳健平均值', '稳健标准差', 
+                     '最小值', '最大值', '极差', '正常值下限', '正常值上限'],
+        '数值': [
+            total_data_count,
+            actual_analyzable_count,
+            blank_data_count,
+            format_number(results['robust_mean'], detected_decimal_places),
+            format_number(results['robust_std'], 3),  # 标准差保持3位
+            format_number(np.min(data), detected_decimal_places) if len(data) > 0 else 0,
+            format_number(np.max(data), detected_decimal_places) if len(data) > 0 else 0,
+            format_number(np.max(data) - np.min(data), detected_decimal_places) if len(data) > 0 else 0,
+            format_number(results['lower_limit'], detected_decimal_places),
+            format_number(results['upper_limit'], detected_decimal_places)
+        ]
+    }
+    
+    # 根据方法添加特定的统计量
+    if method == "四分位稳健统计法":
+        stats_data['统计量名称'].extend(['下四分位数(Q1)', '上四分位数(Q3)', '四分位距(IQR)', '标准化四分位距(NIQR)'])
+        stats_data['数值'].extend([
+            format_number(results['q1'], detected_decimal_places),
+            format_number(results['q3'], detected_decimal_places),
+            format_number(results['iqr'], detected_decimal_places),
+            format_number(results['niqr'], 3)  # NIQR保留3位小数
+        ])
+    elif method == "Q/Hampel法":
+        stats_data['统计量名称'].extend(['初始中位数', 'MAD值'])
+        stats_data['数值'].extend([
+            format_number(results.get('initial_median', results['robust_mean']), detected_decimal_places),
+            format_number(results.get('mad', 0), detected_decimal_places)
+        ])
+    
+    # 创建DataFrame
+    stats_df = pd.DataFrame(stats_data)
+    
+    # 显示表格
+    st.dataframe(stats_df, use_container_width=True)
+    
+    return stats_df
 
 # =============================================
 # Z比分对比表格功能 - 修改版本
@@ -2715,8 +2878,8 @@ if data is not None and len(data) > 0:
                 # 使用Z比分计算方法
                 results = z_score_calculation_algorithm(data, robust_mean_val, robust_std_val, scheme=scheme_param)
 
-        # 修改：删除计算方案说明的下拉条，仅保留蓝色块中的计算方案展示
-        st.info(results['formatting_note'])
+        # 删除蓝色块的计算方案说明（第一行），仅在详细结果中保留
+        # 注意：这里不再显示results['formatting_note']的蓝色块
         
         # 显示核心结果
         display_core_results(results, method)
@@ -2727,8 +2890,11 @@ if data is not None and len(data) > 0:
         # 显示详细结果（可折叠）
         display_detailed_results(results, method, data)
         
+        # 显示统计量表
+        stats_df = display_statistics_table(results, method, data, input_method)
+        
         # =============================================
-        # 数据可视化 - 修改版本
+        # 数据可视化
         # =============================================
         st.subheader("📊 数据可视化")
         
@@ -2815,7 +2981,7 @@ if data is not None and len(data) > 0:
             """)
     
         # =============================================
-        # 导出结果模块 - 修改版本：删除导出结果预览模块和数据一致性验证
+        # 导出结果模块
         # =============================================
         st.subheader("💾 导出结果")
         
@@ -2959,22 +3125,6 @@ if data is not None and len(data) > 0:
         
         result_df = pd.DataFrame(result_data)
         
-        # 计算统计量 - 使用检测到的小数位数格式化
-        stats_data = {
-            '统计量名称': ['总数据数', '实际可分析数据数', '空白数据数', '指定值', '能力评定标准差', '最小值', '最大值', '极差'],
-            '数值': [
-                total_data_count,
-                actual_analyzable_count,
-                blank_data_count,
-                format_number(results['robust_mean'], detected_decimal_places),
-                format_number(results['robust_std'], 3),  # 标准差保持3位
-                format_number(np.min(data), detected_decimal_places) if len(data) > 0 else 0,
-                format_number(np.max(data), detected_decimal_places) if len(data) > 0 else 0,
-                format_number(np.max(data) - np.min(data), detected_decimal_places) if len(data) > 0 else 0
-            ]
-        }
-        stats_df = pd.DataFrame(stats_data)
-        
         # 在文本报告开头添加方案说明和小数位数说明
         scheme_text = "严格计算方案" if calculation_scheme == "严格计算方案" else "规范展示方案"
         report = f"""                
@@ -2985,12 +3135,6 @@ if data is not None and len(data) > 0:
 工具版本: 稳健统计分析工具 (Robust Statistical Analysis Tool)
 计算方案: {scheme_text}
 数据小数位数: {detected_decimal_places}位（基于输入数据的最大小数位数）
-
-计算方案说明:
---------
-为提升展示结果规范性，使用了四舍五入的稳健平均值和标准差来计算Z比分。
-稳健平均值与原始数据保持相同的小数位数({detected_decimal_places}位)，
-稳健标准差保留3位小数，Z比分在计算过程中保持完整精度，仅在展示和导出时统一格式化为两位小数。
 
 数据概览:
 --------
@@ -3195,8 +3339,7 @@ Z比分数分类（仅有效数据）:
                     mime="application/pdf"
                 )
         
-        # 添加小数位数说明
-        st.info(f"💡 **小数位数说明**: 导出的数据使用 {detected_decimal_places} 位小数（基于输入数据的最大小数位数）。Z比分统一格式化为两位小数，空白数据会保留标签但数据为空。")
+        # 删除重复的小数位数说明，因为已在小数位数保留规则说明中说明
         
     except Exception as e:
         st.error(f"❌ 统计分析过程中发生错误: {str(e)}")
