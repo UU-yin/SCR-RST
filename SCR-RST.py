@@ -921,7 +921,7 @@ initialize_session_state()
 # 方法1：最简单的st.image显示
 try:
     # 尝试直接加载和显示图片
-    st.image("统计宝-长图标-2.0.png", use_container_width=True)
+    st.image("统计宝-长图标-3.0.png", use_container_width=True)
 except:
     # 如果失败，创建占位符
     st.markdown("""
