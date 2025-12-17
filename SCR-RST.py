@@ -1047,6 +1047,9 @@ header[data-testid="stHeader"] {
 # 加载长条图标
 try:
     long_icon = Image.open("统计宝-长图标.png")
+except FileNotFoundError:
+    # 创建一个简单的占位符
+    long_icon = Image.new('RGB', (800, 150), color='#f0f8ff')
 
 # 使用容器包裹长条图标
 with st.container():
