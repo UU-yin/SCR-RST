@@ -928,71 +928,52 @@ st.markdown("""
     padding-bottom: 0 !important;
 }
 
-/* 长条图标容器 - 简化版本，确保显示 */
+/* 长条图标容器 - 确保居中显示 */
 .long-icon-container {
     display: flex !important;
     justify-content: center !important;
     align-items: center !important;
     width: 100% !important;
     margin: 20px 0 !important;
-    padding: 0 !important;
+    padding: 10px !important;
     background-color: transparent !important;
 }
 
-/* 长条图标图片样式 - 简化版本 */
+/* 长条图标图片样式 */
 .long-icon-image {
     width: 100% !important;
     max-width: 800px !important;
     height: auto !important;
     display: block !important;
     margin: 0 auto !important;
-    border: 2px solid #e0f2ff !important;
-    border-radius: 10px !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
 }
 
-/* 调试用的边框，显示容器边界 */
-.debug-border {
-    border: 2px dashed red !important;
+/* 响应式设计 - 不同屏幕尺寸 */
+@media (max-width: 768px) {
+    .long-icon-container {
+        margin: 10px 0 !important;
+        padding: 5px !important;
+    }
+    .long-icon-image {
+        max-width: 95% !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .long-icon-container {
+        margin: 5px 0 !important;
+    }
+    .long-icon-image {
+        max-width: 98% !important;
+    }
 }
 
 /* 确保Streamlit顶部工具栏不被遮挡 */
 header[data-testid="stHeader"] {
     z-index: 1000 !important;
 }
-
-/* 统计结果对齐样式 */
-.stats-row-container {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 10px !important;
-    margin-bottom: 10px !important;
-}
-
-/* 统计量表格样式 */
-.stat-table-container {
-    margin-top: 20px !important;
-    padding: 15px !important;
-    background-color: #f9fdff !important;
-    border-radius: 10px !important;
-    border: 1px solid #e0f2ff !important;
-}
 </style>
 """, unsafe_allow_html=True)
-
-# =============================================
-# 调试：检查当前目录文件
-# =============================================
-import os
-
-# 显示当前目录文件列表（调试用）
-st.sidebar.markdown("---")
-st.sidebar.subheader("🔍 调试信息")
-if st.sidebar.checkbox("显示目录文件"):
-    st.sidebar.write("当前目录文件：")
-    files = os.listdir('.')
-    for file in files:
-        st.sidebar.write(f"- {file}")
 
 # =============================================
 # 加载长条图标
@@ -1011,24 +992,20 @@ def load_long_icon():
     for path in icon_paths:
         try:
             if os.path.exists(path):
-                st.sidebar.success(f"找到图标文件: {path}")
                 return Image.open(path)
         except Exception as e:
-            st.sidebar.warning(f"无法加载 {path}: {str(e)}")
             continue
     
     # 如果所有路径都失败，创建占位符
-    st.sidebar.error("未找到图标文件，使用占位符")
     st.warning("⚠️ 未找到'统计宝-长图标.png'文件，请确保该文件在当前目录下。")
     
-    # 创建简单的占位符，包含文字
+    # 创建简单的占位符
     from PIL import ImageDraw, ImageFont
-    placeholder = Image.new('RGB', (800, 150), color='#f0f8ff')
+    placeholder = Image.new('RGB', (800, 200), color='#f0f8ff')
     draw = ImageDraw.Draw(placeholder)
     
     # 添加文字
     try:
-        # 尝试使用默认字体
         font = ImageFont.load_default()
         text = "统计宝 - 稳健统计分析工具"
         # 计算文字位置
@@ -1036,11 +1013,11 @@ def load_long_icon():
         text_width = text_bbox[2] - text_bbox[0]
         text_height = text_bbox[3] - text_bbox[1]
         x = (800 - text_width) // 2
-        y = (150 - text_height) // 2
+        y = (200 - text_height) // 2
         draw.text((x, y), text, fill='#1890ff', font=font)
     except:
-        # 如果添加文字失败，至少显示一个彩色矩形
-        draw.rectangle([20, 20, 780, 130], outline='#1890ff', width=3)
+        # 如果添加文字失败，显示一个彩色矩形
+        draw.rectangle([20, 20, 780, 180], outline='#1890ff', width=3)
     
     return placeholder
 
@@ -1048,33 +1025,19 @@ def load_long_icon():
 long_icon = load_long_icon()
 
 # =============================================
-# 显示长条图标
+# 显示长条图标（仅图标，无标题）
 # =============================================
-st.markdown("""
-<div style="text-align: center; margin: 20px 0;">
-    <h4>统计宝 - 稳健统计分析工具</h4>
-    <p>提供多种稳健统计分析方法，用于处理包含异常值的数据集</p>
-</div>
-""", unsafe_allow_html=True)
-
-# 显示图标
 with st.container():
     st.markdown('<div class="long-icon-container">', unsafe_allow_html=True)
     
-    # 显示图标并获取返回的图片对象
-    image_display = st.image(
+    # 显示长条图标
+    st.image(
         long_icon,
         use_container_width=True,
-        caption=''  # 不需要标题
+        caption=''
     )
     
     st.markdown('</div>', unsafe_allow_html=True)
-
-# 添加调试信息
-if st.sidebar.checkbox("显示图标信息"):
-    st.sidebar.write(f"图标尺寸: {long_icon.size}")
-    st.sidebar.write(f"图标模式: {long_icon.mode}")
-    st.sidebar.write(f"图标格式: {long_icon.format}")
 
 # =============================================
 # 优化侧边栏布局
