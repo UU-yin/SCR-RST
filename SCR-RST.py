@@ -1199,8 +1199,6 @@ elif input_method == "文件上传":
                         3. 使用的小数位数: {decimal_places}位
                         """)
                     
-                    st.write("**前10个有效数据:**", processed_data[:10])
-                    
                     # 设置数据变量，以便后续分析
                     data = processed_data
                     
