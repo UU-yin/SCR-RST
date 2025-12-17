@@ -656,11 +656,6 @@ class FileProcessor:
         从DataFrame中提取数值数据 - 统一支持空白数据处理和多列选择
         返回: (clean_data, original_data, blank_count, decimal_info)
         """
-        st.info(f"正在从 '{sheet_name}' 中提取数据")
-        
-        # 显示数据预览
-        st.write("**数据预览:**")
-        st.dataframe(df.head(), use_container_width=True)
         
         original_data = []  # 包含空白值的原始数据
         clean_data = []     # 清理后的有效数据
