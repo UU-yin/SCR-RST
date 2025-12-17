@@ -907,137 +907,32 @@ def clear_two_column_data():
 
 # 设置页面
 st.set_page_config(
-    page_title="统计宝 | 稳健统计分析工具 ",
+    page_title="统计宝 | 稳健统计分析工具",
     page_icon="stataid.png",
     layout="wide"
 )
 
 initialize_session_state()
 
-# 设置页面配置 - 为长条图标添加自定义CSS
-st.markdown("""
-<style>
-/* 基础样式 */
-.stApp {
-    margin-top: 0 !important;
-    padding-top: 30px !important;
-}
-
-.block-container {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-}
-
-/* 长条图标容器 - 确保居中显示 */
-.long-icon-container {
-    display: flex !important;
-    justify-content: center !important;
-    align-items: center !important;
-    width: 100% !important;
-    margin: 20px 0 !important;
-    padding: 10px !important;
-    background-color: transparent !important;
-}
-
-/* 长条图标图片样式 */
-.long-icon-image {
-    width: 100% !important;
-    max-width: 800px !important;
-    height: auto !important;
-    display: block !important;
-    margin: 0 auto !important;
-}
-
-/* 响应式设计 - 不同屏幕尺寸 */
-@media (max-width: 768px) {
-    .long-icon-container {
-        margin: 10px 0 !important;
-        padding: 5px !important;
-    }
-    .long-icon-image {
-        max-width: 95% !important;
-    }
-}
-
-@media (max-width: 480px) {
-    .long-icon-container {
-        margin: 5px 0 !important;
-    }
-    .long-icon-image {
-        max-width: 98% !important;
-    }
-}
-
-/* 确保Streamlit顶部工具栏不被遮挡 */
-header[data-testid="stHeader"] {
-    z-index: 1000 !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # =============================================
-# 加载长条图标
+# 加载和显示长条图标（最简单的方法）
 # =============================================
-def load_long_icon():
-    """加载长条图标，如果不存在则创建占位符"""
-    icon_paths = [
-        "统计宝-长图标.png",
-        "./统计宝-长图标.png",
-        "统计宝-长图标.jpg",
-        "./统计宝-长图标.jpg",
-        "统计宝-长图标.jpeg",
-        "./统计宝-长图标.jpeg"
-    ]
-    
-    for path in icon_paths:
-        try:
-            if os.path.exists(path):
-                return Image.open(path)
-        except Exception as e:
-            continue
-    
-    # 如果所有路径都失败，创建占位符
-    st.warning("⚠️ 未找到'统计宝-长图标.png'文件，请确保该文件在当前目录下。")
-    
-    # 创建简单的占位符
-    from PIL import ImageDraw, ImageFont
-    placeholder = Image.new('RGB', (800, 200), color='#f0f8ff')
-    draw = ImageDraw.Draw(placeholder)
-    
-    # 添加文字
-    try:
-        font = ImageFont.load_default()
-        text = "统计宝 - 稳健统计分析工具"
-        # 计算文字位置
-        text_bbox = draw.textbbox((0, 0), text, font=font)
-        text_width = text_bbox[2] - text_bbox[0]
-        text_height = text_bbox[3] - text_bbox[1]
-        x = (800 - text_width) // 2
-        y = (200 - text_height) // 2
-        draw.text((x, y), text, fill='#1890ff', font=font)
-    except:
-        # 如果添加文字失败，显示一个彩色矩形
-        draw.rectangle([20, 20, 780, 180], outline='#1890ff', width=3)
-    
-    return placeholder
 
-# 加载图标
-long_icon = load_long_icon()
+# 方法1：最简单的st.image显示
+try:
+    # 尝试直接加载和显示图片
+    st.image("统计宝-长图标.png", use_container_width=True)
+except:
+    # 如果失败，创建占位符
+    st.markdown("""
+    <div style="text-align: center; padding: 20px; background-color: #f0f8ff; border-radius: 10px;">
+        <h1 style="color: #1890ff;">统计宝</h1>
+        <p style="color: #666;">稳健统计分析工具</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-# =============================================
-# 显示长条图标（仅图标，无标题）
-# =============================================
-with st.container():
-    st.markdown('<div class="long-icon-container">', unsafe_allow_html=True)
-    
-    # 显示长条图标
-    st.image(
-        long_icon,
-        use_container_width=True,
-        caption=''
-    )
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+# 或者使用更简单的替代方案（如果上面的方法还是不行）：
+# st.image("统计宝-长图标.png", width=800)  # 设置固定宽度
 
 # =============================================
 # 优化侧边栏布局
@@ -1070,7 +965,7 @@ calculation_scheme = st.sidebar.radio(
     严格计算方案：使用完整精度的计算结果，确保计算准确性
     规范展示方案：稳健平均值与原始数据小数位数一致，结果更规范但可能引入微小误差
     """,
-    key="calculation_scheme_selector"  # 添加key
+    key="calculation_scheme_selector"
 )
 
 # 将计算方案保存到会话状态
