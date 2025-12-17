@@ -1182,53 +1182,37 @@ elif input_method == "文件上传":
                 sheet_names = excel_file.sheet_names
                 
                 # 1. 让用户选择sheet
-                if len(sheet_names) > 1:
-                    selected_sheet = st.selectbox(
-                        "📊 选择工作表 (Sheet)",
-                        sheet_names,
-                        help="请选择要分析的工作表"
-                    )
-                    sheet_name = selected_sheet
-                else:
-                    sheet_name = sheet_names[0]
+                selected_sheet = st.selectbox(
+                    "📊 选择工作表 (Sheet)",
+                    sheet_names,
+                    help="请选择要分析的工作表"
+                )
+                sheet_name = selected_sheet
                 
                 # 2. 读取选中的sheet
                 df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
                 
-                # 3. 让用户选择列
-                if len(df.columns) > 1:
-                    st.write(f"📋 **工作表 '{sheet_name}' 中的可用列:**")
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.write("列名列表:")
-                        for i, col in enumerate(df.columns):
-                            st.write(f"{i+1}. {col}")
-                    
-                    with col2:
-                        selected_column = st.selectbox(
-                            "🔍 选择要分析的数据列",
-                            df.columns,
-                            help="请选择包含数值数据的列进行分析"
-                        )
-                    
-                    # 4. 提取选中的列数据
-                    selected_data = df[selected_column].dropna().astype(str).tolist()
-                    
-                    # 创建包含选中列的新DataFrame
-                    df_selected = pd.DataFrame({selected_column: df[selected_column]})
-                    
-                    # 使用选中的列数据进行处理
-                    clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
-                        df_selected, f"{sheet_name} - {selected_column}"
-                    )
-                    
-                else:
-                    # 只有一列的情况
-                    selected_column = df.columns[0]
-                    clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
-                        df, sheet_name
-                    )
+                # 3. 数据预览（在列选择前显示完整数据）
+                st.write(f"📋 **工作表 '{sheet_name}' 数据预览 (前10行):**")
+                st.dataframe(df.head(10), use_container_width=True)
+                
+                # 4. 让用户选择列
+                selected_column = st.selectbox(
+                    "🔍 选择要分析的数据列",
+                    df.columns,
+                    help="请选择包含数值数据的列进行分析"
+                )
+                
+                # 5. 提取选中的列数据
+                selected_data = df[selected_column].dropna().astype(str).tolist()
+                
+                # 创建包含选中列的新DataFrame
+                df_selected = pd.DataFrame({selected_column: df[selected_column]})
+                
+                # 使用选中的列数据进行处理
+                clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
+                    df_selected, f"{sheet_name} - {selected_column}"
+                )
                 
                 all_sheets = sheet_names
                     
@@ -1236,6 +1220,9 @@ elif input_method == "文件上传":
                 df, sheet_name, all_sheets = FileProcessor.process_csv_file(uploaded_file)
                 # 对于CSV文件也可以添加列选择
                 if df is not None and len(df.columns) > 1:
+                    st.write(f"📋 **数据预览 (前10行):**")
+                    st.dataframe(df.head(10), use_container_width=True)
+                    
                     selected_column = st.selectbox(
                         "🔍 选择要分析的数据列",
                         df.columns,
@@ -1253,6 +1240,9 @@ elif input_method == "文件上传":
                 df, sheet_name, all_sheets = FileProcessor.process_json_file(uploaded_file)
                 # JSON文件数据处理
                 if df is not None and len(df.columns) > 1:
+                    st.write(f"📋 **数据预览 (前10行):**")
+                    st.dataframe(df.head(10), use_container_width=True)
+                    
                     selected_column = st.selectbox(
                         "🔍 选择要分析的数据列",
                         df.columns,
@@ -1298,17 +1288,6 @@ elif input_method == "文件上传":
                 # 推荐计算方案
                 recommended_scheme, recommendation_reason = DataValidator.get_recommended_scheme(decimal_info)
                 validation_report.append(f"💡 推荐计算方案: {recommended_scheme} - {recommendation_reason}")
-                
-                # 显示数据预览
-                with st.expander("👁️ 预览数据", expanded=False):
-                    if file_format == 'excel' and 'df' in locals():
-                        st.write(f"**工作表:** {sheet_name.split(' - ')[0] if ' - ' in sheet_name else sheet_name}")
-                        if 'selected_column' in locals():
-                            st.write(f"**选中的列:** {selected_column}")
-                        st.dataframe(df.head(10), use_container_width=True)
-                    
-                    st.write(f"**前10个数据点:**")
-                    st.write(clean_data[:10])
                 
                 # 设置正确的会话状态，确保使用文件数据
                 st.session_state.file_processed_data = processed_data
