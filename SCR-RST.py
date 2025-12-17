@@ -466,35 +466,84 @@ class FileProcessor:
                     return 'txt'  # 默认为文本文件
     
     @staticmethod
-    def process_excel_file(uploaded_file):
-        """处理Excel文件 - 统一使用空白数据处理逻辑"""
+    @staticmethod
+    def process_excel_file_with_column_selection(uploaded_file, sheet_name=None, column_name=None):
+        """处理Excel文件，支持sheet和列选择"""
         try:
-            # 读取Excel文件
+            # 读取Excel文件，获取所有sheet名
             excel_file = pd.ExcelFile(uploaded_file)
-            sheet_names = excel_file.sheet_names
+            all_sheets = excel_file.sheet_names
             
-            # 如果只有一个工作表，直接读取
-            if len(sheet_names) == 1:
-                df = pd.read_excel(uploaded_file, sheet_name=sheet_names[0], na_filter=True)
-                return df, sheet_names[0], sheet_names
+            # 如果没有指定sheet，使用第一个sheet
+            if sheet_name is None:
+                sheet_name = all_sheets[0]
             
-            # 多个工作表时让用户选择
-            selected_sheet = st.selectbox(
-                "选择要分析的工作表:",
-                sheet_names,
-                help="检测到多个工作表，请选择包含数据的工作表",
-                key="excel_sheet_selector"
-            )
+            # 读取指定的sheet
+            df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
             
-            if selected_sheet:
-                df = pd.read_excel(uploaded_file, sheet_name=selected_sheet, na_filter=True)
-                return df, selected_sheet, sheet_names
-            else:
-                return None, None, sheet_names
-                
+            # 如果指定了列名，只提取该列
+            if column_name is not None and column_name in df.columns:
+                df = pd.DataFrame({column_name: df[column_name]})
+            
+            return df, sheet_name, all_sheets
+            
         except Exception as e:
-            st.error(f"Excel文件读取错误: {str(e)}")
-            return None, None, []
+            st.error(f"Excel文件处理失败: {str(e)}")
+            return None, None, None
+    
+    @staticmethod
+    def extract_data_from_dataframe(df, sheet_name):
+        """从DataFrame中提取数据"""
+        try:
+            if df is None or df.empty:
+                return None, [], 0, {'detected_decimal_places': 0, 'max_decimal_places': 0, 'consistent_decimals': True}
+            
+            # 提取所有数据（展平为一维列表）
+            data_2d = df.values.tolist()
+            
+            # 展平为二维列表（保持原有结构）
+            original_data = []
+            for row in data_2d:
+                if isinstance(row, list):
+                    original_data.extend(row)
+                else:
+                    original_data.append(row)
+            
+            # 转换为字符串并处理空白
+            clean_data = []
+            blank_count = 0
+            
+            for item in original_data:
+                # 跳过NaN和None
+                if pd.isna(item):
+                    blank_count += 1
+                    continue
+                
+                # 转换为字符串
+                item_str = str(item).strip()
+                
+                # 跳过空字符串
+                if item_str == '':
+                    blank_count += 1
+                    continue
+                
+                # 验证是否为数值
+                try:
+                    # 尝试转换为float
+                    float_val = float(item_str)
+                    clean_data.append(item_str)
+                except ValueError:
+                    # 如果不是数值，跳过
+                    continue
+            
+            # 分析小数位数
+            decimal_info = DataAnalyzer.analyze_decimal_places(clean_data)
+            
+            return clean_data, original_data, blank_count, decimal_info
+            
+        except Exception as e:
+            st.error(f"数据提取失败: {str(e)}")
+            return None, [], 0, {'detected_decimal_places': 0, 'max_decimal_places': 0, 'consistent_decimals': True}
     
     @staticmethod
     def process_csv_file(uploaded_file):
@@ -1128,101 +1177,184 @@ elif input_method == "文件上传":
             
             # 根据文件格式调用相应的处理方法
             if file_format == 'excel':
-                df, sheet_name, all_sheets = FileProcessor.process_excel_file(uploaded_file)
+                # 处理Excel文件 - 让用户选择sheet和列
+                excel_file = pd.ExcelFile(uploaded_file)
+                sheet_names = excel_file.sheet_names
+                
+                # 1. 让用户选择sheet
+                if len(sheet_names) > 1:
+                    selected_sheet = st.selectbox(
+                        "📊 选择工作表 (Sheet)",
+                        sheet_names,
+                        help="请选择要分析的工作表"
+                    )
+                    sheet_name = selected_sheet
+                else:
+                    sheet_name = sheet_names[0]
+                
+                # 2. 读取选中的sheet
+                df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
+                
+                # 3. 让用户选择列
+                if len(df.columns) > 1:
+                    st.write(f"📋 **工作表 '{sheet_name}' 中的可用列:**")
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write("列名列表:")
+                        for i, col in enumerate(df.columns):
+                            st.write(f"{i+1}. {col}")
+                    
+                    with col2:
+                        selected_column = st.selectbox(
+                            "🔍 选择要分析的数据列",
+                            df.columns,
+                            help="请选择包含数值数据的列进行分析"
+                        )
+                    
+                    # 4. 提取选中的列数据
+                    selected_data = df[selected_column].dropna().astype(str).tolist()
+                    
+                    # 创建包含选中列的新DataFrame
+                    df_selected = pd.DataFrame({selected_column: df[selected_column]})
+                    
+                    # 使用选中的列数据进行处理
+                    clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
+                        df_selected, f"{sheet_name} - {selected_column}"
+                    )
+                    
+                else:
+                    # 只有一列的情况
+                    selected_column = df.columns[0]
+                    clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
+                        df, sheet_name
+                    )
+                
+                all_sheets = sheet_names
+                    
             elif file_format == 'csv':
                 df, sheet_name, all_sheets = FileProcessor.process_csv_file(uploaded_file)
+                # 对于CSV文件也可以添加列选择
+                if df is not None and len(df.columns) > 1:
+                    selected_column = st.selectbox(
+                        "🔍 选择要分析的数据列",
+                        df.columns,
+                        help="请选择包含数值数据的列进行分析"
+                    )
+                    df = pd.DataFrame({selected_column: df[selected_column]})
+                    sheet_name = f"{sheet_name} - {selected_column}"
+                
+                if df is not None:
+                    clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
+                        df, sheet_name
+                    )
+                
             elif file_format == 'json':
                 df, sheet_name, all_sheets = FileProcessor.process_json_file(uploaded_file)
+                # JSON文件数据处理
+                if df is not None and len(df.columns) > 1:
+                    selected_column = st.selectbox(
+                        "🔍 选择要分析的数据列",
+                        df.columns,
+                        help="请选择包含数值数据的列进行分析"
+                    )
+                    df = pd.DataFrame({selected_column: df[selected_column]})
+                    sheet_name = f"{sheet_name} - {selected_column}"
+                
+                if df is not None:
+                    clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
+                        df, sheet_name
+                    )
             else:  # txt
                 df, sheet_name, all_sheets = FileProcessor.process_txt_file(uploaded_file)
+                if df is not None:
+                    clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
+                        df, sheet_name
+                    )
             
             # 统一处理所有格式的DataFrame
-            if df is not None:
-                # 从DataFrame提取数据
-                clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(df, sheet_name)
+            if clean_data is not None and len(clean_data) > 0:
+                processed_data = clean_data
                 
-                if clean_data is not None and len(clean_data) > 0:
-                    processed_data = clean_data
+                # 构建验证报告
+                validation_report = [
+                    "✅ 文件格式验证通过",
+                    f"✅ 成功从 '{sheet_name}' 提取数据",
+                    f"📊 总数据点数: {len(original_data)}",
+                    f"📈 有效数据数: {len(clean_data)}",
+                    f"⚠️ 空白数据数: {blank_count}" if blank_count > 0 else "✅ 未发现空白数据",
+                    f"📏 检测到的小数位数: {decimal_info['detected_decimal_places']}位"
+                ]
+                
+                # 获取计算方案
+                calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
+                
+                # 计算方案兼容性验证
+                scheme_messages = DataValidator.validate_calculation_scheme_compatibility(
+                    clean_data, calculation_scheme, decimal_info
+                )
+                validation_report.extend(scheme_messages)
+                
+                # 推荐计算方案
+                recommended_scheme, recommendation_reason = DataValidator.get_recommended_scheme(decimal_info)
+                validation_report.append(f"💡 推荐计算方案: {recommended_scheme} - {recommendation_reason}")
+                
+                # 显示数据预览
+                with st.expander("👁️ 预览数据", expanded=False):
+                    if file_format == 'excel' and 'df' in locals():
+                        st.write(f"**工作表:** {sheet_name.split(' - ')[0] if ' - ' in sheet_name else sheet_name}")
+                        if 'selected_column' in locals():
+                            st.write(f"**选中的列:** {selected_column}")
+                        st.dataframe(df.head(10), use_container_width=True)
                     
-                    # 构建验证报告
-                    validation_report = [
-                        "✅ 文件格式验证通过",
-                        f"✅ 成功从 '{sheet_name}' 提取数据",
-                        f"📊 总数据点数: {len(original_data)}",
-                        f"📈 有效数据数: {len(clean_data)}",
-                        f"⚠️ 空白数据数: {blank_count}" if blank_count > 0 else "✅ 未发现空白数据",
-                        f"📏 检测到的小数位数: {decimal_info['detected_decimal_places']}位"
-                    ]
-                    
-                    # 获取计算方案
-                    calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
-                    
-                    # 计算方案兼容性验证
-                    scheme_messages = DataValidator.validate_calculation_scheme_compatibility(
-                        clean_data, calculation_scheme, decimal_info
-                    )
-                    validation_report.extend(scheme_messages)
-                    
-                    # 推荐计算方案
-                    recommended_scheme, recommendation_reason = DataValidator.get_recommended_scheme(decimal_info)
-                    validation_report.append(f"💡 推荐计算方案: {recommended_scheme} - {recommendation_reason}")
-                    
-                    # 设置正确的会话状态，确保使用文件数据
-                    st.session_state.file_processed_data = processed_data
-                    st.session_state.file_original_data = original_data
-                    st.session_state.file_blank_count = blank_count
-                    st.session_state.file_validation_report = validation_report
-                    st.session_state.file_validation_passed = True
-                    st.session_state.file_decimal_info = decimal_info
-                    
-                    # 同时设置通用状态，确保后续分析使用文件数据
-                    st.session_state.processed_data = processed_data
-                    st.session_state.original_data = original_data
-                    st.session_state.blank_count = blank_count
-                    st.session_state.decimal_info = decimal_info
-                    st.session_state.data_loaded = True
-                    
-                    st.success(f"✅ 文件验证通过！成功加载 {len(processed_data)} 个有效数据点")
-                    if blank_count > 0:
-                        st.warning(f"⚠️ 检测到 {blank_count} 个空白数据点，这些数据将被忽略")
-                    
-                    # 显示小数位数保留规则说明
-                    decimal_places = decimal_info.get('detected_decimal_places', 0)
-                    max_decimal_places = decimal_info.get('max_decimal_places', 0)
-                    consistent_decimals = decimal_info.get('consistent_decimals', True)
-                    
-                    with st.expander("📋 小数位数保留规则说明", expanded=False):
-                        st.info(f"""
-                        **小数位数处理规则：**
-                        1. 检测到数据最大小数位数: {max_decimal_places}位
-                        2. 数据小数位数一致性: {'一致' if consistent_decimals else '不一致'}
-                        3. 使用的小数位数: {decimal_places}位
-                        """)
-                    
-                    # 设置数据变量，以便后续分析
-                    data = processed_data
-                    
-                else:
-                    st.error("❌ 无法从文件中提取有效数据")
-            
+                    st.write(f"**前10个数据点:**")
+                    st.write(clean_data[:10])
+                
+                # 设置正确的会话状态，确保使用文件数据
+                st.session_state.file_processed_data = processed_data
+                st.session_state.file_original_data = original_data
+                st.session_state.file_blank_count = blank_count
+                st.session_state.file_validation_report = validation_report
+                st.session_state.file_validation_passed = True
+                st.session_state.file_decimal_info = decimal_info
+                st.session_state.file_sheet_name = sheet_name
+                
+                # 同时设置通用状态，确保后续分析使用文件数据
+                st.session_state.processed_data = processed_data
+                st.session_state.original_data = original_data
+                st.session_state.blank_count = blank_count
+                st.session_state.decimal_info = decimal_info
+                st.session_state.data_loaded = True
+                
+                st.success(f"✅ 文件验证通过！成功加载 {len(processed_data)} 个有效数据点")
+                if blank_count > 0:
+                    st.warning(f"⚠️ 检测到 {blank_count} 个空白数据点，这些数据将被忽略")
+                
+                # 显示小数位数保留规则说明
+                decimal_places = decimal_info.get('detected_decimal_places', 0)
+                max_decimal_places = decimal_info.get('max_decimal_places', 0)
+                consistent_decimals = decimal_info.get('consistent_decimals', True)
+                
+                with st.expander("📋 小数位数保留规则说明", expanded=False):
+                    st.info(f"""
+                    **小数位数处理规则：**
+                    1. 检测到数据最大小数位数: {max_decimal_places}位
+                    2. 数据小数位数一致性: {'一致' if consistent_decimals else '不一致'}
+                    3. 使用的小数位数: {decimal_places}位
+                    """)
+                
+                # 设置数据变量，以便后续分析
+                data = processed_data
+                
             else:
-                st.error("❌ 文件数据验证失败或没有有效数据")
-                if hasattr(st.session_state, 'file_validation_report') and st.session_state.file_validation_report:
-                    with st.expander("📋 查看验证详情", expanded=True):
-                        for line in st.session_state.file_validation_report:
-                            if line.startswith("❌"):
-                                st.error(line)
-                            else:
-                                st.write(line)
-                else:
-                    st.error("无法从文件中提取有效数据，请检查文件格式和内容")
+                st.error("❌ 无法从文件中提取有效数据")
             
         except Exception as e:
             st.error(f"❌ 文件处理错误: {str(e)}")
             st.info("💡 请确保文件格式正确且包含有效的数值数据")
     
     # 如果已经处理了文件数据，则设置data变量
-    if st.session_state.file_validation_passed and st.session_state.file_processed_data is not None:
+    if st.session_state.get('file_validation_passed', False) and st.session_state.get('file_processed_data') is not None:
         data = st.session_state.file_processed_data
 
 else:  # 示例数据
