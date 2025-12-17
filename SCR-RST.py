@@ -917,96 +917,48 @@ initialize_session_state()
 # 设置页面配置 - 为长条图标添加自定义CSS
 st.markdown("""
 <style>
-/* 为Streamlit Cloud顶部UI元素保留空间 */
+/* 基础样式 */
 .stApp {
     margin-top: 0 !important;
-    padding-top: 30px !important; /* 为顶部按钮/菜单留出空间 */
+    padding-top: 30px !important;
 }
 
-/* 确保内容区域有适当间距 */
 .block-container {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
 }
 
-/* 长条图标容器 - 居中显示 */
+/* 长条图标容器 - 简化版本，确保显示 */
 .long-icon-container {
     display: flex !important;
     justify-content: center !important;
     align-items: center !important;
     width: 100% !important;
-    margin: 0 auto !important;
-    padding: 15px 0 !important;
+    margin: 20px 0 !important;
+    padding: 0 !important;
     background-color: transparent !important;
 }
 
-/* 长条图标图片样式 */
+/* 长条图标图片样式 - 简化版本 */
 .long-icon-image {
-    max-width: 100% !important;
+    width: 100% !important;
+    max-width: 800px !important;
     height: auto !important;
     display: block !important;
     margin: 0 auto !important;
+    border: 2px solid #e0f2ff !important;
+    border-radius: 10px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
 }
 
-/* 响应式调整 - 不同屏幕尺寸 */
-@media (max-width: 1200px) {
-    .long-icon-image {
-        max-width: 95% !important;
-    }
-}
-
-@media (max-width: 992px) {
-    .long-icon-image {
-        max-width: 90% !important;
-    }
-}
-
-@media (max-width: 768px) {
-    .long-icon-container {
-        padding: 10px 0 !important;
-    }
-    .long-icon-image {
-        max-width: 85% !important;
-    }
-}
-
-@media (max-width: 576px) {
-    .long-icon-container {
-        padding: 8px 0 !important;
-    }
-    .long-icon-image {
-        max-width: 80% !important;
-    }
-}
-
-@media (max-width: 480px) {
-    .long-icon-container {
-        padding: 6px 0 !important;
-    }
-    .long-icon-image {
-        max-width: 75% !important;
-    }
-}
-
-@media (max-width: 360px) {
-    .long-icon-container {
-        padding: 5px 0 !important;
-    }
-    .long-icon-image {
-        max-width: 70% !important;
-    }
+/* 调试用的边框，显示容器边界 */
+.debug-border {
+    border: 2px dashed red !important;
 }
 
 /* 确保Streamlit顶部工具栏不被遮挡 */
 header[data-testid="stHeader"] {
     z-index: 1000 !important;
-}
-
-/* 如果顶部菜单仍然被遮挡，可以增加此值 */
-@media (max-width: 768px) {
-    .stApp {
-        padding-top: 30px !important; /* 在手机上可能需要更多空间 */
-    }
 }
 
 /* 统计结果对齐样式 */
@@ -1017,17 +969,6 @@ header[data-testid="stHeader"] {
     margin-bottom: 10px !important;
 }
 
-.stats-metric-container {
-    flex: 1 !important;
-    min-width: calc(25% - 10px) !important;
-}
-
-/* 为第二行数据添加对齐容器 */
-.aligned-row {
-    margin-top: 20px !important;
-    width: 100% !important;
-}
-
 /* 统计量表格样式 */
 .stat-table-container {
     margin-top: 20px !important;
@@ -1036,42 +977,104 @@ header[data-testid="stHeader"] {
     border-radius: 10px !important;
     border: 1px solid #e0f2ff !important;
 }
-
-/* 删除"满意数据"列后调整列宽 */
-[data-testid="metric-container"] {
-    min-height: 100px !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
-# 加载长条图标的函数
+# =============================================
+# 调试：检查当前目录文件
+# =============================================
+import os
+
+# 显示当前目录文件列表（调试用）
+st.sidebar.markdown("---")
+st.sidebar.subheader("🔍 调试信息")
+if st.sidebar.checkbox("显示目录文件"):
+    st.sidebar.write("当前目录文件：")
+    files = os.listdir('.')
+    for file in files:
+        st.sidebar.write(f"- {file}")
+
+# =============================================
+# 加载长条图标
+# =============================================
 def load_long_icon():
     """加载长条图标，如果不存在则创建占位符"""
+    icon_paths = [
+        "统计宝-长图标.png",
+        "./统计宝-长图标.png",
+        "统计宝-长图标.jpg",
+        "./统计宝-长图标.jpg",
+        "统计宝-长图标.jpeg",
+        "./统计宝-长图标.jpeg"
+    ]
+    
+    for path in icon_paths:
+        try:
+            if os.path.exists(path):
+                st.sidebar.success(f"找到图标文件: {path}")
+                return Image.open(path)
+        except Exception as e:
+            st.sidebar.warning(f"无法加载 {path}: {str(e)}")
+            continue
+    
+    # 如果所有路径都失败，创建占位符
+    st.sidebar.error("未找到图标文件，使用占位符")
+    st.warning("⚠️ 未找到'统计宝-长图标.png'文件，请确保该文件在当前目录下。")
+    
+    # 创建简单的占位符，包含文字
+    from PIL import ImageDraw, ImageFont
+    placeholder = Image.new('RGB', (800, 150), color='#f0f8ff')
+    draw = ImageDraw.Draw(placeholder)
+    
+    # 添加文字
     try:
-        return Image.open("统计宝-长图标.png")
-    except FileNotFoundError:
-        # 如果文件不存在，使用一个占位符
-        st.warning("未找到'统计宝-长图标.png'文件，请确保该文件在正确的位置。")
-        # 创建一个简单的占位符
-        return Image.new('RGB', (800, 150), color='#f0f8ff')
+        # 尝试使用默认字体
+        font = ImageFont.load_default()
+        text = "统计宝 - 稳健统计分析工具"
+        # 计算文字位置
+        text_bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = text_bbox[2] - text_bbox[0]
+        text_height = text_bbox[3] - text_bbox[1]
+        x = (800 - text_width) // 2
+        y = (150 - text_height) // 2
+        draw.text((x, y), text, fill='#1890ff', font=font)
+    except:
+        # 如果添加文字失败，至少显示一个彩色矩形
+        draw.rectangle([20, 20, 780, 130], outline='#1890ff', width=3)
+    
+    return placeholder
 
 # 加载图标
 long_icon = load_long_icon()
 
-# 使用容器包裹长条图标
+# =============================================
+# 显示长条图标
+# =============================================
+st.markdown("""
+<div style="text-align: center; margin: 20px 0;">
+    <h4>统计宝 - 稳健统计分析工具</h4>
+    <p>提供多种稳健统计分析方法，用于处理包含异常值的数据集</p>
+</div>
+""", unsafe_allow_html=True)
+
+# 显示图标
 with st.container():
-    # 使用自定义CSS类显示长条图标
     st.markdown('<div class="long-icon-container">', unsafe_allow_html=True)
     
-    # 显示长条图标
-    st.image(
+    # 显示图标并获取返回的图片对象
+    image_display = st.image(
         long_icon,
-        use_container_width=True,  # 使用新的参数
-        output_format='PNG',
-        caption=''
+        use_container_width=True,
+        caption=''  # 不需要标题
     )
     
     st.markdown('</div>', unsafe_allow_html=True)
+
+# 添加调试信息
+if st.sidebar.checkbox("显示图标信息"):
+    st.sidebar.write(f"图标尺寸: {long_icon.size}")
+    st.sidebar.write(f"图标模式: {long_icon.mode}")
+    st.sidebar.write(f"图标格式: {long_icon.format}")
 
 # =============================================
 # 优化侧边栏布局
@@ -1135,12 +1138,12 @@ st.sidebar.info(method_descriptions[method])
 if method == "Z比分计算模块":
     st.sidebar.info("💡 **注意**: Z比分计算参数请在主界面输入")
 
-# 数据输入方式选择 - 修复版
+# 数据输入方式选择
 st.markdown("### **👉数据输入方式**")
 input_method = st.radio("", 
                        ["手动输入", "带编号数据输入", "文件上传", "示例数据"],
                        horizontal=True,
-                       index=0,  # 设置默认选中第一个选项
+                       index=0,
                        label_visibility="collapsed")
 
 # 手动输入：
