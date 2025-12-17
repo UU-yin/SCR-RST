@@ -2360,148 +2360,21 @@ def _fallback_method(data, scheme, error_message=""):
     }
 
 # =============================================
-# 统一结果显示组件 - 修改版本
+# 统一结果显示组件 - 修改版本：一行四列布局
 # =============================================
 
-def display_method_specific_info(results, method):
-    """显示各方法特有的统计信息 - 修改版本：确保第二行数据与第一行对齐"""
-    # 获取计算方案和小数位数
-    calculation_scheme = results.get('calculation_scheme', 'strict')
-    decimal_places = results.get('decimal_places', 0)
-    
-    if method == "迭代稳健统计法":
-        # 迭代法：只显示迭代次数和收敛状态，保持4列对齐
-        cols = st.columns(4)
-        
-        with cols[0]:
-            iterations = results.get('iterations', 0)
-            st.metric("迭代次数", f"{iterations}")
-        
-        with cols[1]:
-            converged = results.get('converged', False)
-            converged_text = "是" if converged else "否"
-            st.metric("收敛状态", converged_text)
-        
-        # 其余两列保持空白
-        with cols[2]:
-            st.metric("", "")
-        
-        with cols[3]:
-            st.metric("", "")
-    
-    elif method == "四分位稳健统计法":
-        # 四分位法：显示Q1、Q3、IQR、NIQR
-        cols = st.columns(4)
-        
-        metrics_data = []
-        if calculation_scheme == "presentation":
-            # 规范展示方案：按原始数据小数位数格式化
-            metrics_data.append(("下四分位数(Q1)", round(results['q1'], decimal_places), ""))
-            metrics_data.append(("上四分位数(Q3)", round(results['q3'], decimal_places), ""))
-            metrics_data.append(("四分位距(IQR)", round(results['iqr'], decimal_places), ""))
-            metrics_data.append(("标准化四分位距(NIQR)", round(results['niqr'], 3), ""))
-        else:
-            # 严格计算方案：显示6位小数
-            metrics_data.append(("下四分位数(Q1)", results['q1'], f"{results['q1']:.6f}"))
-            metrics_data.append(("上四分位数(Q3)", results['q3'], f"{results['q3']:.6f}"))
-            metrics_data.append(("四分位距(IQR)", results['iqr'], f"{results['iqr']:.6f}"))
-            metrics_data.append(("标准化四分位距(NIQR)", results['niqr'], f"{results['niqr']:.6f}"))
-        
-        # 在每一列中显示指标
-        for i, (title, value, display_value) in enumerate(metrics_data):
-            with cols[i]:
-                if calculation_scheme == "presentation":
-                    st.metric(title, f"{value}")
-                else:
-                    st.metric(title, f"{value:.6f}")
-    
-    elif method == "Q/Hampel法":
-        # Q/Hampel法：显示初始中位数、MAD值，其余列保持空白
-        cols = st.columns(4)
-        
-        metrics_data = []
-        if calculation_scheme == "presentation":
-            # 规范展示方案：按原始数据小数位数格式化
-            initial_median = results.get('initial_median', results['robust_mean'])
-            metrics_data.append(("初始中位数", round(initial_median, decimal_places), ""))
-            
-            mad = results.get('mad', 0)
-            metrics_data.append(("MAD值", round(mad, decimal_places), ""))
-            
-            # 添加两个空白列以保持对齐
-            metrics_data.append(("", "", ""))
-            metrics_data.append(("", "", ""))
-        else:
-            # 严格计算方案：显示6位小数
-            initial_median = results.get('initial_median', results['robust_mean'])
-            metrics_data.append(("初始中位数", initial_median, f"{initial_median:.6f}"))
-            
-            mad = results.get('mad', 0)
-            metrics_data.append(("MAD值", mad, f"{mad:.6f}"))
-            
-            # 添加两个空白列以保持对齐
-            metrics_data.append(("", "", ""))
-            metrics_data.append(("", "", ""))
-        
-        # 在每一列中显示指标
-        for i, (title, value, display_value) in enumerate(metrics_data):
-            with cols[i]:
-                if title:  # 只显示有标题的指标
-                    if calculation_scheme == "presentation":
-                        st.metric(title, f"{value}")
-                    else:
-                        st.metric(title, f"{value:.6f}")
-                else:
-                    # 空白列，保持对齐但不显示内容
-                    st.metric("", "")
-    
-    elif method == "Z比分计算模块":
-        # Z比分计算模块：显示稳健平均值、稳健标准差、稳健平均值、稳健标准差
-        # 这里与第一行重复，但保持结构完整性
-        cols = st.columns(4)
-        
-        # 前两列显示稳健平均值和标准差（与第一行相同）
-        with cols[0]:
-            robust_mean_val = results['robust_mean']
-            if calculation_scheme == "presentation":
-                formatted_mean = round(robust_mean_val, decimal_places)
-                if decimal_places == 0:
-                    display_value = f"{int(formatted_mean)}"
-                else:
-                    display_value = f"{formatted_mean}"
-                st.metric("稳健平均值", display_value)
-            else:
-                st.metric("稳健平均值", f"{robust_mean_val:.6f}")
-        
-        with cols[1]:
-            robust_std_val = results['robust_std']
-            if calculation_scheme == "presentation":
-                formatted_std = round(robust_std_val, 3)
-                st.metric("稳健标准差", f"{formatted_std}")
-            else:
-                st.metric("稳健标准差", f"{robust_std_val:.6f}")
-        
-        # 后两列留空
-        with cols[2]:
-            st.metric("", "")
-        
-        with cols[3]:
-            st.metric("", "")
-
 def display_core_results(results, method):
-    """显示核心结果 - 修改版本：按照您的需求调整显示内容"""
+    """显示核心结果 - 修改版本：一行四列布局，每个方法只显示4个核心指标"""
     st.subheader("📊 统计分析结果")
     
     # 根据计算方案格式化显示
     decimal_places = results.get('decimal_places', 0)
     calculation_scheme = results.get('calculation_scheme', 'strict')
     
-    # 第一行：主要统计量
-    st.markdown('<div class="stats-row-container">', unsafe_allow_html=True)
-    
-    # 创建4列容器，第一行只使用前两列
+    # 创建4列容器
     col1, col2, col3, col4 = st.columns(4)
     
+    # 所有方法都显示稳健平均值和稳健标准差
     with col1:
         if calculation_scheme == "presentation":
             # 规范展示方案：使用原始数据小数位数
@@ -2524,20 +2397,80 @@ def display_core_results(results, method):
             # 严格计算方案：显示6位小数
             st.metric("稳健标准差", f"{results['robust_std']:.6f}")
     
-    with col3:
-        # 第三列留空，保持布局对齐
-        st.metric("", "")
+    # 根据方法显示第三和第四列的指标
+    if method == "迭代稳健统计法":
+        with col3:
+            iterations = results.get('iterations', 0)
+            st.metric("迭代次数", f"{iterations}")
+        
+        with col4:
+            converged = results.get('converged', False)
+            converged_text = "是" if converged else "否"
+            st.metric("收敛状态", converged_text)
     
-    with col4:
-        # 第四列留空，保持布局对齐
-        st.metric("", "")
+    elif method == "四分位稳健统计法":
+        with col3:
+            if calculation_scheme == "presentation":
+                # 规范展示方案：按原始数据小数位数格式化
+                formatted_q1 = round(results['q1'], decimal_places)
+                if decimal_places == 0:
+                    display_value = f"{int(formatted_q1)}"
+                else:
+                    display_value = f"{formatted_q1}"
+                st.metric("下四分位数(Q1)", display_value)
+            else:
+                # 严格计算方案：显示6位小数
+                st.metric("下四分位数(Q1)", f"{results['q1']:.6f}")
+        
+        with col4:
+            if calculation_scheme == "presentation":
+                # 规范展示方案：按原始数据小数位数格式化
+                formatted_q3 = round(results['q3'], decimal_places)
+                if decimal_places == 0:
+                    display_value = f"{int(formatted_q3)}"
+                else:
+                    display_value = f"{formatted_q3}"
+                st.metric("上四分位数(Q3)", display_value)
+            else:
+                # 严格计算方案：显示6位小数
+                st.metric("上四分位数(Q3)", f"{results['q3']:.6f}")
     
-    st.markdown('</div>', unsafe_allow_html=True)
+    elif method == "Q/Hampel法":
+        with col3:
+            initial_median = results.get('initial_median', results['robust_mean'])
+            if calculation_scheme == "presentation":
+                # 规范展示方案：按原始数据小数位数格式化
+                formatted_initial_median = round(initial_median, decimal_places)
+                if decimal_places == 0:
+                    display_value = f"{int(formatted_initial_median)}"
+                else:
+                    display_value = f"{formatted_initial_median}"
+                st.metric("初始中位数", display_value)
+            else:
+                # 严格计算方案：显示6位小数
+                st.metric("初始中位数", f"{initial_median:.6f}")
+        
+        with col4:
+            mad = results.get('mad', 0)
+            if calculation_scheme == "presentation":
+                # 规范展示方案：按原始数据小数位数格式化
+                formatted_mad = round(mad, decimal_places)
+                if decimal_places == 0:
+                    display_value = f"{int(formatted_mad)}"
+                else:
+                    display_value = f"{formatted_mad}"
+                st.metric("MAD值", display_value)
+            else:
+                # 严格计算方案：显示6位小数
+                st.metric("MAD值", f"{mad:.6f}")
     
-    # 第二行：方法特定信息 - 确保与第一行对齐
-    st.markdown('<div class="aligned-row">', unsafe_allow_html=True)
-    display_method_specific_info(results, method)
-    st.markdown('</div>', unsafe_allow_html=True)
+    elif method == "Z比分计算模块":
+        # Z比分计算模块只需要显示稳健平均值和稳健标准差，后两列留空
+        with col3:
+            st.metric("", "")
+        
+        with col4:
+            st.metric("", "")
 
 def display_z_score_analysis(results):
     """统一显示Z比分分析"""
@@ -2570,12 +2503,12 @@ def display_z_score_analysis(results):
 def display_detailed_results(results, method, data, original_labels=None):
     """显示详细结果 - 可折叠"""
     with st.expander("📋 详细结果", expanded=False):
-        # 正常值范围（在详细结果中保留，但不在主表格显示）
+        # 正常值范围（在详细结果中保留）
         lower_limit = results.get('lower_limit', 0)
         upper_limit = results.get('upper_limit', 0)
         st.write(f"**正常值范围**: [{lower_limit:.6f}, {upper_limit:.6f}]")
         
-        # 离群值数量（在详细结果中保留，但不在主表格显示）
+        # 离群值数量（在详细结果中保留）
         outliers_count = len(results.get('outliers', []))
         st.write(f"**离群值数量**: {outliers_count} 个")
         
@@ -2622,12 +2555,6 @@ def display_detailed_results(results, method, data, original_labels=None):
         
         # 迭代法额外信息
         if method == "迭代稳健统计法":
-            iterations = results.get('iterations', 0)
-            converged = results.get('converged', False)
-            converged_text = "是" if converged else "否"
-            st.write(f"**迭代次数**: {iterations}")
-            st.write(f"**收敛状态**: {converged_text}")
-            
             # 从全局变量获取尺度因子
             if 'k_value' in globals():
                 st.write(f"**尺度因子(k)**: {k_value}")
