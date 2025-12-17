@@ -933,8 +933,7 @@ except:
 
 # 或者使用更简单的替代方案（如果上面的方法还是不行）：
 # st.image("统计宝-长图标.png", width=800)  # 设置固定宽度
-
-st.divider()  # 最简洁的内置分割线
+st.markdown("")
 
 # =============================================
 # 优化侧边栏布局
@@ -3080,7 +3079,7 @@ Z比分数分类（仅有效数据）:
             )
         
         # 图表下载功能
-        st.subheader("📥 下载图表")
+        st.subheader("💾 下载图表")
         chart_col1, chart_col2 = st.columns(2)
         
         with chart_col1:
