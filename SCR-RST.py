@@ -914,8 +914,7 @@ st.set_page_config(
 
 initialize_session_state()
 
-# 设置页面配置
-# 添加CSS，恢复原有设定并添加底部空白
+# 设置页面配置 - 为长条图标添加自定义CSS
 st.markdown("""
 <style>
 /* 为Streamlit Cloud顶部UI元素保留空间 */
@@ -930,80 +929,71 @@ st.markdown("""
     padding-bottom: 0 !important;
 }
 
-/* 主容器 - 单行显示 */
-.single-line-container {
+/* 长条图标容器 - 居中显示 */
+.long-icon-container {
     display: flex !important;
-    align-items: flex-start !important;
-    flex-wrap: nowrap !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 10px 0 !important; /* 添加少量内边距 */
-}
-
-/* 图标容器 */
-.icon-wrapper {
-    flex: 0 0 auto !important;
-    display: flex !important;
+    justify-content: center !important;
     align-items: center !important;
-    justify-content: flex-start !important;
-    margin-right: 30px !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    padding: 15px 0 !important;
+    background-color: transparent !important;
 }
 
-/* 文字容器 - 保持固定上边距 */
-.text-wrapper {
-    flex: 1 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    padding-top: 60px !important;
+/* 长条图标图片样式 */
+.long-icon-image {
+    max-width: 100% !important;
+    height: auto !important;
+    display: block !important;
+    margin: 0 auto !important;
 }
 
-/* 响应式图标大小调整 */
+/* 响应式调整 - 不同屏幕尺寸 */
 @media (max-width: 1200px) {
-    .single-line-container img {
-        width: 280px !important;
+    .long-icon-image {
+        max-width: 95% !important;
     }
 }
 
 @media (max-width: 992px) {
-    .single-line-container img {
-        width: 220px !important;
-    }
-    .text-wrapper {
-        padding-top: 35px !important;
+    .long-icon-image {
+        max-width: 90% !important;
     }
 }
 
 @media (max-width: 768px) {
-    .single-line-container img {
-        width: 180px !important;
+    .long-icon-container {
+        padding: 10px 0 !important;
     }
-    .text-wrapper {
-        padding-top: 30px !important;
+    .long-icon-image {
+        max-width: 85% !important;
     }
 }
 
 @media (max-width: 576px) {
-    .single-line-container img {
-        width: 150px !important;
+    .long-icon-container {
+        padding: 8px 0 !important;
     }
-    .text-wrapper {
-        padding-top: 25px !important;
+    .long-icon-image {
+        max-width: 80% !important;
     }
 }
 
 @media (max-width: 480px) {
-    .single-line-container img {
-        width: 120px !important;
+    .long-icon-container {
+        padding: 6px 0 !important;
     }
-    .text-wrapper {
-        padding-top: 20px !important;
+    .long-icon-image {
+        max-width: 75% !important;
     }
 }
 
-/* 强制在小屏幕上保持单行 */
-@media (max-width: 768px) {
-    .single-line-container {
-        flex-wrap: nowrap !important;
+@media (max-width: 360px) {
+    .long-icon-container {
+        padding: 5px 0 !important;
+    }
+    .long-icon-image {
+        max-width: 70% !important;
     }
 }
 
@@ -1019,75 +1009,57 @@ header[data-testid="stHeader"] {
     }
 }
 
-/* 统计分析结果 - 统一的2行4列布局 */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: auto auto;
-    gap: 10px;
-    margin-bottom: 20px;
+/* 统计结果对齐样式 */
+.stats-row-container {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+    margin-bottom: 10px !important;
 }
 
-.stats-metric {
-    background-color: #f8f9fa;
-    padding: 15px;
-    border-radius: 8px;
-    border: 1px solid #e9ecef;
+.stats-metric-container {
+    flex: 1 !important;
+    min-width: calc(25% - 10px) !important;
 }
 
-/* 为底部添加空白，确保用户反馈模块完整显示 */
-.main-footer {
-    margin-top: 50px;
-    padding: 20px 0;
-    background-color: #f8f9fa;
-    border-top: 1px solid #e9ecef;
+/* 为第二行数据添加对齐容器 */
+.aligned-row {
+    margin-top: 20px !important;
+    width: 100% !important;
 }
 
-/* 添加页面底部空白 */
-.page-bottom-padding {
-    height: 100px;
-    clear: both;
+/* 统计量表格样式 */
+.stat-table-container {
+    margin-top: 20px !important;
+    padding: 15px !important;
+    background-color: #f9fdff !important;
+    border-radius: 10px !important;
+    border: 1px solid #e0f2ff !important;
 }
 
-/* 确保统计量显示对齐 */
-.aligned-metrics {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 10px;
-}
-
-.aligned-metric-item {
-    flex: 1 0 calc(25% - 10px);
-    min-width: 200px;
+/* 删除"满意数据"列后调整列宽 */
+[data-testid="metric-container"] {
+    min-height: 100px !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# 加载软件图标
-icon = Image.open("stataid_cut edge.png")
+# 加载长条图标
+try:
+    long_icon = Image.open("统计宝-长图标.png")
 
-# 使用容器包裹
+# 使用容器包裹长条图标
 with st.container():
-    # 使用自定义CSS类 - 恢复原有设定
-    st.markdown('<div class="single-line-container">', unsafe_allow_html=True)
+    # 使用自定义CSS类显示长条图标
+    st.markdown('<div class="long-icon-container">', unsafe_allow_html=True)
     
-    # 创建两列
-    col1, col2 = st.columns([1, 4])
-    
-    with col1:
-        # 图标容器 - 使用负边距向左对齐
-        st.markdown('<div class="icon-wrapper" style="margin-left: -30px;">', unsafe_allow_html=True)
-        st.image(icon, width=360)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    with col2:
-        # 文字容器 - 恢复原有设定
-        st.markdown('<div class="text-wrapper">', unsafe_allow_html=True)
-        st.markdown("### **统计宝**")
-        st.markdown("提供多种稳健统计分析方法，用于处理包含异常值的数据集。")
-        # 删除杂乱的副标题列表，恢复简洁版本
-        st.markdown('</div>', unsafe_allow_html=True)
+    # 显示长条图标
+    st.image(
+        long_icon,
+        use_column_width=True,
+        output_format='PNG',
+        caption=''  # 不需要标题
+    )
     
     st.markdown('</div>', unsafe_allow_html=True)
 
