@@ -1044,12 +1044,19 @@ header[data-testid="stHeader"] {
 </style>
 """, unsafe_allow_html=True)
 
-# 加载长条图标
-try:
-    long_icon = Image.open("统计宝-长图标.png")
-except FileNotFoundError:
-    # 创建一个简单的占位符
-    long_icon = Image.new('RGB', (800, 150), color='#f0f8ff')
+# 加载长条图标的函数
+def load_long_icon():
+    """加载长条图标，如果不存在则创建占位符"""
+    try:
+        return Image.open("统计宝-长图标.png")
+    except FileNotFoundError:
+        # 如果文件不存在，使用一个占位符
+        st.warning("未找到'统计宝-长图标.png'文件，请确保该文件在正确的位置。")
+        # 创建一个简单的占位符
+        return Image.new('RGB', (800, 150), color='#f0f8ff')
+
+# 加载图标
+long_icon = load_long_icon()
 
 # 使用容器包裹长条图标
 with st.container():
@@ -1059,9 +1066,9 @@ with st.container():
     # 显示长条图标
     st.image(
         long_icon,
-        use_column_width=True,
+        use_container_width=True,  # 使用新的参数
         output_format='PNG',
-        caption=''  # 不需要标题
+        caption=''
     )
     
     st.markdown('</div>', unsafe_allow_html=True)
