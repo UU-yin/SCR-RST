@@ -1013,7 +1013,7 @@ if input_method == "手动输入":
     
     # 简化的输入界面
     manual_input = st.text_area(
-        "请输入数据（每行一个数值或用逗号分隔）:",
+        "请输入数据（每行一个数值或用英文逗号分隔）:",
         value=st.session_state.manual_data,
         height=150,
         key=f"manual_input_{st.session_state.reset_counter}",
@@ -1072,15 +1072,15 @@ elif input_method == "带编号数据输入":
     - 数值必须是有效的数字
     - 示例：
         ```
-        Sample_A, 54.4
-        Sample_B, 54.6
-        Control_1, 54.2
+        Sample_A, 827.6
+        Sample_B, 827.7
+        Sample_C, 827.4
         ```
     """)
     
     # 两列数据输入框
     two_column_input = st.text_area(
-        "请输入标签和数值数据（每行一个数据对，用逗号分隔）:",
+        "请输入标签和数值数据（每行一个数据对，用英文逗号分隔）:",
         value=st.session_state.two_column_data,
         height=200,
         key="two_column_input",
