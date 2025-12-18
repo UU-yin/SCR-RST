@@ -844,10 +844,6 @@ class FileProcessor:
         # 确定检测到的小数位数 - 使用最大小数位数
         decimal_info['detected_decimal_places'] = max_decimal_places
         
-        # 显示处理结果
-        if blank_count > 0:
-            st.warning(f"检测到 {blank_count} 个空白或无效数据，已自动过滤")
-        
         return np.array(clean_data), original_data, blank_count, decimal_info
 
 # =============================================
@@ -1372,15 +1368,20 @@ elif input_method == "文件上传":
             if clean_data is not None and len(clean_data) > 0:
                 processed_data = clean_data
                 
-                # 构建验证报告
+                # 构建验证报告 - 整合所有信息
                 validation_report = [
                     "✅ 文件格式验证通过",
                     f"✅ 成功从 '{sheet_name}' 提取数据",
                     f"📊 总数据点数: {len(original_data)}",
                     f"📈 有效数据数: {len(clean_data)}",
-                    f"⚠️ 空白数据数: {blank_count}" if blank_count > 0 else "✅ 未发现空白数据",
                     f"📏 检测到的小数位数: {decimal_info['detected_decimal_places']}位"
                 ]
+                
+                # 空白数据信息 - 只在有空白数据时添加
+                if blank_count > 0:
+                    validation_report.append(f"⚠️ 检测到 {blank_count} 个空白数据点，这些数据已被自动忽略")
+                else:
+                    validation_report.append("✅ 未发现空白数据")
                 
                 # 获取计算方案
                 calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
@@ -1411,25 +1412,22 @@ elif input_method == "文件上传":
                 st.session_state.decimal_info = decimal_info
                 st.session_state.data_loaded = True
                 
-                st.success(f"✅ 文件验证通过！成功加载 {len(processed_data)} 个有效数据点")
-                if blank_count > 0:
-                    st.warning(f"⚠️ 检测到 {blank_count} 个空白数据点，这些数据将被忽略")
+                # 只显示最终成功消息，不重复显示警告
+                st.success(f"✅ 文件处理完成！数据已准备好进行分析")
                 
-                # 显示小数位数保留规则说明
-                decimal_places = decimal_info.get('detected_decimal_places', 0)
-                max_decimal_places = decimal_info.get('max_decimal_places', 0)
-                consistent_decimals = decimal_info.get('consistent_decimals', True)
-                
-                with st.expander("📋 小数位数保留规则说明", expanded=False):
-                    st.info(f"""
-                    **小数位数处理规则：**
-                    1. 检测到数据最大小数位数: {max_decimal_places}位
-                    2. 数据小数位数一致性: {'一致' if consistent_decimals else '不一致'}
-                    3. 使用的小数位数: {decimal_places}位
-                    """)
-                
-                # 设置数据变量，以便后续分析
-                data = processed_data
+                # 在可折叠区域显示详细的验证报告
+                with st.expander("📋 查看详细验证报告", expanded=False):
+                    for message in validation_report:
+                        if message.startswith("✅"):
+                            st.success(message)
+                        elif message.startswith("⚠️"):
+                            st.warning(message)
+                        elif message.startswith("❌"):
+                            st.error(message)
+                        elif message.startswith("💡"):
+                            st.info(message)
+                        else:
+                            st.write(message)
                 
             else:
                 st.error("❌ 无法从文件中提取有效数据")
