@@ -3178,12 +3178,6 @@ if data is not None and len(data) > 0:
 计算方案: {scheme_text}
 数据小数位数: {detected_decimal_places}位（基于输入数据的最大小数位数）
 
-数据概览:
---------
-总数据点数: {total_data_count}
-实际可分析数据数: {actual_analyzable_count}
-空白数据数: {blank_data_count}
-
 数据表格:
 --------
 标签原始标号\t输入数据\tZ比分数\t分类结果
