@@ -1325,6 +1325,7 @@ elif input_method == "文件上传":
                 
                 all_sheets = sheet_names
                     
+                    
             elif file_format == 'csv':
                 df, sheet_name, all_sheets = FileProcessor.process_csv_file(uploaded_file)
                 # 对于CSV文件也可以添加列选择
