@@ -843,6 +843,28 @@ class FileProcessor:
         return np.array(clean_data), original_data, blank_count, decimal_info
 
 # =============================================
+# 数据预览辅助函数
+# =============================================
+
+def highlight_selected_column(df, selected_column):
+    """
+    高亮显示被选中的列
+    """
+    if selected_column not in df.columns:
+        return df
+    
+    # 创建一个样式函数来高亮指定的列
+    def highlight_col(x):
+        if x.name == selected_column:
+            return ['background-color: #e6f3ff; font-weight: bold;' for _ in x]
+        return [''] * len(x)
+    
+    # 应用样式
+    styled_df = df.style.apply(highlight_col, axis=0)
+    
+    return styled_df
+
+# =============================================
 # 初始化会话状态
 # =============================================
 
@@ -1281,6 +1303,7 @@ elif input_method == "文件上传":
             blank_count = 0
             
             # 根据文件格式调用相应的处理方法
+            # 根据文件格式调用相应的处理方法
             if file_format == 'excel':
                 # 处理Excel文件 - 让用户选择sheet和列
                 excel_file = pd.ExcelFile(uploaded_file)
@@ -1312,7 +1335,14 @@ elif input_method == "文件上传":
                     )
                 
                 # 4. 数据预览（在列选择后显示）
-                st.write(f"📋 **工作表 '{sheet_name}' - 列 '{selected_column}' 数据预览 (前10行):**")
+                st.write(f"📋 **工作表 '{sheet_name}' 数据预览 (前10行，高亮列为 '{selected_column}'):**")
+                
+                # 创建高亮样式的预览
+                styled_df = highlight_selected_column(df.head(10), selected_column)
+                st.dataframe(styled_df, use_container_width=True)
+                
+                # 显示选中的列数据
+                st.write(f"📊 **选中的列 '{selected_column}' 预览 (前10行):**")
                 st.dataframe(df[[selected_column]].head(10), use_container_width=True)
                 
                 # 5. 提取选中的列数据
@@ -1329,9 +1359,6 @@ elif input_method == "文件上传":
                 df, sheet_name, all_sheets = FileProcessor.process_csv_file(uploaded_file)
                 # 对于CSV文件也可以添加列选择
                 if df is not None and len(df.columns) > 1:
-                    st.write(f"📋 **数据预览 (前10行):**")
-                    st.dataframe(df.head(10), use_container_width=True)
-                    
                     # 创建一行布局，右侧选择列
                     col_info, col_select = st.columns([2, 1])
                     
@@ -1346,8 +1373,18 @@ elif input_method == "文件上传":
                             key=f"csv_column_selector_{uploaded_file.name}"
                         )
                     
+                    # 显示高亮预览
+                    st.write(f"📋 **数据预览 (前10行，高亮列为 '{selected_column}'):**")
+                    styled_df = highlight_selected_column(df.head(10), selected_column)
+                    st.dataframe(styled_df, use_container_width=True)
+                    
                     df = pd.DataFrame({selected_column: df[selected_column]})
                     sheet_name = f"{sheet_name} - {selected_column}"
+                elif df is not None and len(df.columns) == 1:
+                    # 只有一列，直接显示预览
+                    selected_column = df.columns[0]
+                    st.write(f"📋 **数据预览 (前10行):**")
+                    st.dataframe(df.head(10), use_container_width=True)
                 
                 if df is not None:
                     clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
@@ -1358,9 +1395,6 @@ elif input_method == "文件上传":
                 df, sheet_name, all_sheets = FileProcessor.process_json_file(uploaded_file)
                 # JSON文件数据处理
                 if df is not None and len(df.columns) > 1:
-                    st.write(f"📋 **数据预览 (前10行):**")
-                    st.dataframe(df.head(10), use_container_width=True)
-                    
                     # 创建一行布局，右侧选择列
                     col_info, col_select = st.columns([2, 1])
                     
@@ -1375,8 +1409,18 @@ elif input_method == "文件上传":
                             key=f"json_column_selector_{uploaded_file.name}"
                         )
                     
+                    # 显示高亮预览
+                    st.write(f"📋 **数据预览 (前10行，高亮列为 '{selected_column}'):**")
+                    styled_df = highlight_selected_column(df.head(10), selected_column)
+                    st.dataframe(styled_df, use_container_width=True)
+                    
                     df = pd.DataFrame({selected_column: df[selected_column]})
                     sheet_name = f"{sheet_name} - {selected_column}"
+                elif df is not None and len(df.columns) == 1:
+                    # 只有一列，直接显示预览
+                    selected_column = df.columns[0]
+                    st.write(f"📋 **数据预览 (前10行):**")
+                    st.dataframe(df.head(10), use_container_width=True)
                 
                 if df is not None:
                     clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
@@ -1385,6 +1429,26 @@ elif input_method == "文件上传":
             else:  # txt
                 df, sheet_name, all_sheets = FileProcessor.process_txt_file(uploaded_file)
                 if df is not None:
+                    if len(df.columns) > 1:
+                        selected_column = st.selectbox(
+                            "🔍 选择分析列",
+                            df.columns,
+                            help="请选择包含数值数据的列进行分析",
+                            key=f"txt_column_selector_{uploaded_file.name}"
+                        )
+                        
+                        # 显示高亮预览
+                        st.write(f"📋 **数据预览 (前10行，高亮列为 '{selected_column}'):**")
+                        styled_df = highlight_selected_column(df.head(10), selected_column)
+                        st.dataframe(styled_df, use_container_width=True)
+                        
+                        df = pd.DataFrame({selected_column: df[selected_column]})
+                        sheet_name = f"{sheet_name} - {selected_column}"
+                    else:
+                        # 只有一列，直接显示预览
+                        st.write(f"📋 **数据预览 (前10行):**")
+                        st.dataframe(df.head(10), use_container_width=True)
+                    
                     clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
                         df, sheet_name
                     )
