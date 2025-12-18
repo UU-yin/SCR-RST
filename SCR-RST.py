@@ -1541,13 +1541,167 @@ else:  # 示例数据
     
     st.code(example_data_string, language="text")
     
+    # =============================================
+    # 添加样本文件下载功能
+    # =============================================
+    st.markdown("---")
+    st.subheader("📁 下载样本文件")
+    
+    st.markdown("""
+    **支持的文件格式样本下载**：
+    
+    您可以下载以下格式的示例数据文件，了解程序支持的文件格式和结构：
+    """)
+
     example_data = np.array([827.6, 827.6, 827.6, 827.7, 827.7, 827.7, 827.6, 827.6, 827.6, 827.6, 827.6, 827.7,
     827.6, 827.6, 827.7, 827.6, 827.6, 827.7, 827.7, 827.7, 827.7, 827.7, 827.6, 827.6,
     827.6, 827.6, 827.7, 827.7, 827.7, 827.7, 827.6, 827.5, 827.5, 827.5, 827.8, 827.6,
     827.8, 827.9, 827.4, 827.4, 827.8, 827.4, 827.7, 827.5, 827.5, 827.6, 827.4, 828.1,
     827.4, 827.5, 827.6, 827.7, 827.6, 827.4, 827.6, 827.4, 827.2, 827.4, 826.1, 826.8,
     827.5, 827.4, 827.6, 827.1, 827.4, 827.7])
+
+       # 创建样本文件生成函数
+    def generate_sample_files():
+        """生成各种格式的样本文件"""
+        files = {}
+        
+        # 1. TXT格式 - 每行一个数值
+        txt_content = "\n".join([str(x) for x in example_data_list])
+        files['txt'] = txt_content.encode('utf-8')
+        
+        # 2. CSV格式 - 单列数据
+        import csv
+        csv_buffer = io.StringIO()
+        csv_writer = csv.writer(csv_buffer)
+        csv_writer.writerow(['冷凝点数据'])  # 标题行
+        for value in example_data_list:
+            csv_writer.writerow([value])
+        files['csv'] = csv_buffer.getvalue().encode('utf-8')
+        
+        # 3. CSV格式 - 多列数据（带样本编号）
+        csv_multi_buffer = io.StringIO()
+        csv_multi_writer = csv.writer(csv_multi_buffer)
+        csv_multi_writer.writerow(['样本编号', '冷凝点', '测试日期', '备注'])
+        for i, value in enumerate(example_data_list, 1):
+            sample_id = f"Sample_{i:03d}"
+            test_date = "2024-01-15"
+            remark = "常规测试" if i % 10 != 0 else "重复验证"
+            csv_multi_writer.writerow([sample_id, value, test_date, remark])
+        files['csv_multi'] = csv_multi_buffer.getvalue().encode('utf-8')
+        
+        # 4. JSON格式 - 数组形式
+        json_array = {
+            "dataset_name": "冷凝点测量数据",
+            "description": "示例冷凝点测试数据",
+            "unit": "℃",
+            "data": example_data_list
+        }
+        files['json'] = json.dumps(json_array, indent=2, ensure_ascii=False).encode('utf-8')
+        
+        # 5. JSON格式 - 对象数组
+        json_objects = {
+            "dataset_name": "冷凝点测试结果",
+            "description": "带样本信息的测试数据",
+            "unit": "℃",
+            "samples": []
+        }
+        for i, value in enumerate(example_data_list, 1):
+            json_objects["samples"].append({
+                "sample_id": f"S{i:03d}",
+                "condensation_point": value,
+                "batch": f"B{(i-1)//10 + 1:02d}",
+                "operator": f"OP{((i-1) % 3) + 1}"
+            })
+        files['json_objects'] = json.dumps(json_objects, indent=2, ensure_ascii=False).encode('utf-8')
+        
+        return files
     
+    # 生成样本文件
+    sample_files = generate_sample_files()
+    
+    # 创建下载按钮 - 一行两列布局
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**基础格式：**")
+        
+        # TXT格式下载
+        st.download_button(
+            label="📝 下载TXT样本",
+            data=sample_files['txt'],
+            file_name="示例数据_冷凝点.txt",
+            mime="text/plain",
+            help="每行一个数值的文本文件格式"
+        )
+        
+        # CSV格式下载（单列）
+        st.download_button(
+            label="📊 下载CSV样本（单列）",
+            data=sample_files['csv'],
+            file_name="示例数据_冷凝点.csv",
+            mime="text/csv",
+            help="单列数据的CSV文件格式"
+        )
+        
+        # JSON格式下载（数组）
+        st.download_button(
+            label="📄 下载JSON样本（数组）",
+            data=sample_files['json'],
+            file_name="示例数据_冷凝点.json",
+            mime="application/json",
+            help="数组形式的JSON文件格式"
+        )
+    
+    with col2:
+        st.markdown("**进阶格式：**")
+        
+        # CSV格式下载（多列）
+        st.download_button(
+            label="📊 下载CSV样本（多列）",
+            data=sample_files['csv_multi'],
+            file_name="示例数据_多列_冷凝点.csv",
+            mime="text/csv",
+            help="多列数据的CSV文件格式，包含样本信息"
+        )
+        
+        # JSON格式下载（对象数组）
+        st.download_button(
+            label="📄 下载JSON样本（对象数组）",
+            data=sample_files['json_objects'],
+            file_name="示例数据_对象数组_冷凝点.json",
+            mime="application/json",
+            help="对象数组形式的JSON文件格式，包含样本详细信息"
+        )
+        
+        # Excel格式下载
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            # 单列数据sheet
+            df_single = pd.DataFrame({'冷凝点数据': example_data_list})
+            df_single.to_excel(writer, sheet_name='单列数据', index=False)
+            
+            # 多列数据sheet
+            df_multi = pd.DataFrame({
+                '样本编号': [f"Sample_{i:03d}" for i in range(1, len(example_data_list)+1)],
+                '冷凝点': example_data_list,
+                '测试日期': ['2024-01-15'] * len(example_data_list),
+                '备注': ['常规测试' if i % 10 != 0 else '重复验证' for i in range(1, len(example_data_list)+1)]
+            })
+            df_multi.to_excel(writer, sheet_name='多列数据', index=False)
+        
+        excel_buffer.seek(0)
+        st.download_button(
+            label="📗 下载Excel样本",
+            data=excel_buffer,
+            file_name="示例数据_冷凝点.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            help="包含多个工作表的Excel文件格式"
+        )
+    
+    st.info("💡 **提示**：下载这些样本文件可以帮助您了解程序支持的文件格式和数据结构。")
+
+    example_data = np.array(example_data_list)
+
     # 验证示例数据
     calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
     is_valid, original_data, clean_data, blank_count, validation_report, decimal_info = \
