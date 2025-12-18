@@ -241,16 +241,11 @@ class DataValidator:
         # 7. 小数位数统计（修改部分）
         if decimal_info['decimal_places_count']:
             decimal_stats = ", ".join([f"{places}位({count}个)" for places, count in decimal_info['decimal_places_count'].items()])
-            validation_report.append(f"📊 数据小数位数分布: {decimal_stats}")
-            validation_report.append(f"📏 使用的小数位数: {decimal_info['detected_decimal_places']}位（基于最大小数位数）")
-            validation_report.append(f"🔍 小数位数一致性: {'是' if decimal_info['consistent_decimals'] else '否'}")
-            
-            # 添加关于小数位数选择的说明
+            validation_report.append(f"📊 小数位数: {decimal_stats} (最大{decimal_info['detected_decimal_places']}位)")
             if not decimal_info['consistent_decimals']:
-                validation_report.append("⚠️  检测到数据中小数位数不一致，将使用最大小数位数作为输出格式标准")
+                validation_report.append("⚠️ 注意: 数据中小数位数不一致")
         else:
             validation_report.append("📊 数据小数位数: 均为整数")
-            validation_report.append("📏 使用的小数位数: 0位（整数格式）")
         
         # 8. 异常值检测
         try:
@@ -928,6 +923,24 @@ def initialize_session_state():
         st.session_state.calculation_scheme = "严格计算方案"
 
 # =============================================
+# 小数位数信息显示函数
+# =============================================
+
+def display_decimal_info(decimal_info, title="📋 小数位数保留规则说明"):
+    """统一显示小数位数信息"""
+    decimal_places = decimal_info.get('detected_decimal_places', 0)
+    max_decimal_places = decimal_info.get('max_decimal_places', 0)
+    consistent_decimals = decimal_info.get('consistent_decimals', True)
+    
+    with st.expander(title, expanded=False):
+        st.info(f"""
+        **小数位数处理规则：**
+        1. 检测到数据最大小数位数: {max_decimal_places}位
+        2. 数据小数位数一致性: {'一致' if consistent_decimals else '不一致'}
+        3. 使用的小数位数: {decimal_places}位
+        """)
+
+# =============================================
 # 缺失的函数定义
 # =============================================
 
@@ -1192,19 +1205,8 @@ if input_method == "手动输入":
             undo_data()
     
     # 显示验证结果 - 修改：仅显示小数位数保留规则的介绍，默认为收起状态
-    if st.session_state.validation_passed:
-        # 获取小数位数信息
-        decimal_places = st.session_state.decimal_info.get('detected_decimal_places', 0)
-        max_decimal_places = st.session_state.decimal_info.get('max_decimal_places', 0)
-        consistent_decimals = st.session_state.decimal_info.get('consistent_decimals', True)
-        
-        with st.expander("📋 小数位数保留规则说明", expanded=False):
-            st.info(f"""
-            **小数位数处理规则：**
-            1. 检测到数据最大小数位数: {max_decimal_places}位
-            2. 数据小数位数一致性: {'一致' if consistent_decimals else '不一致'}
-            3. 使用的小数位数: {decimal_places}位
-            """)
+    if st.session_state.validation_passed and st.session_state.decimal_info:
+        display_decimal_info(st.session_state.decimal_info)
     
     # 如果已经处理了数据，则设置data变量
     if st.session_state.data_loaded and st.session_state.processed_data is not None:
@@ -1277,7 +1279,7 @@ elif input_method == "文件上传":
             original_data = []
             blank_count = 0
             
-            # 根据文件格式调用相应的处理方法
+            # 优化后的文件上传部分（Excel格式）
             if file_format == 'excel':
                 # 处理Excel文件 - 让用户选择sheet和列
                 excel_file = pd.ExcelFile(uploaded_file)
@@ -1285,7 +1287,7 @@ elif input_method == "文件上传":
                 
                 # 1. 让用户选择sheet
                 selected_sheet = st.selectbox(
-                    "📊 选择工作表 (Sheet)",
+                    "📋 选择工作表 (Sheet)",
                     sheet_names,
                     help="请选择要分析的工作表"
                 )
@@ -1294,21 +1296,21 @@ elif input_method == "文件上传":
                 # 2. 读取选中的sheet
                 df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
                 
-                # 3. 数据预览（在列选择前显示完整数据）
-                st.write(f"📋 **工作表 '{sheet_name}' 数据预览 (前10行):**")
-                st.dataframe(df.head(10), use_container_width=True)
+                # 3. 同时进行预览和列选择
+                col1, col2 = st.columns([3, 2])
                 
-                # 4. 让用户选择列
-                selected_column = st.selectbox(
-                    "🔍 选择要分析的数据列",
-                    df.columns,
-                    help="请选择包含数值数据的列进行分析"
-                )
+                with col1:
+                    st.write(f"**数据预览 (前5行):**")
+                    st.dataframe(df.head(5), use_container_width=True, height=200)
                 
-                # 5. 提取选中的列数据
-                selected_data = df[selected_column].dropna().astype(str).tolist()
+                with col2:
+                    selected_column = st.selectbox(
+                        "🔍 选择分析列",
+                        df.columns,
+                        help="请选择包含数值数据的列进行分析"
+                    )
                 
-                # 创建包含选中列的新DataFrame
+                # 4. 提取选中的列数据
                 df_selected = pd.DataFrame({selected_column: df[selected_column]})
                 
                 # 使用选中的列数据进行处理
@@ -1316,7 +1318,7 @@ elif input_method == "文件上传":
                     df_selected, f"{sheet_name} - {selected_column}"
                 )
                 
-                all_sheets = sheet_names
+                all_sheets = sheet_names            
                     
             elif file_format == 'csv':
                 df, sheet_name, all_sheets = FileProcessor.process_csv_file(uploaded_file)
@@ -1486,17 +1488,8 @@ else:  # 示例数据
         st.success("✅ 示例数据验证通过")
     
     # 显示小数位数保留规则说明
-    decimal_places = decimal_info.get('detected_decimal_places', 0)
-    max_decimal_places = decimal_info.get('max_decimal_places', 0)
-    consistent_decimals = decimal_info.get('consistent_decimals', True)
-    
-    with st.expander("📋 小数位数保留规则说明", expanded=False):
-        st.info(f"""
-        **小数位数处理规则：**
-        1. 检测到数据最大小数位数: {max_decimal_places}位
-        2. 数据小数位数一致性: {'一致' if consistent_decimals else '不一致'}
-        3. 使用的小数位数: {decimal_places}位
-        """)
+    if decimal_info:
+        display_decimal_info(decimal_info)
     
     # 设置数据变量，以便后续分析
     data = example_data
@@ -2854,7 +2847,6 @@ if data is not None and len(data) > 0:
             st.error("❌ 没有有效数据可供分析")
             st.stop()
         
-        st.markdown('<div class="spacer-large"></div>', unsafe_allow_html=True)
         st.subheader(f"📈 {method}分析结果")
         
         # 从会话状态获取计算方案
