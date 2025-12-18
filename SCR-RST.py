@@ -1553,6 +1553,47 @@ else:  # 示例数据
     ]
     
     # =============================================
+    # 原有的示例数据分析代码继续
+    # =============================================
+    example_data = np.array(example_data_list)
+    
+    # 验证示例数据
+    calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
+    is_valid, original_data, clean_data, blank_count, validation_report, decimal_info = \
+        DataValidator.comprehensive_validation(
+            example_data_string,
+            calculation_scheme
+        )
+    
+    # 确认使用示例数据
+    if st.button("使用示例数据进行分析", type="primary", use_container_width=True):
+        data = example_data
+        st.session_state.processed_data = example_data
+        st.session_state.original_data = example_data.tolist()
+        st.session_state.data_loaded = True
+        st.session_state.blank_count = 0
+        st.session_state.decimal_info = decimal_info
+        
+        st.success(f"✅ 示例数据已加载，包含 {len(example_data)} 个测量值")
+        st.rerun()
+    
+    if is_valid:
+        st.success("✅ 示例数据验证通过")
+    
+    # 显示小数位数保留规则说明
+    if decimal_info:
+        display_decimal_info(decimal_info)
+    
+    # 设置数据变量，以便后续分析
+    data = example_data
+    
+    # 为示例数据设置必要的会话状态变量，以便导出模块正常工作
+    st.session_state.original_data = example_data.tolist()  # 转换为列表格式
+    st.session_state.blank_count = 0  # 示例数据没有空白
+    # 保存小数位数信息
+    st.session_state.decimal_info = decimal_info
+
+    # =============================================
     # 添加样本文件下载功能
     # =============================================
     st.markdown("---")
@@ -1705,47 +1746,6 @@ else:  # 示例数据
         )
     
     st.info("💡 **提示**：下载这些样本文件可以帮助您了解程序支持的文件格式和数据结构。")
-
-    # =============================================
-    # 原有的示例数据分析代码继续
-    # =============================================
-    example_data = np.array(example_data_list)
-    
-    # 验证示例数据
-    calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
-    is_valid, original_data, clean_data, blank_count, validation_report, decimal_info = \
-        DataValidator.comprehensive_validation(
-            example_data_string,
-            calculation_scheme
-        )
-    
-    # 确认使用示例数据
-    if st.button("使用示例数据进行分析", type="primary", use_container_width=True):
-        data = example_data
-        st.session_state.processed_data = example_data
-        st.session_state.original_data = example_data.tolist()
-        st.session_state.data_loaded = True
-        st.session_state.blank_count = 0
-        st.session_state.decimal_info = decimal_info
-        
-        st.success(f"✅ 示例数据已加载，包含 {len(example_data)} 个测量值")
-        st.rerun()
-    
-    if is_valid:
-        st.success("✅ 示例数据验证通过")
-    
-    # 显示小数位数保留规则说明
-    if decimal_info:
-        display_decimal_info(decimal_info)
-    
-    # 设置数据变量，以便后续分析
-    data = example_data
-    
-    # 为示例数据设置必要的会话状态变量，以便导出模块正常工作
-    st.session_state.original_data = example_data.tolist()  # 转换为列表格式
-    st.session_state.blank_count = 0  # 示例数据没有空白
-    # 保存小数位数信息
-    st.session_state.decimal_info = decimal_info
 
 # =============================================
 # Z比分计算模块的数据输入（只在主界面显示）
