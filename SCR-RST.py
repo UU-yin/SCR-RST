@@ -1304,6 +1304,7 @@ elif input_method == "文件上传":
             
             # 根据文件格式调用相应的处理方法
             # 根据文件格式调用相应的处理方法
+            # 根据文件格式调用相应的处理方法
             if file_format == 'excel':
                 # 处理Excel文件 - 让用户选择sheet和列
                 excel_file = pd.ExcelFile(uploaded_file)
@@ -1334,16 +1335,12 @@ elif input_method == "文件上传":
                         key=f"column_selector_{uploaded_file.name}"
                     )
                 
-                # 4. 数据预览（在列选择后显示）
+                # 4. 数据预览（在列选择后显示） - 只显示一次高亮预览
                 st.write(f"📋 **工作表 '{sheet_name}' 数据预览 (前10行，高亮列为 '{selected_column}'):**")
                 
                 # 创建高亮样式的预览
                 styled_df = highlight_selected_column(df.head(10), selected_column)
                 st.dataframe(styled_df, use_container_width=True)
-                
-                # 显示选中的列数据
-                st.write(f"📊 **选中的列 '{selected_column}' 预览 (前10行):**")
-                st.dataframe(df[[selected_column]].head(10), use_container_width=True)
                 
                 # 5. 提取选中的列数据
                 df_selected = pd.DataFrame({selected_column: df[selected_column]})
@@ -1425,7 +1422,7 @@ elif input_method == "文件上传":
                 if df is not None:
                     clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
                         df, sheet_name
-                    )
+                    )         
             else:  # txt
                 df, sheet_name, all_sheets = FileProcessor.process_txt_file(uploaded_file)
                 if df is not None:
