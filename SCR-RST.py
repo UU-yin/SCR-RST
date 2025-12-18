@@ -447,41 +447,33 @@ class FileProcessor:
             return 'txt'
         else:
             # 通过内容检测
-            content = uploaded_file.read(1024)  # 读取前1024字节
-            uploaded_file.seek(0)  # 重置文件指针
+            content = uploaded_file.read(1024)
+            uploaded_file.seek(0)
             
             try:
-                # 尝试解析为JSON
                 content_str = content.decode('utf-8')
                 json.loads(content_str)
                 return 'json'
             except:
-                # 尝试解析为CSV
                 try:
                     content_str = content.decode('utf-8')
-                    # 使用更宽松的CSV解析，允许空白值
                     pd.read_csv(io.StringIO(content_str), na_filter=True, keep_default_na=True)
                     return 'csv'
                 except:
-                    return 'txt'  # 默认为文本文件
+                    return 'txt'
     
-    @staticmethod
     @staticmethod
     def process_excel_file_with_column_selection(uploaded_file, sheet_name=None, column_name=None):
         """处理Excel文件，支持sheet和列选择"""
         try:
-            # 读取Excel文件，获取所有sheet名
             excel_file = pd.ExcelFile(uploaded_file)
             all_sheets = excel_file.sheet_names
             
-            # 如果没有指定sheet，使用第一个sheet
             if sheet_name is None:
                 sheet_name = all_sheets[0]
             
-            # 读取指定的sheet
             df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
             
-            # 如果指定了列名，只提取该列
             if column_name is not None and column_name in df.columns:
                 df = pd.DataFrame({column_name: df[column_name]})
             
@@ -492,58 +484,177 @@ class FileProcessor:
             return None, None, None
     
     @staticmethod
-    def extract_data_from_dataframe(df, sheet_name):
-        """从DataFrame中提取数据"""
+    def process_csv_file(uploaded_file):
+        """处理CSV文件"""
         try:
-            if df is None or df.empty:
-                return None, [], 0, {'detected_decimal_places': 0, 'max_decimal_places': 0, 'consistent_decimals': True}
-            
-            # 提取所有数据（展平为一维列表）
-            data_2d = df.values.tolist()
-            
-            # 展平为二维列表（保持原有结构）
-            original_data = []
-            for row in data_2d:
-                if isinstance(row, list):
-                    original_data.extend(row)
-                else:
-                    original_data.append(row)
-            
-            # 转换为字符串并处理空白
-            clean_data = []
-            blank_count = 0
-            
-            for item in original_data:
-                # 跳过NaN和None
-                if pd.isna(item):
-                    blank_count += 1
-                    continue
-                
-                # 转换为字符串
-                item_str = str(item).strip()
-                
-                # 跳过空字符串
-                if item_str == '':
-                    blank_count += 1
-                    continue
-                
-                # 验证是否为数值
-                try:
-                    # 尝试转换为float
-                    float_val = float(item_str)
-                    clean_data.append(item_str)
-                except ValueError:
-                    # 如果不是数值，跳过
-                    continue
-            
-            # 分析小数位数
-            decimal_info = DataAnalyzer.analyze_decimal_places(clean_data)
-            
-            return clean_data, original_data, blank_count, decimal_info
-            
+            df = pd.read_csv(uploaded_file, na_filter=True)
+            return df, "CSV数据", ["CSV数据"]
         except Exception as e:
-            st.error(f"数据提取失败: {str(e)}")
-            return None, [], 0, {'detected_decimal_places': 0, 'max_decimal_places': 0, 'consistent_decimals': True}
+            st.error(f"CSV文件读取错误: {str(e)}")
+            return None, None, []
+    
+    @staticmethod
+    def process_json_file(uploaded_file):
+        """处理JSON文件"""
+        try:
+            content = uploaded_file.read().decode('utf-8')
+            data = json.loads(content)
+            
+            if isinstance(data, list):
+                df = pd.DataFrame(data)
+                return df, "JSON数组", ["JSON数组"]
+            elif isinstance(data, dict):
+                st.info("检测到JSON对象格式，请选择包含数值数据的字段")
+                available_keys = list(data.keys())
+                selected_key = st.selectbox(
+                    "选择数据字段:", 
+                    available_keys,
+                    key="json_field_selector"
+                )
+                
+                if selected_key:
+                    if isinstance(data[selected_key], list):
+                        df = pd.DataFrame(data[selected_key])
+                        return df, f"JSON字段: {selected_key}", available_keys
+                    elif isinstance(data[selected_key], dict):
+                        nested_keys = list(data[selected_key].keys())
+                        selected_nested_key = st.selectbox(
+                            "选择嵌套数据字段:", 
+                            nested_keys,
+                            key="json_nested_field_selector"
+                        )
+                        if isinstance(data[selected_key][selected_nested_key], list):
+                            df = pd.DataFrame(data[selected_key][selected_nested_key])
+                            return df, f"JSON字段: {selected_key}.{selected_nested_key}", available_keys
+                        else:
+                            st.error("选择的嵌套字段不包含有效的数值数组")
+                            return None, None, available_keys
+                    else:
+                        st.error("选择的字段不包含有效的数值数组")
+                        return None, None, available_keys
+                else:
+                    return None, None, available_keys
+            else:
+                st.error("JSON格式不支持，请提供数组或包含数组的对象")
+                return None, None, []
+                
+        except Exception as e:
+            st.error(f"JSON文件解析错误: {str(e)}")
+            return None, None, []
+    
+    @staticmethod
+    def process_txt_file(uploaded_file):
+        """处理文本文件"""
+        try:
+            content = uploaded_file.read().decode('utf-8')
+            separators = [',', '\t', ';', '|', ' ']
+            df = None
+            
+            for sep in separators:
+                try:
+                    df = pd.read_csv(io.StringIO(content), sep=sep, na_filter=True, engine='python')
+                    if len(df.columns) > 1:
+                        st.info(f"检测到文本文件使用分隔符: '{sep}'")
+                        break
+                except:
+                    continue
+            
+            if df is None:
+                try:
+                    df = pd.read_csv(io.StringIO(content), sep=',', na_filter=True)
+                except:
+                    lines = content.strip().split('\n')
+                    data = []
+                    for line in lines:
+                        numbers = re.findall(r"[-+]?\d*\.\d+|\d+", line)
+                        if numbers:
+                            data.extend([float(num) for num in numbers])
+                    df = pd.DataFrame(data, columns=['数据'])
+            
+            return df, "文本数据", ["文本数据"]
+        except Exception as e:
+            st.error(f"文本文件读取错误: {str(e)}")
+            return None, None, []
+    
+    @staticmethod
+    def extract_data_from_dataframe(df, sheet_name):
+        """
+        从DataFrame中提取数值数据 - 统一支持空白数据处理和多列选择
+        返回: (clean_data, original_data, blank_count, decimal_info)
+        """
+        original_data = []  # 包含空白值的原始数据
+        clean_data = []     # 清理后的有效数据
+        blank_count = 0     # 空白数据计数
+        decimal_info = {
+            'decimal_places_count': {},
+            'max_decimal_places': 0,
+            'consistent_decimals': True,
+            'detected_decimal_places': 0
+        }
+        max_decimal_places = 0
+        previous_decimal_places = None
+        
+        # 数据提取逻辑 - 支持多列选择
+        if len(df.columns) == 1:
+            # 如果只有一列，直接使用
+            data_column = df.iloc[:, 0]
+        else:
+            # 多列时让用户选择
+            st.write("检测到多列数据，请选择包含数值数据的列:")
+            selected_column = st.selectbox(
+                "选择数据列:", 
+                df.columns.tolist(),
+                format_func=lambda x: f"{x} (类型: {df[x].dtype}, 样例: {df[x].dropna().head(3).tolist()})",
+                key=f"column_selector_{hash(str(df.columns))}"
+            )
+            
+            if selected_column:
+                data_column = df[selected_column]
+                st.success(f"已选择列: {selected_column}")
+            else:
+                st.error("请选择数据列")
+                return None, [], 0, decimal_info
+        
+        # 处理每个数值
+        for value in data_column:
+            if FileProcessor._is_blank_value(value):
+                original_data.append(None)
+                blank_count += 1
+            else:
+                try:
+                    numeric_value = float(value)
+                    original_data.append(numeric_value)
+                    clean_data.append(numeric_value)
+                    
+                    # 分析小数位数
+                    str_value = str(numeric_value)
+                    if '.' in str_value:
+                        decimal_part = str_value.split('.')[1].rstrip('0')
+                        decimal_places = len(decimal_part)
+                    else:
+                        decimal_places = 0
+                    
+                    # 更新最大小数位数
+                    max_decimal_places = max(max_decimal_places, decimal_places)
+                    
+                    # 统计小数位数
+                    decimal_info['decimal_places_count'][decimal_places] = \
+                        decimal_info['decimal_places_count'].get(decimal_places, 0) + 1
+                    decimal_info['max_decimal_places'] = max_decimal_places
+                    
+                    # 检查小数位数一致性
+                    if previous_decimal_places is not None and previous_decimal_places != decimal_places:
+                        decimal_info['consistent_decimals'] = False
+                    previous_decimal_places = decimal_places
+                    
+                except (ValueError, TypeError):
+                    original_data.append(None)
+                    blank_count += 1
+        
+        # 确定检测到的小数位数
+        decimal_info['detected_decimal_places'] = max_decimal_places
+        
+        return np.array(clean_data), original_data, blank_count, decimal_info
     
     @staticmethod
     def process_csv_file(uploaded_file):
