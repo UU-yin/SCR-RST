@@ -1540,14 +1540,16 @@ else:  # 示例数据
 827.5, 827.4, 827.6, 827.1, 827.4, 827.7"""
     
     st.code(example_data_string, language="text")
-
-    # 准备示例数据
-    example_data_list = np.array([827.6, 827.6, 827.6, 827.7, 827.7, 827.7, 827.6, 827.6, 827.6, 827.6, 827.6, 827.7,
-    827.6, 827.6, 827.7, 827.6, 827.6, 827.7, 827.7, 827.7, 827.7, 827.7, 827.6, 827.6,
-    827.6, 827.6, 827.7, 827.7, 827.7, 827.7, 827.6, 827.5, 827.5, 827.5, 827.8, 827.6,
-    827.8, 827.9, 827.4, 827.4, 827.8, 827.4, 827.7, 827.5, 827.5, 827.6, 827.4, 828.1,
-    827.4, 827.5, 827.6, 827.7, 827.6, 827.4, 827.6, 827.4, 827.2, 827.4, 826.1, 826.8,
-    827.5, 827.4, 827.6, 827.1, 827.4, 827.7])
+    
+    # 准备示例数据 - 确保是Python原生类型
+    example_data_list = [
+        827.6, 827.6, 827.6, 827.7, 827.7, 827.7, 827.6, 827.6, 827.6, 827.6, 827.6, 827.7,
+        827.6, 827.6, 827.7, 827.6, 827.6, 827.7, 827.7, 827.7, 827.7, 827.7, 827.6, 827.6,
+        827.6, 827.6, 827.7, 827.7, 827.7, 827.7, 827.6, 827.5, 827.5, 827.5, 827.8, 827.6,
+        827.8, 827.9, 827.4, 827.4, 827.8, 827.4, 827.7, 827.5, 827.5, 827.6, 827.4, 828.1,
+        827.4, 827.5, 827.6, 827.7, 827.6, 827.4, 827.6, 827.4, 827.2, 827.4, 826.1, 826.8,
+        827.5, 827.4, 827.6, 827.1, 827.4, 827.7
+    ]
     
     # =============================================
     # 添加样本文件下载功能
@@ -1560,22 +1562,24 @@ else:  # 示例数据
     
     您可以下载以下格式的示例数据文件，了解程序支持的文件格式和结构：
     """)
-
+    
     # 创建样本文件生成函数
-    def generate_sample_files():
+    def generate_sample_files(data_list):
         """生成各种格式的样本文件"""
         files = {}
         
+        # 确保数据是Python原生类型，不是numpy类型
+        native_data_list = [float(x) for x in data_list]
+        
         # 1. TXT格式 - 每行一个数值
-        txt_content = "\n".join([str(x) for x in example_data_list])
+        txt_content = "\n".join([str(x) for x in native_data_list])
         files['txt'] = txt_content.encode('utf-8')
         
         # 2. CSV格式 - 单列数据
-        import csv
         csv_buffer = io.StringIO()
         csv_writer = csv.writer(csv_buffer)
         csv_writer.writerow(['冷凝点数据'])  # 标题行
-        for value in example_data_list:
+        for value in native_data_list:
             csv_writer.writerow([value])
         files['csv'] = csv_buffer.getvalue().encode('utf-8')
         
@@ -1583,7 +1587,7 @@ else:  # 示例数据
         csv_multi_buffer = io.StringIO()
         csv_multi_writer = csv.writer(csv_multi_buffer)
         csv_multi_writer.writerow(['样本编号', '冷凝点', '测试日期', '备注'])
-        for i, value in enumerate(example_data_list, 1):
+        for i, value in enumerate(native_data_list, 1):
             sample_id = f"Sample_{i:03d}"
             test_date = "2024-01-15"
             remark = "常规测试" if i % 10 != 0 else "重复验证"
@@ -1595,7 +1599,7 @@ else:  # 示例数据
             "dataset_name": "冷凝点测量数据",
             "description": "示例冷凝点测试数据",
             "unit": "℃",
-            "data": example_data_list
+            "data": native_data_list
         }
         files['json'] = json.dumps(json_array, indent=2, ensure_ascii=False).encode('utf-8')
         
@@ -1606,10 +1610,10 @@ else:  # 示例数据
             "unit": "℃",
             "samples": []
         }
-        for i, value in enumerate(example_data_list, 1):
+        for i, value in enumerate(native_data_list, 1):
             json_objects["samples"].append({
                 "sample_id": f"S{i:03d}",
-                "condensation_point": value,
+                "condensation_point": float(value),  # 确保是Python float
                 "batch": f"B{(i-1)//10 + 1:02d}",
                 "operator": f"OP{((i-1) % 3) + 1}"
             })
@@ -1618,7 +1622,7 @@ else:  # 示例数据
         return files
     
     # 生成样本文件
-    sample_files = generate_sample_files()
+    sample_files = generate_sample_files(example_data_list)
     
     # 创建下载按钮 - 一行两列布局
     col1, col2 = st.columns(2)
@@ -1701,8 +1705,11 @@ else:  # 示例数据
     
     st.info("💡 **提示**：下载这些样本文件可以帮助您了解程序支持的文件格式和数据结构。")
 
+    # =============================================
+    # 原有的示例数据分析代码继续
+    # =============================================
     example_data = np.array(example_data_list)
-
+    
     # 验证示例数据
     calculation_scheme = st.session_state.get('calculation_scheme', '严格计算方案')
     is_valid, original_data, clean_data, blank_count, validation_report, decimal_info = \
@@ -1712,7 +1719,7 @@ else:  # 示例数据
         )
     
     # 确认使用示例数据
-    if st.button("使用示例数据进行分析", type="primary"):
+    if st.button("使用示例数据进行分析", type="primary", use_container_width=True):
         data = example_data
         st.session_state.processed_data = example_data
         st.session_state.original_data = example_data.tolist()
