@@ -1325,7 +1325,6 @@ elif input_method == "文件上传":
                 
                 all_sheets = sheet_names
                     
-                    
             elif file_format == 'csv':
                 df, sheet_name, all_sheets = FileProcessor.process_csv_file(uploaded_file)
                 # 对于CSV文件也可以添加列选择
@@ -1376,52 +1375,6 @@ elif input_method == "文件上传":
                             key=f"json_column_selector_{uploaded_file.name}"
                         )
                     
-                    df = pd.DataFrame({selected_column: df[selected_column]})
-                    sheet_name = f"{sheet_name} - {selected_column}"
-                
-                if df is not None:
-                    clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
-                        df, sheet_name
-                    )
-            else:  # txt
-                df, sheet_name, all_sheets = FileProcessor.process_txt_file(uploaded_file)
-                if df is not None:
-                    clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
-                        df, sheet_name
-                    )        
-                    
-            elif file_format == 'csv':
-                df, sheet_name, all_sheets = FileProcessor.process_csv_file(uploaded_file)
-                # 对于CSV文件也可以添加列选择
-                if df is not None and len(df.columns) > 1:
-                    st.write(f"📋 **数据预览 (前10行):**")
-                    st.dataframe(df.head(10), use_container_width=True)
-                    
-                    selected_column = st.selectbox(
-                        "🔍 选择要分析的数据列",
-                        df.columns,
-                        help="请选择包含数值数据的列进行分析"
-                    )
-                    df = pd.DataFrame({selected_column: df[selected_column]})
-                    sheet_name = f"{sheet_name} - {selected_column}"
-                
-                if df is not None:
-                    clean_data, original_data, blank_count, decimal_info = FileProcessor.extract_data_from_dataframe(
-                        df, sheet_name
-                    )
-                
-            elif file_format == 'json':
-                df, sheet_name, all_sheets = FileProcessor.process_json_file(uploaded_file)
-                # JSON文件数据处理
-                if df is not None and len(df.columns) > 1:
-                    st.write(f"📋 **数据预览 (前10行):**")
-                    st.dataframe(df.head(10), use_container_width=True)
-                    
-                    selected_column = st.selectbox(
-                        "🔍 选择要分析的数据列",
-                        df.columns,
-                        help="请选择包含数值数据的列进行分析"
-                    )
                     df = pd.DataFrame({selected_column: df[selected_column]})
                     sheet_name = f"{sheet_name} - {selected_column}"
                 
